@@ -3,8 +3,23 @@
 //
 
 #include "controller.h"
+#include "quill/LogMacros.h"
+#include "quill/Frontend.h"
+#include "quill/sinks/ConsoleSink.h"
 
 namespace controller {
+
+    Controller::Controller() {
+        current_state_ = State::kIdle;
+        logger_ = quill::Frontend::create_or_get_logger("root",
+                 quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
+    }
+
+    Controller::~Controller() {
+        LOG_INFO(logger_, "Destructing controller");
+    }
+
+
     bool Controller::Init() {
         current_state_ = State::kIdle;
 
@@ -18,6 +33,7 @@ namespace controller {
 
     // Handle user commands
     bool Controller::HandleCommand(const Transitions command) {
+        LOG_INFO(logger_, " \n Sending command: ");
         if (command == Transitions::kConfigure && current_state_ == State::kIdle) {
             current_state_ = State::kConfigured;
             return current_state_ == State::kConfigured;

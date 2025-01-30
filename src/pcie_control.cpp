@@ -3,6 +3,9 @@
 //
 
 #include "pcie_control.h"
+#include "quill/LogMacros.h"
+#include "quill/Frontend.h"
+#include "quill/sinks/ConsoleSink.h"
 
 #include <iostream>
 #include <ostream>
@@ -14,10 +17,15 @@ namespace pcie_ctrl {
         device_id_1_ = 5;
         std::cout << "Set Device IDs to 0" << std::endl;
         pcie_interface = new pcie_int::PCIeInterface;
+
+        logger_ = quill::Frontend::create_or_get_logger("root",
+         quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
+        LOG_INFO(logger_, "Destructing controller");
     }
 
     PCIeControl::~PCIeControl() {
-        std::cout << "Setting Device IDs to 0" << std::endl;
+        // std::cout << "Setting Device IDs to 0" << std::endl;
+        LOG_INFO(logger_, "Setting Device IDs to 0");
         device_id_0_ = 0;
         device_id_1_ = 0;
         delete pcie_interface;

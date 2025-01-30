@@ -1,5 +1,10 @@
 #include <iostream>
 #include "src/controller.h"
+#include "quill/Backend.h"
+#include "quill/Frontend.h"
+#include "quill/LogMacros.h"
+#include "quill/Logger.h"
+#include "quill/sinks/ConsoleSink.h"
 
 
 // Gets user input safely.
@@ -32,6 +37,9 @@ void PrintState(const std::string& state) {
 
 // Runs the command-line interface for the state machine.
 void Run(controller::Controller& ctrl) {
+    quill::Logger* logger = quill::Frontend::create_or_get_logger(
+    "root", quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
+
     while (true) {
         PrintState(ctrl.GetStateName());
         int input = GetUserInput();
@@ -44,13 +52,23 @@ void Run(controller::Controller& ctrl) {
         auto new_state = static_cast<controller::Transitions>(input);
         if (ctrl.HandleCommand(new_state)) {
             std::cout << "State changed to: " << ctrl.GetStateName() << "\n";
+            LOG_INFO(logger, "State changed to {}!", std::string_view{ctrl.GetStateName()});
         } else {
-            std::cout << "Invalid state transition!\n";
+            LOG_INFO(logger, "Invalid state transition!");
         }
     }
 }
 
 int main() {
+
+    // TODO
+    // 100us uses very little CPU when not actively logging, better than the default 0.5us
+    // Check if there are any log messages dropped but this is unlikely as each
+    // frontend buffers up to 2^16 messages which should be more than enough unless
+    // the logging system is being abused.
+    quill::BackendOptions backend_options;
+    backend_options.sleep_duration = std::chrono::nanoseconds{100000}; //100us
+    quill::Backend::start(backend_options);
 
     controller::Controller controller;
     controller.Init();

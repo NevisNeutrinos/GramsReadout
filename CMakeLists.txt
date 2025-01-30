@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.30)
 project(GramsReadout)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 # Set the expected WinDriver installation and make sure it exists
 # The WinDriver _must_ exist to communicate with the hardware, hence
@@ -14,6 +14,7 @@ else ()
     message(FATAL_ERROR "WinDriver installation directory does not exist: ${WINDRIVER_ROOT}")
 endif ()
 
+add_subdirectory(quill)
 add_subdirectory(lib/pcie_driver)
 include_directories(lib/pcie_driver)
 
@@ -25,4 +26,6 @@ add_executable(GramsReadout main.cpp
         src/configure_hardware.cpp
         src/configure_hardware.h)
 
-target_link_libraries(GramsReadout PRIVATE gramsreadout_lib)
+target_link_libraries(GramsReadout PRIVATE
+        quill::quill
+        gramsreadout_lib)

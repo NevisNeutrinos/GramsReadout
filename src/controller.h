@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <string>
+#include "quill/Logger.h"
 
 namespace controller {
 
@@ -45,8 +46,8 @@ namespace controller {
 
     public:
 
-        Controller() : current_state_(State::kIdle) {};
-        // ~Controller();
+        Controller();
+        ~Controller();
 
         // Initialize class
         bool Init();
@@ -59,7 +60,8 @@ namespace controller {
 
     private: // data members
 
-    State current_state_;
+        quill::Logger* logger_;
+        State current_state_;
 
 
     };

@@ -6,6 +6,7 @@
 #define PCIECONTROL_H
 
 #include "pcie_interface.h"
+#include "quill/Logger.h"
 
 namespace pcie_ctrl {
 
@@ -23,6 +24,8 @@ class PCIeControl {
     bool Initialize();
 
 private:
+
+    quill::Logger* logger_;
 
     pcie_int::PCIeInterface *pcie_interface;
 
