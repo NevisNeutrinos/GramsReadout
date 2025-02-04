@@ -29,3 +29,23 @@ add_executable(GramsReadout main.cpp
 target_link_libraries(GramsReadout PRIVATE
         quill::quill
         gramsreadout_lib)
+
+####################
+# TCP/IP Server
+####################
+
+# ASIO should be in the home directory and named asio-xx.yy.zz with xyz the version
+set(ASIO_INCLUDE_DIR "$ENV{HOME}/asio*/include")
+
+add_executable(GramsReadoutServer server.cpp
+        src/networking/tcp_server.cpp
+        src/networking/tcp_server.h)
+
+target_compile_definitions(GramsReadoutServer PRIVATE ASIO_STANDALONE)
+target_include_directories(GramsReadoutServer PRIVATE ${ASIO_INCLUDE_DIR})
+target_link_libraries(GramsReadoutServer PRIVATE pthread)
+
+add_executable(GramsReadoutClient tests/tcp_client.cpp)
+target_compile_definitions(GramsReadoutClient PRIVATE ASIO_STANDALONE)
+target_include_directories(GramsReadoutClient PRIVATE ${ASIO_INCLUDE_DIR})
+target_link_libraries(GramsReadoutClient PRIVATE pthread)

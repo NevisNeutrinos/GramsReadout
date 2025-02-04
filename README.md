@@ -9,7 +9,7 @@ WinDriver 16.03 and has not been tested with older API versions.
 
 To clone the repository,
 ```
-git clone 
+git clone https://github.com/NevisNeutrinos/GramsReadout.git
 ```
 
 and include the required logging repository with
