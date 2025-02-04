@@ -115,7 +115,7 @@ namespace pcie_int {
                 std::cerr << "Failed locking a send Contiguous DMA buffer. Error "
                 <<  dwStatus << " = " << std::string(Stat2Str(dwStatus)) << std::endl;
             }
-            //buf_send = pbuf_send; //FIXME (should NOT be commented out)
+            buf_send = (uint32_t *)pbuf_send; //FIXME c++ style cast
         }
 
         if (mode == 1)
@@ -260,7 +260,7 @@ namespace pcie_int {
                 std::cerr << "Failed locking a receive Contiguous DMA buffer. Error "
                 <<  dwStatus << " = " << std::string(Stat2Str(dwStatus)) << std::endl;
             }
-            //buf_rec = pbuf_rec; //FIXME (should NOT be commented out)
+            buf_rec = (uint32_t *)pbuf_rec; //FIXME c++ style cast
         }
         iprint = 0;
         //    printf(" istart = %d\n", istart);
