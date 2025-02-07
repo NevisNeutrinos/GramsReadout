@@ -1,3 +1,6 @@
 [submodule "quill"]
 	path = quill
 	url = https://github.com/odygrd/quill.git
+[submodule "networking"]
+	path = networking
+	url = https://github.com/NevisNeutrinos/networking.git
