@@ -308,7 +308,7 @@ DWORD GRAMSREADOUT_IntDisable(WDC_DEVICE_HANDLE hDev)
 {
     DWORD dwStatus;
     PWDC_DEVICE pDev = (PWDC_DEVICE)hDev;
-    PGRAMSREADOUT_DEV_CTX pDevCtx;
+    // PGRAMSREADOUT_DEV_CTX pDevCtx;
 
     TraceLog("GRAMSREADOUT_IntDisable entered. Device handle 0x%p\n", hDev);
 
@@ -316,7 +316,7 @@ DWORD GRAMSREADOUT_IntDisable(WDC_DEVICE_HANDLE hDev)
     if (!IsValidDevice(pDev, "GRAMSREADOUT_IntDisable"))
         return WD_INVALID_PARAMETER;
 
-    pDevCtx = (PGRAMSREADOUT_DEV_CTX)(pDev->pCtx);
+    // pDevCtx = (PGRAMSREADOUT_DEV_CTX)(pDev->pCtx);
 
     /* Check whether interrupts are already enabled */
     if (!WDC_IntIsEnabled(hDev))

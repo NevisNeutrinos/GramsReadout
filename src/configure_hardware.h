@@ -7,13 +7,16 @@
 
 #include <vector>
 #include <string>
+#include <unistd.h>
+#include "../lib/pcie_driver/pcie_interface.h"
+#include "pcie_control.h"
 
 namespace hw_config {
 
 class ConfigureHardware {
 public:
-    ConfigureHardware() = default;
-    ~ConfigureHardware() = default;
+    ConfigureHardware(pcie_int::PCIeInterface *pcie_interface);
+    ~ConfigureHardware();
 
     // FIXME placeholder for config object
     typedef std::vector<std::string> Config;
@@ -24,6 +27,7 @@ public:
 
 protected:
 
+    bool XMITLoadFPGA(Config& config);
     bool XMITConfigure(Config& config);
     bool XMITReset();
     bool XMITStatus(Status& status);
@@ -42,6 +46,21 @@ protected:
 
 private:
 
+    pcie_int::PCIeInterface *pcie_interface_;
+    static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
+    static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
+
+    static constexpr std::size_t ARR_SIZE = 40000;
+    // uint32_t buffer_send_[ARR_SIZE];
+    // static uint32_t send_array_[ARR_SIZE];
+    // static uint32_t read_array_[ARR_SIZE];
+    std::unique_ptr<uint32_t[]> buffer_send_;
+    std::unique_ptr<uint32_t[]> send_array_;
+    std::unique_ptr<uint32_t[]> read_array_;
+    uint32_t *p_send_;
+    uint32_t *p_recv_;
+    // unsigned char char_array_[4000];
+    std::unique_ptr<unsigned char[]> char_array_;
 
     // Define hardware magic numbers
     // TODO add short description
@@ -158,6 +177,116 @@ private:
     const uint32_t mb_feb_read_probe = 30;
     const uint32_t mb_feb_dram_reset = 31;
     const uint32_t dma_buffer_size = 10000000;
+    const uint32_t mb_feb_adc_reset = 33;
+    const uint32_t mb_a_buf_status = 34;
+    const uint32_t mb_b_buf_status = 35;
+    const uint32_t mb_a_ham_status = 36;
+    const uint32_t mb_b_ham_status = 37;
+    const uint32_t mb_feb_a_maxwords = 40;
+    const uint32_t mb_feb_b_maxwords = 41;
+    const uint32_t mb_feb_hold_enable = 42;
+    const uint32_t mb_pmt_adc_reset = 1;
+    const uint32_t mb_pmt_spi_add = 2;
+    const uint32_t mb_pmt_adc_data_load = 3;
+    const uint32_t mb_xmit_conf_add = 0x2;
+    const uint32_t mb_xmit_pass_add = 0x3;
+    const uint32_t mb_xmit_modcount = 0x1;
+    const uint32_t mb_xmit_enable_1 = 0x2;
+    const uint32_t mb_xmit_enable_2 = 0x3;
+    const uint32_t mb_xmit_test1 = 0x4;
+    const uint32_t mb_xmit_test2 = 0x5;
+    const uint32_t mb_xmit_testdata = 10;
+    const uint32_t mb_xmit_rdstatus = 20;
+    const uint32_t mb_xmit_rdcounters = 21;
+    const uint32_t mb_xmit_link_reset = 22;
+    const uint32_t mb_opt_dig_reset = 23;
+    const uint32_t mb_xmit_dpa_fifo_reset = 24;
+    const uint32_t mb_xmit_dpa_word_align = 25;
+    const uint32_t mb_xmit_link_pll_reset = 26;
+    const uint32_t mb_trig_run = 1;
+    const uint32_t mb_trig_frame_size = 2;
+    const uint32_t mb_trig_deadtime_size = 3;
+    const uint32_t mb_trig_active_size = 4;
+    const uint32_t mb_trig_delay1_size = 5;
+    const uint32_t mb_trig_delay2_size = 6;
+    const uint32_t mb_trig_calib_delay = 8;
+    const uint32_t mb_trig_prescale0 = 10;
+    const uint32_t mb_trig_prescale1 = 11;
+    const uint32_t mb_trig_prescale2 = 12;
+    const uint32_t mb_trig_prescale3 = 13;
+    const uint32_t mb_trig_prescale4 = 14;
+    const uint32_t mb_trig_prescale5 = 15;
+    const uint32_t mb_trig_prescale6 = 16;
+    const uint32_t mb_trig_prescale7 = 17;
+    const uint32_t mb_trig_prescale8 = 18;
+    const uint32_t mb_trig_mask0 = 20;
+    const uint32_t mb_trig_mask1 = 21;
+    const uint32_t mb_trig_mask2 = 22;
+    const uint32_t mb_trig_mask3 = 23;
+    const uint32_t mb_trig_mask4 = 24;
+    const uint32_t mb_trig_mask5 = 25;
+    const uint32_t mb_trig_mask6 = 26;
+    const uint32_t mb_trig_mask7 = 27;
+    const uint32_t mb_trig_mask8 = 28;
+    const uint32_t mb_trig_rd_param = 30;
+    const uint32_t mb_trig_pctrig = 31;
+    const uint32_t mb_trig_rd_status = 32;
+    const uint32_t mb_trig_reset = 33;
+    const uint32_t mb_trig_calib = 34;
+    const uint32_t mb_trig_rd_gps = 35;
+    const uint32_t mb_trig_sel1 = 40;
+    const uint32_t mb_trig_sel2 = 41;
+    const uint32_t mb_trig_sel3 = 42;
+    const uint32_t mb_trig_sel4 = 43;
+    const uint32_t mb_trig_p1_delay = 50;
+    const uint32_t mb_trig_p1_width = 51;
+    const uint32_t mb_trig_p2_delay = 52;
+    const uint32_t mb_trig_p2_width = 53;
+    const uint32_t mb_trig_p3_delay = 54;
+    const uint32_t mb_trig_p3_width = 55;
+    const uint32_t mb_trig_pulse_delay = 58;
+    const uint32_t mb_trig_pulse1 = 60;
+    const uint32_t mb_trig_pulse2 = 61;
+    const uint32_t mb_trig_pulse3 = 62;
+    const uint32_t mb_shaper_pulsetime = 1;
+    const uint32_t mb_shaper_dac = 2;
+    const uint32_t mb_shaper_pattern = 3;
+    const uint32_t mb_shaper_write = 4;
+    const uint32_t mb_shaper_pulse = 5;
+    const uint32_t mb_shaper_entrig = 6;
+    const uint32_t mb_feb_pmt_gate_size = 47;
+    const uint32_t mb_feb_pmt_beam_delay = 48;
+    const uint32_t mb_feb_pmt_beam_size = 49;
+    const uint32_t mb_feb_pmt_ch_set = 50;
+    const uint32_t mb_feb_pmt_delay0 = 51;
+    const uint32_t mb_feb_pmt_delay1 = 52;
+    const uint32_t mb_feb_pmt_precount = 53;
+    const uint32_t mb_feb_pmt_thresh0 = 54;
+    const uint32_t mb_feb_pmt_thresh1 = 55;
+    const uint32_t mb_feb_pmt_thresh2 = 56;
+    const uint32_t mb_feb_pmt_thresh3 = 57;
+    const uint32_t mb_feb_pmt_width = 58;
+    const uint32_t mb_feb_pmt_deadtime = 59;
+    const uint32_t mb_feb_pmt_window = 60;
+    const uint32_t mb_feb_pmt_words = 61;
+    const uint32_t mb_feb_pmt_cos_mul = 62;
+    const uint32_t mb_feb_pmt_cos_thres = 63;
+    const uint32_t mb_feb_pmt_mich_mul = 64;
+    const uint32_t mb_feb_pmt_mich_thres = 65;
+    const uint32_t mb_feb_pmt_beam_mul = 66;
+    const uint32_t mb_feb_pmt_beam_thres = 67;
+    const uint32_t mb_feb_pmt_en_top = 68;
+    const uint32_t mb_feb_pmt_en_upper = 69;
+    const uint32_t mb_feb_pmt_en_lower = 70;
+    const uint32_t mb_feb_pmt_blocksize = 71;
+    const uint32_t mb_feb_pmt_test = 80;
+    const uint32_t mb_feb_pmt_clear = 81;
+    const uint32_t mb_feb_pmt_test_data = 82;
+    const uint32_t mb_feb_pmt_pulse = 83;
+    const uint32_t mb_feb_pmt_rxreset = 84;
+    const uint32_t mb_feb_pmt_align_pulse = 85;
+    const uint32_t mb_feb_pmt_rd_counters = 86;
+
 
 };
 
