@@ -37,7 +37,11 @@ include_directories(${WD_BASEDIR})
 include_directories(${WD_BASEDIR}/include)
 include_directories(${WD_BASEDIR}/samples/c/shared)
 
-set(CFLAGS "-fno-pie" "-DLINUX" "-Wall" "-DWD_DRIVER_NAME_CHANGE")
+# The "-Wno-unused-result" flag suppresses compiler warnings for unused values
+# returned from functions. Suppressing warnings is not ideal but since this warning
+# originates deep within the WinDriver library, the choice was made to ignore it
+# rather than modify the WinDriver libraries.
+set(CFLAGS "-fno-pie" "-Wno-unused-result" "-DLINUX" "-Wall" "-DWD_DRIVER_NAME_CHANGE")
 set(LFLAGS "-no-pie" "-lwdapi1630" "-lpthread")
 
 if(TARGET_CPU STREQUAL "x86_64")
