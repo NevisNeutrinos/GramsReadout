@@ -9,24 +9,17 @@
 #include <string>
 #include "quill/Logger.h"
 #include "../networking/tcp_connection.h"
+#include "pcie_control.h"
 
 namespace controller {
 
     // Enum for states
-    enum class State {
+    enum class State : int {
         kIdle = 0,
         kConfigured = 1,
         kRunning = 2,
         kStopped = 3
       };
-
-    // // Enum for states
-    // enum class Transitions {
-    //     kReset = 0,
-    //     kConfigure = 1,
-    //     kStart = 2,
-    //     kStop = 3
-    //   };
 
     // These are the codes which will be received/sent
     // from/to the HUB computer.
@@ -40,6 +33,8 @@ namespace controller {
         kRestart = 6,
         kPrepareShutdown = 7,
         kShutdown = 8,
+        kCmdSuccess = 1000,
+        kCmdFailure = 2000,
         kInvalid = UINT16_MAX
     };
 
@@ -91,8 +86,10 @@ namespace controller {
     private: // data members
 
         void ReceiveCommand();
+        void SendAckCommand(bool success);
 
         TCPConnection tcp_connection_;
+        pcie_ctrl::PCIeControl* pcie_controller_;
 
         std::atomic_bool is_running_;
 

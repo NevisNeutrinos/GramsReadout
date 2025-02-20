@@ -20,12 +20,10 @@ namespace pcie_ctrl {
 
         logger_ = quill::Frontend::create_or_get_logger("root",
          quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
-        LOG_INFO(logger_, "Destructing controller");
     }
 
     PCIeControl::~PCIeControl() {
-        // std::cout << "Setting Device IDs to 0" << std::endl;
-        LOG_INFO(logger_, "Setting Device IDs to 0");
+        LOG_INFO(logger_, "Setting PCIe Device IDs to 0");
         device_id_0_ = 0;
         device_id_1_ = 0;
         delete pcie_interface;
@@ -39,10 +37,17 @@ namespace pcie_ctrl {
         std::cout << "Device ID 2: " << device_id_1_ << std::endl;
         std::cout << std::dec;
 
+        // Connect to the PCIe bus handle
         if (!pcie_interface->InitPCIeDevices(device_id_0_, device_id_1_)) {
-            std::cerr << "PCIe device initialization failed!" << std::endl;
+            LOG_ERROR(logger_, "PCIe device initialization failed!");
             return false;
         }
+        // Initialize the PCIe cards for Tx/Rx
+        if (!pcie_interface->PCIeDeviceConfigure()) {
+            LOG_ERROR(logger_, "PCIe device configuration failed!");
+            return false;
+        }
+        LOG_INFO(logger_, "PCIe devices ready!");
         return true;
     }
 

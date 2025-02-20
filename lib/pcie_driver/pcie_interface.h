@@ -8,6 +8,8 @@
 
 namespace pcie_int {
 
+    typedef void *PCIeDeviceHandle;
+
 class PCIeInterface {
 
 public:
@@ -28,10 +30,12 @@ public:
 
     [[nodiscard]] bool getInitStatus() const { return is_initialized; };
 
+    static constexpr uint32_t kDev1 = 1;
+    static constexpr uint32_t kDev2 = 2;
+
 private:
 
     // The pointer to the device in memory
-    typedef void* PCIeDeviceHandle;
     PCIeDeviceHandle dev_handle_1;
     PCIeDeviceHandle dev_handle_2;
     PCIeDeviceHandle hDev;

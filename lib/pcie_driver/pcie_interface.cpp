@@ -31,12 +31,12 @@ namespace pcie_int {
         DWORD dwStatus = GRAMSREADOUT_LibInit();
         if (WD_STATUS_SUCCESS != dwStatus)
         {
-            // GRAMSREADOUT_ERR("gramsreadout_diag: Failed to initialize the GRAMSREADOUT library: %s", GRAMSREADOUT_GetLastErr());
-            std::cerr << "GRAMSREADOUT_LibInit() failed" << std::endl;
-            return dwStatus;
+            std::cerr << "GRAMSREADOUT_LibInit() failed!" << std::endl;
+            std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+            return false;
         }
 
-        uint32_t vendor_id = GRAMSREADOUT_DEFAULT_VENDOR_ID;
+        constexpr uint32_t vendor_id = GRAMSREADOUT_DEFAULT_VENDOR_ID;
 
         dev_handle_1 = GRAMSREADOUT_DeviceOpen(vendor_id, dev1);
         dev_handle_2 = GRAMSREADOUT_DeviceOpen(vendor_id, dev2);
@@ -47,9 +47,7 @@ namespace pcie_int {
         std::cout << "Dev Handle 1: " << dev_handle_1 << " Dev Handle 2: " << dev_handle_2 << std::endl;
         std::cout << std::dec;
 
-        is_initialized = PCIeDeviceConfigure();
-
-        return is_initialized;
+        return true;
     }
 
     bool PCIeInterface::PCIeDeviceConfigure() {
@@ -57,10 +55,8 @@ namespace pcie_int {
         static DWORD dwOffset;
         static UINT32 u32Data;
         UINT32 buf_send[40000];
-        static UINT32 send_array[100000];
-        static UINT32 read_array[100000];
-        static UINT32 i, j, k;
-        UINT32 *px, *py;
+        static UINT32 i, k;
+        UINT32 *px;
         DWORD wr_stat = 0;
 
         dwAddrSpace = 2;
@@ -88,22 +84,20 @@ namespace pcie_int {
         dwOffset = tx_md_reg; //0x28;
         wr_stat += WDC_WriteAddr32(dev_handle_2, dwAddrSpace, dwOffset, u32Data);
 
-        //////////////////////////////////////////
         px = &buf_send[0]; // RUN INITIALIZATION
-        py = &read_array[0];
         buf_send[0] = 0x0; // INITIALIZE
         buf_send[1] = 0x0;
         i = 1;
         k = 1;
-        // i = pcie_send(hDev, i, 1, k, px);
-        // i = PCIeSendBuffer(dev_handle_1, i, k, px);
+        i = PCIeSendBuffer(kDev1, i, k, px);
 
         // If all writes succeed it should be 0
-        return wr_stat > 0;
+        is_initialized = wr_stat == WD_STATUS_SUCCESS;
+        return is_initialized;
     }
 
 
-    int PCIeInterface::PCIeSendBuffer(const uint32_t dev, int mode, int nword, uint32_t *buff_send) {
+    int PCIeInterface::PCIeSendBuffer(uint32_t dev, int mode, int nword, uint32_t *buff_send) {
         /* imode =0 single word transfer, imode =1 DMA */
         if (dev == 1) {
             hDev = dev_handle_1;
@@ -143,7 +137,6 @@ namespace pcie_int {
                 std::cerr << "Failed locking a send Contiguous DMA buffer. Error "
                 <<  dwStatus << " = " << std::string(Stat2Str(dwStatus)) << std::endl;
             }
-            // buf_send = (uint32_t *)pbuf_send;
             buf_send = static_cast<uint32_t *>(pbuf_send);
         }
 
@@ -283,7 +276,6 @@ namespace pcie_int {
                 std::cerr << "Failed locking a receive Contiguous DMA buffer. Error "
                 <<  dwStatus << " = " << std::string(Stat2Str(dwStatus)) << std::endl;
             }
-            // buf_rec = (uint32_t *)pbuf_rec;
             buf_rec = static_cast<uint32_t *>(pbuf_rec);
         }
         iprint = 0;

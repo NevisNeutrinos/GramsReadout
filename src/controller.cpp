@@ -13,14 +13,15 @@ namespace controller {
                            const short port, const bool is_server, const bool is_running) :
         tcp_connection_(io_context, ip_address, port, is_server),
         is_running_(is_running) {
-        // io_thread_ = new std::thread([&]() { io_context_.run(); });
         current_state_ = State::kIdle;
+        pcie_controller_ = new pcie_ctrl::PCIeControl();
         logger_ = quill::Frontend::create_or_get_logger("root",
                  quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
     }
 
     Controller::~Controller() {
         LOG_INFO(logger_, "Destructing controller");
+        delete pcie_controller_;
     }
 
 
@@ -30,6 +31,7 @@ namespace controller {
         // commands.
 
         // Set up PCIe Tx/Rx
+        pcie_controller_->Initialize();
 
         // If something fails
         //return false;
@@ -51,9 +53,17 @@ namespace controller {
     void Controller::ReceiveCommand() {
         while (is_running_) {
             Command cmd = tcp_connection_.ReadRecvBuffer();
-            HandleCommand(cmd);
+            bool response = HandleCommand(cmd);
+            SendAckCommand(response);
             LOG_INFO(logger_, " \n Current state: [{}]", GetStateName());
         }
+    }
+
+    void Controller::SendAckCommand(bool success) {
+        auto acknowledge = success ? CommandCodes::kCmdSuccess : CommandCodes::kCmdFailure;
+        Command cmd(static_cast<uint16_t>(acknowledge), 1);
+        cmd.arguments.at(0) = static_cast<int>(current_state_);
+        tcp_connection_.WriteSendBuffer(cmd);
     }
 
     // Handle user commands
