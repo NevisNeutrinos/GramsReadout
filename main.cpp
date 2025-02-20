@@ -1,5 +1,6 @@
 #include <iostream>
 #include "src/controller.h"
+#include "networking/tcp_protocol.h"
 #include "quill/Backend.h"
 #include "quill/Frontend.h"
 #include "quill/LogMacros.h"
@@ -40,6 +41,7 @@ void Run(controller::Controller& ctrl) {
     quill::Logger* logger = quill::Frontend::create_or_get_logger(
     "root", quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
 
+    Command cmd(0,0);
     while (true) {
         PrintState(ctrl.GetStateName());
         int input = GetUserInput();
@@ -49,8 +51,8 @@ void Run(controller::Controller& ctrl) {
             break;
         }
 
-        auto new_state = static_cast<controller::Transitions>(input);
-        if (ctrl.HandleCommand(new_state)) {
+        cmd.command = static_cast<uint16_t>(input);
+        if (ctrl.HandleCommand(cmd)) {
             std::cout << "State changed to: " << ctrl.GetStateName() << "\n";
             LOG_INFO(logger, "State changed to {}!", std::string_view{ctrl.GetStateName()});
         } else {
@@ -70,9 +72,23 @@ int main() {
     backend_options.sleep_duration = std::chrono::nanoseconds{100000}; //100us
     quill::Backend::start(backend_options);
 
-    controller::Controller controller;
+    asio::io_context io_context;
+
+    bool run = true;
+    std::cout << "Starting controller..." << std::endl;
+    controller::Controller controller(io_context, "10.44.1.148", 1730, true, run);
+    std::thread io_thread([&]() { io_context.run(); });
+
     controller.Init();
+    std::thread ctrl_thread([&]() { controller.Run(); });
+
     Run(controller);
+    controller.SetRunning(false);
+    std::cout << "Controller Run stopped!\n";
+
+    io_context.stop();
+    ctrl_thread.join();
+    io_thread.join();
 
     return 0;
 }

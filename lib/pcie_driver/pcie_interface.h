@@ -39,21 +39,35 @@ private:
     bool is_initialized;
 
     // Magic numbers for DMA R/W
-    const uint32_t t1_tr_bar = 0;
-    const uint32_t t2_tr_bar = 4;
-    const uint32_t cs_bar = 2;
+    static constexpr uint32_t t1_tr_bar = 0;
+    static constexpr uint32_t t2_tr_bar = 4;
+    static constexpr uint32_t cs_bar = 2;
     /**  command register location **/
-    const uint32_t tx_mode_reg = 0x28;
-    const uint32_t t1_cs_reg = 0x18;
-    const uint32_t r1_cs_reg = 0x1c;
-    const uint32_t t2_cs_reg = 0x20;
-    const uint32_t r2_cs_reg = 0x24;
-    const uint32_t tx_md_reg = 0x28;
-    const uint32_t cs_dma_add_low_reg = 0x0;
-    const uint32_t cs_dma_add_high_reg = 0x4;
-    const uint32_t cs_dma_by_cnt = 0x8;
-    const uint32_t cs_dma_cntrl = 0xc;
-    const uint32_t cs_dma_msi_abort = 0x10;
+    static constexpr uint32_t tx_mode_reg = 0x28;
+    static constexpr uint32_t t1_cs_reg = 0x18;
+    static constexpr uint32_t r1_cs_reg = 0x1c;
+    static constexpr uint32_t t2_cs_reg = 0x20;
+    static constexpr uint32_t r2_cs_reg = 0x24;
+    static constexpr uint32_t tx_md_reg = 0x28;
+    static constexpr uint32_t cs_dma_add_low_reg = 0x0;
+    static constexpr uint32_t cs_dma_add_high_reg = 0x4;
+    static constexpr uint32_t cs_dma_by_cnt = 0x8;
+    static constexpr uint32_t cs_dma_cntrl = 0xc;
+    static constexpr uint32_t cs_dma_msi_abort = 0x10;
+    /** define status bits **/
+    static constexpr uint32_t cs_init = 0x20000000;
+    static constexpr uint32_t cs_mode_p = 0x8000000;
+    static constexpr uint32_t cs_mode_n = 0x0;
+    static constexpr uint32_t cs_start = 0x40000000;
+    static constexpr uint32_t cs_done = 0x80000000;
+    static constexpr uint32_t dma_tr1 = 0x100000;
+    static constexpr uint32_t dma_tr2 = 0x200000;
+    static constexpr uint32_t dma_tr12 = 0x300000;
+    static constexpr uint32_t dma_3dw_trans = 0x0;
+    static constexpr uint32_t dma_4dw_trans = 0x0;
+    static constexpr uint32_t dma_3dw_rec = 0x40;
+    static constexpr uint32_t dma_4dw_rec = 0x60;
+    static constexpr uint32_t dma_in_progress = 0x80000000;
 
 };
 

@@ -26,9 +26,23 @@ add_executable(GramsReadout main.cpp
         src/pcie_control.cpp
         src/pcie_control.h
         src/configure_hardware.cpp
-        src/configure_hardware.h)
+        src/configure_hardware.h
+        networking/tcp_connection.cpp
+        networking/tcp_connection.h
+        networking/tcp_protocol.cpp
+        networking/tcp_protocol.h)
 
 target_link_libraries(GramsReadout PRIVATE
+        quill::quill
+        gramsreadout_lib)
+
+add_executable(ReadoutTest test.cpp
+        src/pcie_control.cpp
+        src/pcie_control.h
+        src/configure_hardware.cpp
+        src/configure_hardware.h)
+
+target_link_libraries(ReadoutTest PRIVATE
         quill::quill
         gramsreadout_lib)
 

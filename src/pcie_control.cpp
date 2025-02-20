@@ -13,8 +13,8 @@
 namespace pcie_ctrl {
 
     PCIeControl::PCIeControl() {
-        device_id_0_ = 4;
-        device_id_1_ = 5;
+        device_id_0_ = 5;
+        device_id_1_ = 4;
         std::cout << "Set Device IDs to 0" << std::endl;
         pcie_interface = new pcie_int::PCIeInterface;
 

@@ -1,4 +1,4 @@
-//
+    //
 // Created by Jon Sensenig on 1/22/25.
 //
 
@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include "quill/Logger.h"
+#include "../networking/tcp_connection.h"
 
 namespace controller {
 
@@ -19,13 +20,36 @@ namespace controller {
         kStopped = 3
       };
 
-    // Enum for states
-    enum class Transitions {
+    // // Enum for states
+    // enum class Transitions {
+    //     kReset = 0,
+    //     kConfigure = 1,
+    //     kStart = 2,
+    //     kStop = 3
+    //   };
+
+    // These are the codes which will be received/sent
+    // from/to the HUB computer.
+    enum class CommandCodes : uint16_t {
         kReset = 0,
         kConfigure = 1,
-        kStart = 2,
-        kStop = 3
-      };
+        kStartRun = 2,
+        kStopRun = 3,
+        kGetStatus = 4,
+        kPrepareRestart = 5,
+        kRestart = 6,
+        kPrepareShutdown = 7,
+        kShutdown = 8,
+        kInvalid = UINT16_MAX
+    };
+
+    // Explicitly handle the type conversion for equality check, for safety.
+    inline bool operator==(const uint16_t lhs, const CommandCodes& rhs) {
+        return lhs == static_cast<uint16_t>(rhs);
+    }
+    inline bool operator==(const CommandCodes& lhs, const uint16_t rhs) {
+        return static_cast<uint16_t>(lhs) == rhs;
+    }
 
     // Converts state enum to a string.
     inline std::string StateToString(const State state) {
@@ -46,23 +70,34 @@ namespace controller {
 
     public:
 
-        Controller();
+        Controller(asio::io_context& io_context, const std::string& ip_address,
+                   const short port, const bool is_server, const bool is_running);
         ~Controller();
 
         // Initialize class
         bool Init();
 
+        void Run();
+
         // Control state machine
-        bool HandleCommand(Transitions command);
+        bool HandleCommand(const Command& command);
 
         // Current state
         std::string GetStateName() const;
 
+        bool GetRunning() const { return is_running_; };
+        void SetRunning(bool run);
+
     private: // data members
+
+        void ReceiveCommand();
+
+        TCPConnection tcp_connection_;
+
+        std::atomic_bool is_running_;
 
         quill::Logger* logger_;
         State current_state_;
-
 
     };
 
