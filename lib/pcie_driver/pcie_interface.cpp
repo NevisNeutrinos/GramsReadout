@@ -17,20 +17,36 @@ namespace pcie_int {
 
     PCIeInterface::~PCIeInterface() {
         std::cout << "Closing PCIe Devices..." << std::endl;
-        if (!GRAMSREADOUT_DeviceClose(dev_handle_1)) {
-            std::cerr << "Device 1 close failed" << std::endl;
+        std::cout << std::hex;
+        std::cout << "Dev1: " << dev_handle_1 << std::endl;
+        std::cout << "Dev2: " << dev_handle_2 << std::endl;
+        std::cout << std::dec;
+
+        if (dev_handle_1) {
+            if (!GRAMSREADOUT_DeviceClose(dev_handle_1)) {
+                std::cerr << "Device 1 close failed" << std::endl;
+                std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+            }
         }
 
-        if (!GRAMSREADOUT_DeviceClose(dev_handle_2)) {
-            std::cerr << "Device 2 close failed" << std::endl;
+        if (dev_handle_2) {
+            if (!GRAMSREADOUT_DeviceClose(dev_handle_2)) {
+                std::cerr << "Device 2 close failed" << std::endl;
+                std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+            }
+        }
+
+        // Uninitialize the Windriver library
+        if (WD_STATUS_SUCCESS != GRAMSREADOUT_LibUninit()) {
+            std::cerr << "GRAMSREADOUT_LibUninit() failed:" << std::endl;
+            std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
         }
     }
 
     bool PCIeInterface::InitPCIeDevices(uint32_t dev1, uint32_t dev2) {
         /* Initialize the GRAMSREADOUT library */
         DWORD dwStatus = GRAMSREADOUT_LibInit();
-        if (WD_STATUS_SUCCESS != dwStatus)
-        {
+        if (WD_STATUS_SUCCESS != dwStatus) {
             std::cerr << "GRAMSREADOUT_LibInit() failed!" << std::endl;
             std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
             return false;
@@ -45,70 +61,98 @@ namespace pcie_int {
 
         std::cout << std::hex;
         std::cout << "Dev Handle 1: " << dev_handle_1 << " Dev Handle 2: " << dev_handle_2 << std::endl;
+        std::cout << "Addr: Dev Handle 1: " << &dev_handle_1 << " Dev Handle 2: " << &dev_handle_2 << std::endl;
         std::cout << std::dec;
 
         return true;
+    }
+
+    void PCIeInterface::ReadReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t *data) {
+        hDev = GetDeviceHandle(dev_handle);
+        uint32_t read_status = WDC_ReadAddr32(hDev, addr_space, adr_offset, data);
+        if (WD_STATUS_SUCCESS != read_status) std::cerr << "ReadReg32() failed" << std::endl;
+    }
+
+    bool PCIeInterface::WriteReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t data) {
+        hDev = GetDeviceHandle(dev_handle);
+        uint32_t write_status = WDC_WriteAddr32(hDev, addr_space, adr_offset, data);
+        return write_status == WD_STATUS_SUCCESS;
+    }
+
+    void PCIeInterface::ReadReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, unsigned long long *data) {
+        hDev = GetDeviceHandle(dev_handle);
+        uint32_t read_status = WDC_ReadAddr64(hDev, addr_space, adr_offset, data);
+        if (WD_STATUS_SUCCESS != read_status) std::cerr << "ReadReg64() failed" << std::endl;
+    }
+
+    bool PCIeInterface::WriteReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint64_t data) {
+        hDev = GetDeviceHandle(dev_handle);
+        uint32_t write_status = WDC_WriteAddr64(hDev, addr_space, adr_offset, data);
+        return write_status == WD_STATUS_SUCCESS;
     }
 
     bool PCIeInterface::PCIeDeviceConfigure() {
         static DWORD dwAddrSpace;
         static DWORD dwOffset;
         static UINT32 u32Data;
-        UINT32 buf_send[40000];
-        static UINT32 i, k;
-        UINT32 *px;
+        // UINT32 buf_send[40000];
+        // static UINT32 i, k;
+        // UINT32 *px;
         DWORD wr_stat = 0;
 
         dwAddrSpace = 2;
-        u32Data = cs_init; //0x20000000; // initial transmitter, no hold
+        u32Data = cs_init; //20000000; // initial transmitter, no hold
         dwOffset = t1_cs_reg; //0x18;
         wr_stat += WDC_WriteAddr32(dev_handle_2, dwAddrSpace, dwOffset, u32Data);
 
         dwAddrSpace = 2;
-        u32Data = cs_init; //0x20000000; // initial transmitter, no hold
+        u32Data = cs_init; //20000000; // initial transmitter, no hold
         dwOffset = t2_cs_reg; //0x20;
         wr_stat += WDC_WriteAddr32(dev_handle_2, dwAddrSpace, dwOffset, u32Data);
 
         dwAddrSpace = 2;
-        u32Data = cs_init; //0x20000000; // initial receiver
+        u32Data = cs_init; //20000000; // initial receiver
         dwOffset = r1_cs_reg; //0x1c;
         wr_stat += WDC_WriteAddr32(dev_handle_2, dwAddrSpace, dwOffset, u32Data);
 
         dwAddrSpace = 2;
-        u32Data = cs_init; //0x20000000; // initial receiver
+        u32Data = cs_init; //20000000; // initial receiver
         dwOffset = r2_cs_reg; //0x24;
         wr_stat += WDC_WriteAddr32(dev_handle_2, dwAddrSpace, dwOffset, u32Data);
 
         dwAddrSpace = 2;
-        u32Data = 0xfff; // set mode off with 0xfff...
+        u32Data = 0xfff; // set mode off with 0xfff... ffff
         dwOffset = tx_md_reg; //0x28;
         wr_stat += WDC_WriteAddr32(dev_handle_2, dwAddrSpace, dwOffset, u32Data);
 
-        px = &buf_send[0]; // RUN INITIALIZATION
-        buf_send[0] = 0x0; // INITIALIZE
-        buf_send[1] = 0x0;
-        i = 1;
-        k = 1;
-        i = PCIeSendBuffer(kDev1, i, k, px);
-
+        // px = &buf_send[0]; // RUN INITIALIZATION
+        // buf_send[0] = 0x0; // INITIALIZE
+        // buf_send[1] = 0x0;
+        // i = 1;
+        // k = 1;
+        // i = PCIeSendBuffer(kDev1, i, k, px);
+        //
         // If all writes succeed it should be 0
         is_initialized = wr_stat == WD_STATUS_SUCCESS;
         return is_initialized;
     }
 
+    PCIeDeviceHandle PCIeInterface::GetDeviceHandle(uint32_t dev_handle) {
+        if (dev_handle == 1) {
+            return dev_handle_1;
+        }
+        if (dev_handle == 2) {
+            return  dev_handle_2;
+        }
+
+        std::cerr << "PCIeInterface::PCIeSendBuffer: Invalid device handle: " << dev_handle << std::endl;
+        return nullptr;
+    }
 
     int PCIeInterface::PCIeSendBuffer(uint32_t dev, int mode, int nword, uint32_t *buff_send) {
         /* imode =0 single word transfer, imode =1 DMA */
-        if (dev == 1) {
-            hDev = dev_handle_1;
-        }
-        else if (dev == 2) {
-            hDev = dev_handle_2;
-        }
-        else {
-            std::cerr << "PCIeInterface::PCIeSendBuffer: Invalid device handle: " << dev << std::endl;
-            return 0;
-        }
+
+        hDev = GetDeviceHandle(dev);
 
         static DWORD dwAddrSpace;
         static DWORD dwDMABufSize;
@@ -139,7 +183,6 @@ namespace pcie_int {
             }
             buf_send = static_cast<uint32_t *>(pbuf_send);
         }
-
         if (mode == 1)
         {
             for (i = 0; i < nword; i++)
@@ -192,7 +235,6 @@ namespace pcie_int {
             u32Data = cs_start + nwrite; //0x40000000 + nwrite;
             dwOffset = t1_cs_reg; //0x18
             WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
-
             /* set up sending DMA starting address */
 
             dwAddrSpace = 2;
@@ -218,10 +260,9 @@ namespace pcie_int {
             dwOffset = cs_dma_cntrl; //0xc
             u32Data = dma_tr1; //0x00100000;
             WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
-
-            usleep(400);
+            // usleep(50); // works in standalone script
+            usleep(50);
             for (i = 0; i < 20000; i++)
-                //for (i = 0; i < 100; i++)
             {
                 dwAddrSpace = 2;
                 dwOffset = cs_dma_cntrl; //0xC
@@ -241,16 +282,8 @@ namespace pcie_int {
 
     int PCIeInterface::PCIeRecvBuffer(uint32_t dev, int mode, int istart, int nword, int ipr_status, uint32_t *buff_rec) {
         /* imode =0 single word transfer, imode =1 DMA */
-        if (dev == 1) {
-            hDev = dev_handle_1;
-        }
-        else if (dev == 2) {
-            hDev = dev_handle_2;
-        }
-        else {
-            std::cerr << "PCIeInterface::PCIeSendBuffer: Invalid device handle: " << dev << std::endl;
-            return 0;
-        }
+
+        hDev = GetDeviceHandle(dev);
 
         static DWORD dwAddrSpace;
         static DWORD dwDMABufSize;
@@ -286,18 +319,18 @@ namespace pcie_int {
             std::cout << "nword = " << nword << std::endl;
 
             dwAddrSpace = 2;
-            u32Data = 0xf0000008;
+            u32Data = 0xf0000008; // f0000008
             dwOffset = tx_md_reg; //0x28
             WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
 
             /*initialize the receiver */
             dwAddrSpace = 2;
-            u32Data = cs_init; //0x20000000;
+            u32Data = cs_init; // 20000000;
             dwOffset = r1_cs_reg; //0x1c
             WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
             /* write byte count **/
             dwAddrSpace = 2;
-            u32Data = cs_start + nword * 4; //0x40000000 + nword * 4;
+            u32Data = cs_start + nword * 4; //0x40000000 + nword * 4;  40000004
             dwOffset = r1_cs_reg; //0x1c
             WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
             if (ipr_status == 1)
@@ -306,8 +339,10 @@ namespace pcie_int {
                 u64Data = 0;
                 dwOffset = t1_cs_reg; //0x18
                 WDC_ReadAddr64(hDev, dwAddrSpace, dwOffset, &u64Data);
-                std::cout << "status word before read = "
-                << std::hex << (u64Data >> 32) << ", " << (u64Data & 0xffff) << std::endl;
+                std::cout << std::hex;
+                std::cout << "status word before read = " << (u64Data >> 32) << ", " << (u64Data & 0xffff) << std::endl;
+                std::cout << std::dec;
+                printf(" status word before read = %I64u, %I64u \n", (u64Data >> 32), (u64Data & 0xffff));
             }
 
             return 0;
@@ -335,8 +370,10 @@ namespace pcie_int {
                     u64Data = 0;
                     dwOffset = t1_cs_reg; //0x18
                     WDC_ReadAddr64(hDev, dwAddrSpace, dwOffset, &u64Data);
-                    std::cout << "status word after read = "
-                << std::hex << (u64Data >> 32) << ", " << (u64Data & 0xffff) << std::endl;
+                    std::cout << std::hex;
+                    std::cout << "status word after read = " << (u64Data >> 32) << ", " << (u64Data & 0xffff) << std::endl;
+                    std::cout << std::dec;
+                    printf("printf status word after read = %x, %x \n", (u64Data >> 32), (u64Data & 0xffff));
                 }
                 return 0;
             }

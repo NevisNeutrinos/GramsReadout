@@ -30,6 +30,11 @@ public:
 
     [[nodiscard]] bool getInitStatus() const { return is_initialized; };
 
+    void ReadReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t *data);
+    bool WriteReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t data);
+    void ReadReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, unsigned long long *data);
+    bool WriteReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint64_t data);
+
     static constexpr uint32_t kDev1 = 1;
     static constexpr uint32_t kDev2 = 2;
 
@@ -41,6 +46,7 @@ private:
     PCIeDeviceHandle hDev;
 
     bool is_initialized;
+    PCIeDeviceHandle GetDeviceHandle(uint32_t dev_handle);
 
     // Magic numbers for DMA R/W
     static constexpr uint32_t t1_tr_bar = 0;
