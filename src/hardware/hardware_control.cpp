@@ -56,6 +56,9 @@ namespace pcie_ctrl {
     }
 
     bool PCIeControl::InitializeHardware() {
+        // auto* pconfig = new pcie_config::PcieConfig();
+        // pconfig->Configure(pcie_interface_);
+
         Config config;
         if (!configure_hardware_->Configure(config, pcie_interface_)) {
             LOG_ERROR(logger_, "Hardware Configuration failed!");

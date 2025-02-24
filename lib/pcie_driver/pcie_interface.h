@@ -5,6 +5,7 @@
 #ifndef PCIE_INTERFACE_H
 #define PCIE_INTERFACE_H
 #include <cstdint>
+#include <array>
 
 namespace pcie_int {
 
@@ -24,9 +25,9 @@ public:
     bool PCIeDeviceConfigure();
 
     // The main method to send buffers through PCIe
-    int PCIeSendBuffer(uint32_t dev, int mode, int nword, uint32_t *buff_send);
+    uint32_t PCIeSendBuffer(uint32_t dev, uint32_t mode, uint32_t nword, uint32_t *buff_send);
 
-    int PCIeRecvBuffer(uint32_t dev, int mode, int istart, int nword, int ipr_status, uint32_t *buff_rec);
+    uint32_t PCIeRecvBuffer(uint32_t dev, uint32_t mode, uint32_t istart, uint32_t nword, uint32_t ipr_status, uint32_t *buff_rec);
 
     [[nodiscard]] bool getInitStatus() const { return is_initialized; };
 
@@ -37,6 +38,11 @@ public:
 
     static constexpr uint32_t kDev1 = 1;
     static constexpr uint32_t kDev2 = 2;
+
+    std::array<uint32_t, 40000> buf_send_{};
+    std::array<unsigned char, 40000> carray_{};
+    static std::array<uint32_t, 40000> send_array_;
+    static std::array<uint32_t, 10000000> read_array_;
 
 private:
 

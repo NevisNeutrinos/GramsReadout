@@ -149,7 +149,7 @@ namespace pcie_int {
         return nullptr;
     }
 
-    int PCIeInterface::PCIeSendBuffer(uint32_t dev, int mode, int nword, uint32_t *buff_send) {
+    uint32_t PCIeInterface::PCIeSendBuffer(uint32_t dev, uint32_t mode, uint32_t nword, uint32_t *buff_send) {
         /* imode =0 single word transfer, imode =1 DMA */
 
         hDev = GetDeviceHandle(dev);
@@ -164,10 +164,10 @@ namespace pcie_int {
         static DWORD dwOffset;
         static UINT32 u32Data;
         static PVOID pbuf_send;
-        int nwrite, iprint;
-        int i = 0;
-        int j = 0;
-        static int ifr = 0;
+        uint32_t nwrite, iprint;
+        uint32_t i = 0;
+        uint32_t j = 0;
+        static uint32_t ifr = 0;
 
         iprint = 0;
 
@@ -280,7 +280,7 @@ namespace pcie_int {
         return i;
     }
 
-    int PCIeInterface::PCIeRecvBuffer(uint32_t dev, int mode, int istart, int nword, int ipr_status, uint32_t *buff_rec) {
+    uint32_t PCIeInterface::PCIeRecvBuffer(uint32_t dev, uint32_t mode, uint32_t istart, uint32_t nword, uint32_t ipr_status, uint32_t *buff_rec) {
         /* imode =0 single word transfer, imode =1 DMA */
 
         hDev = GetDeviceHandle(dev);
@@ -296,8 +296,8 @@ namespace pcie_int {
         static UINT32 u32Data;
         static UINT64 u64Data;
         static PVOID pbuf_rec;
-        int nread, i, j, iprint, icomp;
-        static int ifr = 0;
+        uint32_t nread, i, j, iprint, icomp;
+        static uint32_t ifr = 0;
 
         if (ifr == 0)
         {
@@ -373,7 +373,7 @@ namespace pcie_int {
                     std::cout << std::hex;
                     std::cout << "status word after read = " << (u64Data >> 32) << ", " << (u64Data & 0xffff) << std::endl;
                     std::cout << std::dec;
-                    printf("printf status word after read = %x, %x \n", (u64Data >> 32), (u64Data & 0xffff));
+                    // printf("printf status word after read = %x, %x \n", (u64Data >> 32), (u64Data & 0xffff));
                 }
                 return 0;
             }

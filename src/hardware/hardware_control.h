@@ -8,6 +8,7 @@
 #include "pcie_interface.h"
 #include "configure_hardware.h"
 #include "quill/Logger.h"
+#include "pcie_config.h"
 
 namespace pcie_ctrl {
 
