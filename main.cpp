@@ -1,5 +1,5 @@
 #include <iostream>
-#include "src/controller.h"
+#include "src/control/controller.h"
 #include "networking/tcp_protocol.h"
 #include "quill/Backend.h"
 #include "quill/Frontend.h"

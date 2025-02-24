@@ -21,12 +21,12 @@ add_subdirectory(networking)
 include_directories(lib/pcie_driver)
 
 add_executable(GramsReadout main.cpp
-        src/controller.cpp
-        src/controller.h
-        src/pcie_control.cpp
-        src/pcie_control.h
-        src/configure_hardware.cpp
-        src/configure_hardware.h
+        src/control/controller.cpp
+        src/control/controller.h
+        src/hardware/pcie_control.cpp
+        src/hardware/pcie_control.h
+        src/hardware/configure_hardware.cpp
+        src/hardware/configure_hardware.h
         networking/tcp_connection.cpp
         networking/tcp_connection.h
         networking/tcp_protocol.cpp
@@ -37,10 +37,10 @@ target_link_libraries(GramsReadout PRIVATE
         gramsreadout_lib)
 
 add_executable(ReadoutTest test.cpp
-        src/pcie_control.cpp
-        src/pcie_control.h
-        src/configure_hardware.cpp
-        src/configure_hardware.h)
+        src/hardware/pcie_control.cpp
+        src/hardware/pcie_control.h
+        src/hardware/configure_hardware.cpp
+        src/hardware/configure_hardware.h)
 
 target_link_libraries(ReadoutTest PRIVATE
         quill::quill

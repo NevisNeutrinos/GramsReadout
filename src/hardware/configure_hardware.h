@@ -9,7 +9,7 @@
 #include <string>
 #include <memory>
 #include <unistd.h>
-#include "../lib/pcie_driver/pcie_interface.h"
+#include "../../lib/pcie_driver/pcie_interface.h"
 // #include "pcie_control.h"
 
 namespace hw_config {

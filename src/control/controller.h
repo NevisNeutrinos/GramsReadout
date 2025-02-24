@@ -8,10 +8,10 @@
 #include <iostream>
 #include <string>
 #include "quill/Logger.h"
-#include "../networking/tcp_connection.h"
-#include "pcie_control.h"
+#include "../../networking/tcp_connection.h"
+#include "../hardware/pcie_control.h"
 
-namespace controller {
+    namespace controller {
 
     // Enum for states
     enum class State : int {
