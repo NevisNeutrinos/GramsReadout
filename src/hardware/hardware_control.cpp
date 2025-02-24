@@ -2,7 +2,7 @@
 // Created by Jon Sensenig on 1/23/25.
 //
 
-#include "pcie_control.h"
+#include "hardware_control.h"
 #include "quill/LogMacros.h"
 #include "quill/Frontend.h"
 #include "quill/sinks/ConsoleSink.h"
@@ -10,9 +10,9 @@
 #include <iostream>
 #include <ostream>
 
-namespace pcie_ctrl {
+namespace hardware_ctrl {
 
-    PCIeControl::PCIeControl() : pcie_interface_(nullptr) {
+    HardwareControl::HardwareControl() : pcie_interface_(nullptr) {
         device_id_0_ = 5;
         device_id_1_ = 4;
         std::cout << "Set Device IDs to 0" << std::endl;
@@ -23,7 +23,7 @@ namespace pcie_ctrl {
          quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
     }
 
-    PCIeControl::~PCIeControl() {
+    HardwareControl::~HardwareControl() {
         LOG_INFO(logger_, "Setting PCIe Device IDs to 0");
         device_id_0_ = 0;
         device_id_1_ = 0;
@@ -31,7 +31,7 @@ namespace pcie_ctrl {
         delete configure_hardware_;
     }
 
-    bool PCIeControl::Initialize() {
+    bool HardwareControl::Initialize() {
 
         std::cout << "Initializing PCIe Bus and Device IDs" << std::endl;
         std::cout << std::hex;
@@ -55,8 +55,8 @@ namespace pcie_ctrl {
         return true;
     }
 
-    bool PCIeControl::InitializeHardware() {
-        // auto* pconfig = new pcie_config::PcieConfig();
+    bool HardwareControl::InitializeHardware() {
+        auto* pconfig = new pcie_control::PcieControl();
         // pconfig->Configure(pcie_interface_);
 
         Config config;
@@ -67,4 +67,4 @@ namespace pcie_ctrl {
         return true;
     }
 
-} // pcie_ctrl
+} // hardware_ctrl

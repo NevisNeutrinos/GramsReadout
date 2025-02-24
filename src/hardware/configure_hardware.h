@@ -53,11 +53,11 @@ private:
     static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
     static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
 
-    static constexpr std::size_t ARR_SIZE = 40000;
-    std::array<uint32_t, ARR_SIZE> buffer_send_{};
-    std::array<uint32_t, ARR_SIZE> send_array_{};
-    std::array<uint32_t, 100000> read_array_{};
-    std::array<unsigned char, ARR_SIZE> char_array_{};
+    // static constexpr std::size_t ARR_SIZE = 40000;
+    // std::array<uint32_t, ARR_SIZE> buffer_send_{};
+    // std::array<uint32_t, ARR_SIZE> send_array_{};
+    // std::array<uint32_t, 100000> read_array_{};
+    // std::array<unsigned char, ARR_SIZE> char_array_{};
 
     std::array<uint32_t, 40000> buf_send{};
     std::array<unsigned char, 40000> carray{};

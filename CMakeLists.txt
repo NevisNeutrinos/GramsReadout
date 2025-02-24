@@ -17,30 +17,27 @@ endif ()
 add_subdirectory(quill)
 add_subdirectory(lib/pcie_driver)
 add_subdirectory(networking)
+include_directories(networking)
 #add_subdirectory(tests)
 include_directories(lib/pcie_driver)
+include_directories(src/control)
+include_directories(src/hardware)
+
+file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp)
+file(GLOB_RECURSE HARDWARE_SRC src/hardware/*.cpp)
+file(GLOB_RECURSE NETWORK_SRC networking/tcp*.cpp)
 
 add_executable(GramsReadout main.cpp
-        src/control/controller.cpp
-        src/control/controller.h
-        src/hardware/pcie_control.cpp
-        src/hardware/pcie_control.h
-        src/hardware/configure_hardware.cpp
-        src/hardware/configure_hardware.h
-        networking/tcp_connection.cpp
-        networking/tcp_connection.h
-        networking/tcp_protocol.cpp
-        networking/tcp_protocol.h)
+        ${CONTROL_SRC}
+        ${HARDWARE_SRC}
+        ${NETWORK_SRC})
 
 target_link_libraries(GramsReadout PRIVATE
         quill::quill
         gramsreadout_lib)
 
-add_executable(ReadoutTest test.cpp
-        src/hardware/pcie_control.cpp
-        src/hardware/pcie_control.h
-        src/hardware/configure_hardware.cpp
-        src/hardware/configure_hardware.h)
+add_executable(ReadoutTest test.cpp ${HARDWARE_SRC})
+
 
 target_link_libraries(ReadoutTest PRIVATE
         quill::quill

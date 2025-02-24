@@ -9,7 +9,7 @@
 #include <string>
 #include "quill/Logger.h"
 #include "../../networking/tcp_connection.h"
-#include "../hardware/pcie_control.h"
+#include "../hardware/hardware_control.h"
 
     namespace controller {
 
@@ -89,7 +89,7 @@
         void SendAckCommand(bool success);
 
         TCPConnection tcp_connection_;
-        pcie_ctrl::PCIeControl* pcie_controller_;
+        hardware_ctrl::HardwareControl* pcie_controller_;
 
         std::atomic_bool is_running_;
 

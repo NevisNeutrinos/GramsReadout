@@ -58,6 +58,9 @@ namespace hw_config {
         static int imod_trig   = 11;
         static int imod_shaper = 17;
 
+        // std::array<uint32_t, 40000> pcie_int::PCIeInterface::send_array_ = {};
+        std::array<uint32_t, 10000000> read_array_ = {};
+
         printf("Setting up XMIT module\n");
         imod = imod_xmit; // XMIT setup
         ichip = 3;
@@ -65,33 +68,33 @@ namespace hw_config {
         // p_send_ = &send_array_[0];
         // p_recv_ = &read_array_[0];
 
-        buffer_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_modcount + ((imod_st1 - imod_xmit - 1) << 16); //                  -- number of FEM module -1, counting start at 0
+        pcie_interface->buf_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_modcount + ((imod_st1 - imod_xmit - 1) << 16); //                  -- number of FEM module -1, counting start at 0
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(kDev1, i, k, p_send_);
 
         imod = imod_xmit; //     reset optical
         ichip = 3;
-        buffer_send_[0] = (imod << 11) + (ichip << 8) + mb_opt_dig_reset + (0x1 << 16); // set optical reset on
+        pcie_interface->buf_send_[0] = (imod << 11) + (ichip << 8) + mb_opt_dig_reset + (0x1 << 16); // set optical reset on
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(kDev1, i, k, p_send_);
 
         imod = imod_xmit; //     enable Neutrino Token Passing
         ichip = 3;
-        buffer_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_enable_1 + (0x1 << 16); // enable token 1 pass
+        pcie_interface->buf_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_enable_1 + (0x1 << 16); // enable token 1 pass
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(kDev1, i, k, p_send_);
 
-        buffer_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_enable_2 + (0x0 << 16); // disable token 2 pass
+        pcie_interface->buf_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_enable_2 + (0x0 << 16); // disable token 2 pass
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(kDev1, i, k, p_send_);
 
         imod = imod_xmit; //       reset XMIT LINK IN DPA
         ichip = 3;
-        buffer_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_link_pll_reset + (0x1 << 16); //  reset XMIT LINK IN DPA
+        pcie_interface->buf_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_link_pll_reset + (0x1 << 16); //  reset XMIT LINK IN DPA
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(kDev1, i, k, p_send_);
@@ -99,7 +102,7 @@ namespace hw_config {
 
         imod = imod_xmit; //     reset XMIT LINK IN DPA
         ichip = 3;
-        buffer_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_link_reset + (0x1 << 16); //  reset XMIT LINK IN DPA
+        pcie_interface->buf_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_link_reset + (0x1 << 16); //  reset XMIT LINK IN DPA
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(kDev1, i, k, p_send_);
@@ -108,14 +111,14 @@ namespace hw_config {
 
         imod = imod_xmit; //     reset XMIT FIFO reset
         ichip = 3;
-        buffer_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_dpa_fifo_reset + (0x1 << 16); //  reset XMIT LINK IN DPA
+        pcie_interface->buf_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_dpa_fifo_reset + (0x1 << 16); //  reset XMIT LINK IN DPA
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(kDev1, i, k, p_send_);
 
         imod = imod_xmit; //      test re-align circuit
         ichip = 3;
-        buffer_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_dpa_word_align + (0x1 << 16); //  send alignment pulse
+        pcie_interface->buf_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_dpa_word_align + (0x1 << 16); //  send alignment pulse
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(kDev1, i, k, p_send_);
@@ -125,7 +128,7 @@ namespace hw_config {
         i = pcie_interface->PCIeRecvBuffer(kDev1, 0, 1, nword, iprint, p_recv_);
         imod = imod_xmit;
         ichip = 3;
-        buffer_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_rdstatus + (0x0 << 16); // read out status
+        pcie_interface->buf_send_[0] = (imod << 11) + (ichip << 8) + mb_xmit_rdstatus + (0x0 << 16); // read out status
 
         i = 1;
         k = 1;

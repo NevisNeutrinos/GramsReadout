@@ -8,23 +8,23 @@
 #include "pcie_interface.h"
 #include "configure_hardware.h"
 #include "quill/Logger.h"
-#include "pcie_config.h"
+#include "pcie_control.h"
 
-namespace pcie_ctrl {
+namespace hardware_ctrl {
 
-class PCIeControl {
+class HardwareControl {
     public:
 
-    PCIeControl();
-    ~PCIeControl();
+    HardwareControl();
+    ~HardwareControl();
 
     // FIXME placeholder for config object
     typedef std::vector<std::string> Config;
     typedef std::vector<std::string> Status;
 
     // Do not allow copying or copy assignments
-    PCIeControl(const PCIeControl &) = delete;
-    PCIeControl &operator=(const PCIeControl &) = delete;
+    HardwareControl(const HardwareControl &) = delete;
+    HardwareControl &operator=(const HardwareControl &) = delete;
 
     // Initialize class
     bool Initialize();
@@ -44,6 +44,6 @@ private:
 
 };
 
-} // pcie_ctrl
+} // hardware_ctrl
 
 #endif //PCIECONTROL_H

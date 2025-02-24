@@ -14,7 +14,7 @@ namespace controller {
         tcp_connection_(io_context, ip_address, port, is_server),
         is_running_(is_running) {
         current_state_ = State::kIdle;
-        pcie_controller_ = new pcie_ctrl::PCIeControl();
+        pcie_controller_ = new hardware_ctrl::HardwareControl();
         logger_ = quill::Frontend::create_or_get_logger("root",
                  quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
     }
