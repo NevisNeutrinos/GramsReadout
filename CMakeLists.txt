@@ -46,3 +46,10 @@ target_link_libraries(ReadoutTest PRIVATE
         quill::quill
         gramsreadout_lib)
 
+
+#######################
+# Test
+
+add_executable(PcieReadWrite tests/pcie_read_write.cpp)
+target_link_libraries(PcieReadWrite PRIVATE
+        gramsreadout_lib)
