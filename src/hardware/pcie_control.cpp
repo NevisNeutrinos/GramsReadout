@@ -6,14 +6,6 @@
 #include <iostream>
 
 namespace pcie_control {
-    //
-    // PcieControl::PcieControl() {
-    //     std::cout << "PcieControl::PcieControl()" << std::endl;
-    // }
-
-    // PcieControl::~PcieControl() {
-    //     std::cout << "PcieControl::~PcieControl()" << std::endl;
-    // }
 
 
 bool PcieControl::Configure(pcie_int::PCIeInterface *pcie_interface) {
