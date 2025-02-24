@@ -31,7 +31,17 @@ namespace controller {
         // commands.
 
         // Set up PCIe Tx/Rx
-        pcie_controller_->Initialize();
+        if (!pcie_controller_->Initialize()) {
+            return false;
+        }
+        LOG_INFO(logger_, "Initialized PCIe Devices!");
+
+        // Configure Hardware
+        usleep(1000);
+        if (!pcie_controller_->InitializeHardware()) {
+            return false;
+        }
+        // LOG_INFO(logger_, "Configured Hardware!");
 
         // If something fails
         //return false;

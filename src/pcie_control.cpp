@@ -12,11 +12,12 @@
 
 namespace pcie_ctrl {
 
-    PCIeControl::PCIeControl() {
+    PCIeControl::PCIeControl() : pcie_interface_(nullptr) {
         device_id_0_ = 5;
         device_id_1_ = 4;
         std::cout << "Set Device IDs to 0" << std::endl;
-        pcie_interface = new pcie_int::PCIeInterface;
+        pcie_interface_ = new pcie_int::PCIeInterface;
+        configure_hardware_ = new hw_config::ConfigureHardware();
 
         logger_ = quill::Frontend::create_or_get_logger("root",
          quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
@@ -26,7 +27,8 @@ namespace pcie_ctrl {
         LOG_INFO(logger_, "Setting PCIe Device IDs to 0");
         device_id_0_ = 0;
         device_id_1_ = 0;
-        delete pcie_interface;
+        delete pcie_interface_;
+        delete configure_hardware_;
     }
 
     bool PCIeControl::Initialize() {
@@ -38,16 +40,27 @@ namespace pcie_ctrl {
         std::cout << std::dec;
 
         // Connect to the PCIe bus handle
-        if (!pcie_interface->InitPCIeDevices(device_id_0_, device_id_1_)) {
+        if (!pcie_interface_->InitPCIeDevices(device_id_0_, device_id_1_)) {
             LOG_ERROR(logger_, "PCIe device initialization failed!");
             return false;
         }
-        // Initialize the PCIe cards for Tx/Rx
-        if (!pcie_interface->PCIeDeviceConfigure()) {
-            LOG_ERROR(logger_, "PCIe device configuration failed!");
+        LOG_INFO(logger_, "PCIe devices initialized!");
+        std::cout << "PCIe devices initialized!" << std::endl;
+        //Initialize the PCIe cards for Tx/Rx
+        // if (!pcie_interface_->PCIeDeviceConfigure()) {
+        //     LOG_ERROR(logger_, "PCIe device configuration failed!");
+        //     return false;
+        // }
+        LOG_INFO(logger_, "PCIe devices ready!");
+        return true;
+    }
+
+    bool PCIeControl::InitializeHardware() {
+        Config config;
+        if (!configure_hardware_->Configure(config, pcie_interface_)) {
+            LOG_ERROR(logger_, "Hardware Configuration failed!");
             return false;
         }
-        LOG_INFO(logger_, "PCIe devices ready!");
         return true;
     }
 

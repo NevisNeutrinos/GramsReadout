@@ -79,7 +79,13 @@ int main() {
     controller::Controller controller(io_context, "10.44.1.148", 1730, true, run);
     std::thread io_thread([&]() { io_context.run(); });
 
-    controller.Init();
+    if (!controller.Init()) {
+        std::cerr << "Failed to initialize controller. Shutting down...\n";
+        controller.SetRunning(false);
+        io_context.stop();
+        io_thread.join();
+        return 1;
+    }
     std::thread ctrl_thread([&]() { controller.Run(); });
 
     Run(controller);

@@ -7,28 +7,32 @@
 
 #include <vector>
 #include <string>
+#include <memory>
 #include <unistd.h>
 #include "../lib/pcie_driver/pcie_interface.h"
-#include "pcie_control.h"
+// #include "pcie_control.h"
 
 namespace hw_config {
 
 class ConfigureHardware {
 public:
-    ConfigureHardware(pcie_int::PCIeInterface *pcie_interface);
-    ~ConfigureHardware();
+    ConfigureHardware();
+    ~ConfigureHardware() = default;
 
     // FIXME placeholder for config object
     typedef std::vector<std::string> Config;
     typedef std::vector<std::string> Status;
 
-    bool Configure(Config& config);
-    void ReadStatus(Status& status);
+    bool Configure(Config& config, pcie_int::PCIeInterface *pcie_interface);
+    void ReadStatus(Status& status, pcie_int::PCIeInterface *pcie_interface);
 
 protected:
 
-    bool XMITLoadFPGA(Config& config);
-    bool XMITConfigure(Config& config);
+    bool PCIeDeviceConfigure(pcie_int::PCIeInterface *pcie_interface);
+    bool FullConfigure(pcie_int::PCIeInterface *pcie_interface);
+
+    bool XMITLoadFPGA(Config& config, pcie_int::PCIeInterface *pcie_interface);
+    bool XMITConfigure(Config& config, pcie_int::PCIeInterface *pcie_interface);
     bool XMITReset();
     bool XMITStatus(Status& status);
 
@@ -46,21 +50,22 @@ protected:
 
 private:
 
-    pcie_int::PCIeInterface *pcie_interface_;
     static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
     static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
 
     static constexpr std::size_t ARR_SIZE = 40000;
-    // uint32_t buffer_send_[ARR_SIZE];
-    // static uint32_t send_array_[ARR_SIZE];
-    // static uint32_t read_array_[ARR_SIZE];
-    std::unique_ptr<uint32_t[]> buffer_send_;
-    std::unique_ptr<uint32_t[]> send_array_;
-    std::unique_ptr<uint32_t[]> read_array_;
-    uint32_t *p_send_;
-    uint32_t *p_recv_;
-    // unsigned char char_array_[4000];
-    std::unique_ptr<unsigned char[]> char_array_;
+    std::array<uint32_t, ARR_SIZE> buffer_send_{};
+    std::array<uint32_t, ARR_SIZE> send_array_{};
+    std::array<uint32_t, 100000> read_array_{};
+    std::array<unsigned char, ARR_SIZE> char_array_{};
+
+    std::array<uint32_t, 40000> buf_send{};
+    std::array<unsigned char, 40000> carray{};
+    static std::array<uint32_t, 40000> send_array;
+    static std::array<uint32_t, 10000000> read_array;
+
+    uint32_t *p_send_{};
+    uint32_t *p_recv_{};
 
     // Define hardware magic numbers
     // TODO add short description
@@ -176,7 +181,6 @@ private:
     const uint32_t mb_feb_b_rdbuf = 24;
     const uint32_t mb_feb_read_probe = 30;
     const uint32_t mb_feb_dram_reset = 31;
-    const uint32_t dma_buffer_size = 10000000;
     const uint32_t mb_feb_adc_reset = 33;
     const uint32_t mb_a_buf_status = 34;
     const uint32_t mb_b_buf_status = 35;
@@ -286,7 +290,7 @@ private:
     const uint32_t mb_feb_pmt_rxreset = 84;
     const uint32_t mb_feb_pmt_align_pulse = 85;
     const uint32_t mb_feb_pmt_rd_counters = 86;
-
+    const uint32_t dma_buffer_size = 10000000;
 
 };
 
