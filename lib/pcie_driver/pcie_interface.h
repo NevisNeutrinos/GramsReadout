@@ -10,6 +10,19 @@
 namespace pcie_int {
 
     typedef void *PCIeDeviceHandle;
+    struct PcieBuffers {
+        static constexpr size_t SEND_SIZE = 40000;
+        static constexpr size_t READ_SIZE = 10000000;
+
+        std::array<uint32_t, SEND_SIZE> buf_send{};
+        std::array<unsigned char, SEND_SIZE> carray{};
+        static std::array<uint32_t, SEND_SIZE> send_array;
+        static std::array<uint32_t, READ_SIZE> read_array;
+
+        uint32_t *psend{};
+        uint32_t *precv{};
+    };
+
 
 class PCIeInterface {
 

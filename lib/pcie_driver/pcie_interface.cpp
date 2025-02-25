@@ -8,6 +8,9 @@
 
 namespace pcie_int {
 
+    std::array<uint32_t, PcieBuffers::SEND_SIZE> PcieBuffers::send_array = {};
+    std::array<uint32_t, PcieBuffers::READ_SIZE> PcieBuffers::read_array = {};
+
     PCIeInterface::PCIeInterface() {
         dev_handle_1 = nullptr;
         dev_handle_2 = nullptr;
