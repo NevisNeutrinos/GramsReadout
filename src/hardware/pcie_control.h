@@ -6,7 +6,6 @@
 #define PCIE_CONFIG_H
 
 #include "hardware_device.h"
-#include "hardware_constants.h"
 #include <vector>
 
 namespace pcie_control {
@@ -17,7 +16,7 @@ public:
   PcieControl() = default;
   ~PcieControl() override = default;
 
-  bool Configure(pcie_int::PCIeInterface *pcie_interface) override;
+  bool Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers& buffers) override;
   std::vector<uint32_t> GetStatus() override;
   bool CloseDevice() override;
 

@@ -21,6 +21,8 @@ namespace hardware_ctrl {
 
         logger_ = quill::Frontend::create_or_get_logger("root",
          quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
+        buffers_ = new pcie_int::PcieBuffers;
+
     }
 
     HardwareControl::~HardwareControl() {
@@ -29,6 +31,7 @@ namespace hardware_ctrl {
         device_id_1_ = 0;
         delete pcie_interface_;
         delete configure_hardware_;
+        delete buffers_;
     }
 
     bool HardwareControl::Initialize() {
@@ -57,13 +60,25 @@ namespace hardware_ctrl {
 
     bool HardwareControl::InitializeHardware() {
         auto* pconfig = new pcie_control::PcieControl();
-        // pconfig->Configure(pcie_interface_);
+        pconfig->Configure(pcie_interface_, *buffers_);
 
-        Config config;
-        if (!configure_hardware_->Configure(config, pcie_interface_)) {
-            LOG_ERROR(logger_, "Hardware Configuration failed!");
-            return false;
-        }
+        auto* xconfig = new xmit_control::XmitControl();
+        xconfig->Configure(pcie_interface_, *buffers_);
+
+        auto* lconfig = new light_fem::LightFem();
+        lconfig->Configure(pcie_interface_, *buffers_);
+
+        auto* tconfig = new charge_fem::ChargeFem();
+        tconfig->Configure(pcie_interface_, *buffers_);
+
+        // Config config;
+        // if (!configure_hardware_->Configure(config, pcie_interface_)) {
+        //     LOG_ERROR(logger_, "Hardware Configuration failed!");
+        //     return false;
+        // }
+
+        delete pconfig;
+        delete xconfig;
         return true;
     }
 

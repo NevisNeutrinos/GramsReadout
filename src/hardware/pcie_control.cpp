@@ -8,7 +8,7 @@
 namespace pcie_control {
 
 
-bool PcieControl::Configure(pcie_int::PCIeInterface *pcie_interface) {
+bool PcieControl::Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
     /* ^^^^^^^^^^^^^^^^^^^^^^^^^^ CONTROLLER-PCIE SETTUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
     static uint32_t dwAddrSpace;
     static uint32_t u32Data;
@@ -16,7 +16,7 @@ bool PcieControl::Configure(pcie_int::PCIeInterface *pcie_interface) {
     // static uint32_t i, k;
     static uint32_t mode, num_words;
     static long imod, ichip;
-    uint32_t *psend, *precv;
+    // uint32_t *psend, *precv;
 
     dwAddrSpace = 2;
     u32Data = hw_consts::cs_init; //0x20000000; // initial transmitter, no hold
@@ -43,18 +43,20 @@ bool PcieControl::Configure(pcie_int::PCIeInterface *pcie_interface) {
     dwOffset = hw_consts::tx_md_reg; //0x28;
     pcie_interface->WriteReg32(kDev2, dwAddrSpace, dwOffset, u32Data);
 
-    psend = pcie_interface->buf_send_.data(); //&buf_send[0]; // RUN INITIALIZATION
-    // precv = pcie_interface->read_array_.data(); //&read_array[0];
+    buffers.psend = buffers.buf_send.data(); //&buf_send[0]; // RUN INITIALIZATION
+    buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
     imod = 0; // controller module
 
-    pcie_interface->buf_send_[0] = 0x0; // INITIALIZE
-    pcie_interface->buf_send_[1] = 0x0;
+    // pcie_interface->buf_send_[0] = 0x0; // INITIALIZE
+    // pcie_interface->buf_send_[1] = 0x0;
+    buffers.buf_send[0] = 0x0; // INITIALIZE
+    buffers.buf_send[1] = 0x0;
     mode = 1;
     num_words = 1;
-    mode = pcie_interface->PCIeSendBuffer(kDev1, mode, num_words, psend);
+    mode = pcie_interface->PCIeSendBuffer(kDev1, mode, num_words, buffers.psend);
 
     std::cout << "1am i: " << mode << std::endl;
-    std::cout << "1am psend: " << psend << std::endl;
+    std::cout << "1am psend: " << buffers.psend << std::endl;
 
     return true;
 }

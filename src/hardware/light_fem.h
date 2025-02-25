@@ -1,5 +1,5 @@
 //
-// Created by sabertooth on 2/24/25.
+// Created by Jon Sensenig on 2/24/25.
 //
 
 #ifndef LIGHT_FEM_H
@@ -10,11 +10,12 @@
 namespace light_fem {
 
 class LightFem : public HardwareDevice {
+public:
 
     LightFem() = default;
     ~LightFem() override = default;
 
-    bool Configure(pcie_int::PCIeInterface *pcie_interface) override;
+    bool Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
     std::vector<uint32_t> GetStatus() override;
     bool CloseDevice() override;
 

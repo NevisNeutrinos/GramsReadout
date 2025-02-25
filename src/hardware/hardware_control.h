@@ -9,6 +9,9 @@
 #include "configure_hardware.h"
 #include "quill/Logger.h"
 #include "pcie_control.h"
+#include "xmit_control.h"
+#include "charge_fem.h"
+#include "light_fem.h"
 
 namespace hardware_ctrl {
 
@@ -36,6 +39,7 @@ private:
 
     pcie_int::PCIeInterface *pcie_interface_;
     hw_config::ConfigureHardware *configure_hardware_;
+    pcie_int::PcieBuffers *buffers_;
 
     // PCIe device bus and IDs
     int pcie_bus_{};

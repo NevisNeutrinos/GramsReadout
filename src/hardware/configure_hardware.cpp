@@ -606,7 +606,7 @@ namespace hw_config {
                 printf("mb_xmit_rdstatus %x\n", mb_xmit_rdstatus);
                 printf("mb_xmit_rdstatus %x\n", mb_xmit_rdstatus);
             }
-            /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+            /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ LIGHT FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
     //pmt_adc_setup(hDev, imod_pmt, iframe_length, 1, outinfo);
     static int mode;
@@ -1235,7 +1235,7 @@ namespace hw_config {
 
 
 
-    ///////////////////////////  BOOT TPC FEM //////////////////////////////////////////
+    ///////////////////////////  BOOT CHARGE FEM //////////////////////////////////////////
     //
     //
             // //imod_xmit = imod_xmit + 1;
@@ -1350,9 +1350,9 @@ namespace hw_config {
 
             // imod_xmit = imod_xmit - 1;
 
-            printf("\n...FEB booting done \n");
+            printf("\n...LIGHT FEB booting done \n");
 
-            /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ FEM SETTUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+            /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ CHARGE FEM SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
             // // settup TPC FEM
             int adcdata = 1;
@@ -1690,7 +1690,8 @@ namespace hw_config {
               k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, px);
               //End EXT Trigger setup as of 11/26/2024
- }
+            }
+
             /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRIGGER_SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
             /*   here is common block from tpc */

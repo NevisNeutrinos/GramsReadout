@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <vector>
 #include "pcie_interface.h"
+#include "hardware_constants.h"
 
 class HardwareDevice {
   public:
@@ -17,10 +18,11 @@ class HardwareDevice {
     *
     *   @param [in] config:  The configuration passed from the top level.
     *   @param [in] pcie_interface:  The PCIe interface library.
+    *   @param buffers
     *
     * @return  Returns true on successful configuration, false on failure.
     */
-    virtual bool Configure(pcie_int::PCIeInterface *pcie_interface) = 0;
+    virtual bool Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) = 0;
 
     /**
     *  Abstract class to get status of the respective hardware.

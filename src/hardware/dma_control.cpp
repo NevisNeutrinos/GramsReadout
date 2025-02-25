@@ -1,11 +1,11 @@
 //
-// Created by sabertooth on 2/24/25.
+// Created by Jon Sensenig on 2/24/25.
 //
 
 #include "dma_control.h"
 
 namespace dma_control {
-    bool DmaControl::Configure(pcie_int::PCIeInterface *pcie_interface) {
+    bool DmaControl::Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
         return true;
     }
 
