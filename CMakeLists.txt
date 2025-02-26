@@ -25,7 +25,7 @@ include_directories(src/hardware)
 
 file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp)
 file(GLOB_RECURSE HARDWARE_SRC src/hardware/*.cpp)
-file(GLOB_RECURSE NETWORK_SRC networking/tcp*.cpp)
+file(GLOB NETWORK_SRC networking/tcp*.cpp)
 
 add_executable(GramsReadout main.cpp
         ${CONTROL_SRC}
