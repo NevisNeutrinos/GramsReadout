@@ -428,94 +428,117 @@ namespace charge_fem {
             } // end loop over FEMs
             // imod_xmit = imod_xmit-1;
 
-            /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRIGGER_SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+        ////////////////////////////////////////
+        ///
+        /// Reset and status
+        ////////////////////////////////////////
 
-            /* FROM TPC PART*/
-            imod = 0; // set offline test
-            ichip = 1;
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_cntrl_test_on) + (0x0 << 16); // enable offline run on
+        /*   here is common block from tpc */
+        for (imod_fem = (imod_st2); imod_fem > imod_xmit; imod_fem--) //     now reset all the link port receiver PLL
+        {
+            printf("%i \n", imod_fem);
+            imod = imod_fem;
+            printf("Resetting TPC link PLL for module %x \n", imod);
+            ichip = 4;
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pll_reset + (0x0 << 16); // reset LINKIN PLL
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            usleep(2000); // give PLL time to reset (1ms->2ms JLS)
+        }
 
-            imod = imod_trig;
-            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up trigger module run off
+        for (imod_fem = (imod_xmit + 1); imod_fem < (imod_st2 + 1); imod_fem++) // read back status
+        {
+            printf("%i \n", imod_fem);
+
+            i = pcie_interface->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers.precv); // init the receiver
+            imod = imod_fem;
+            ichip = 3;
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 20 + (0x0 << 16); // read out status
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
+            i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv);
+            printf("\nReceived TPC FEB %d (slot %d) status data word = %x, %x \n", imod, imod, pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
 
-            imod = imod_trig;
-            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_deadtime_size) + ((250 & 0xff) << 16); // set trigger module deadtime size
-            i = 1;
-            k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            printf("----------------------------\n");
+            printf("TPC FEB %d (slot %d) status \n", imod, imod);
+            printf("----------------------------\n");
+            printf("cmd return (20)       : %d\n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
+            printf("check bits 10:8 (0)   : %d\n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
+            printf("module number (%d)    : %d\n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
+            printf("----------------------------\n");
+            printf("check bit  0 (0)      : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
+            printf("Right ADC DPA locked  : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
+            printf("Left  ADC DPA locked  : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
+            printf("SN pre-buf err        : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
+            printf("Neutrino pre-buf err  : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
+            printf("PLL locked            : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
+            printf("SN memory ready       : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
+            printf("Neutrino memory ready : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
+            printf("ADC lock right        : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
+            printf("ADC lock left         : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
+            printf("ADC align right       : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
+            printf("ADC align left        : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
+            printf("check bits 15:12 (0)  : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
+            printf("----------------------------\n");
+        }
 
-            imod = 0; // set offline test
-            ichip = 1;
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_cntrl_test_off) + (0x0 << 16); // set controller test off
-            i = 1;
-            k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+    for (imod_fem = (imod_st2); imod_fem > imod_xmit; imod_fem--)
+    {
+        printf("%i \n", imod_fem);
+        imod = imod_fem;
+        printf(" reset the link for TPC module %d \n", imod);
+        ichip = 4;
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_rxreset + (0x0 << 16); // reset LINKIN DPA
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+        usleep(1000); // give DPA time to reset (1ms  JLS)
 
-            imod = imod_trig; // Set number of ADC samples to (iframe+1)/8;
-            iframe = iframe_length;
-            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_frame_size) + ((iframe & 0xffff) << 16);
-            i = 1;
-            k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+        ichip = 4;
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_align + (0x0 << 16); // send alignment command
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+        usleep(1000); // give DPA time to align (1ms  JLS)
+    }
 
-            imod = 0; // load trig 1 position relative to the frame..
-            ichip = 1;
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_cntrl_load_trig_pos) + ((itrig_delay & 0xffff) << 16); // enable test mode
-            i = 1;
-            k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+    for (imod_fem = (imod_xmit + 1); imod_fem < (imod_st2 + 1); imod_fem++) {
+        i = pcie_interface->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers.precv);
+        imod = imod_fem;
+        ichip = 3;
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 20 + (0x0 << 16); // read out status
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+        buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
+        i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv); // read out 2 32 bits words
+        printf("\nReceived TPC FEB %d (slot %d) status data word = %x, %x \n", imod, imod, pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
+        printf("----------------------------\n");
+        printf("TPC FEB %d (slot %d) status \n", imod, imod);
+        printf("----------------------------\n");
+        printf("cmd return (20)       : %d\n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
+        printf("check bits 10:8 (0)   : %d\n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
+        printf("module number (%d)    : %d\n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
+        printf("----------------------------\n");
+        printf("check bit  0 (0)      : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
+        printf("Right ADC DPA locked  : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
+        printf("Left  ADC DPA locked  : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
+        printf("SN pre-buf err        : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
+        printf("Neutrino pre-buf err  : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
+        printf("PLL locked            : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
+        printf("SN memory ready       : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
+        printf("Neutrino memory ready : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
+        printf("ADC lock right        : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
+        printf("ADC lock left         : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
+        printf("ADC align right       : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
+        printf("ADC align left        : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
+        printf("check bits 15:12 (0)  : %d\n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
+        printf("----------------------------\n");
 
-
-            if(trigtype){
-            //Begin PMT Trigger setup
-
-              imod = imod_trig;
-              buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask1)+((mask1&0xf)<<16); //set mask1[3] on.
-              i = 1;
-              k = 1;
-              i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-              imod=imod_trig;
-              buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale1)+(0x0<<16); //set prescale1 0
-              i = 1;
-              k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-              imod=imod_trig;
-              buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask8)+((mask8&0xff)<<16);
-              i = 1;
-              k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-              imod=imod_trig;
-              buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale8)+(0x0<<16); //set prescale8 0
-              i = 1;
-              k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-              //End PMT Trigger setup
-            }
-            else{
-              //begin EXT Trigger setup as of 11/26/2024
-              imod = imod_trig;
-              buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x2 << 16); // set mask1[3] on.
-              i = 1;
-              k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-              imod = imod_trig;
-              buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale8) + (0x0 << 16); // set prescale1 0
-              i = 1;
-              k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-              //End EXT Trigger setup as of 11/26/2024
-            }
+    }
 
         return true;
     }

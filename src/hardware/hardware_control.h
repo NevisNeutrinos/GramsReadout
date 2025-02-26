@@ -12,6 +12,7 @@
 #include "xmit_control.h"
 #include "charge_fem.h"
 #include "light_fem.h"
+#include "trigger_control.h"
 
 namespace hardware_ctrl {
 

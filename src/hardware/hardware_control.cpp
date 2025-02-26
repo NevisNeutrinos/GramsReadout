@@ -3,6 +3,9 @@
 //
 
 #include "hardware_control.h"
+
+#include <dma_control.h>
+
 #include "quill/LogMacros.h"
 #include "quill/Frontend.h"
 #include "quill/sinks/ConsoleSink.h"
@@ -59,17 +62,29 @@ namespace hardware_ctrl {
     }
 
     bool HardwareControl::InitializeHardware() {
+        LOG_INFO(logger_, "Initializing PCIe Bus and Device IDs");
         auto* pconfig = new pcie_control::PcieControl();
         pconfig->Configure(pcie_interface_, *buffers_);
 
+        LOG_INFO(logger_, "Starting XMIT Config...");
         auto* xconfig = new xmit_control::XmitControl();
         xconfig->Configure(pcie_interface_, *buffers_);
 
+        LOG_INFO(logger_, "Starting Light FEM Config...");
         auto* lconfig = new light_fem::LightFem();
         lconfig->Configure(pcie_interface_, *buffers_);
 
+        LOG_INFO(logger_, "Starting Charge FEM Config...");
         auto* tconfig = new charge_fem::ChargeFem();
         tconfig->Configure(pcie_interface_, *buffers_);
+
+        LOG_INFO(logger_, "Starting Trigger Config...");
+        auto* trigconfig = new trig_ctrl::TriggerControl();
+        trigconfig->Configure(pcie_interface_, *buffers_);
+
+        LOG_INFO(logger_, "Starting Trigger Config...");
+        auto* runconfig = new dma_control::DmaControl();
+        runconfig->Configure(pcie_interface_, *buffers_);
 
         // Config config;
         // if (!configure_hardware_->Configure(config, pcie_interface_)) {
@@ -79,6 +94,10 @@ namespace hardware_ctrl {
 
         delete pconfig;
         delete xconfig;
+        delete lconfig;
+        delete tconfig;
+        delete trigconfig;
+        delete runconfig;
         return true;
     }
 

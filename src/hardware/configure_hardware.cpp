@@ -1676,19 +1676,20 @@ namespace hw_config {
 
               //End PMT Trigger setup
             }
-            else{
+            else
+            {
               //begin EXT Trigger setup as of 11/26/2024
               imod = imod_trig;
               buf_send[0] = (imod << 11) + (mb_trig_mask8) + (0x2 << 16); // set mask1[3] on.
               i = 1;
               k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, px);
+              i = pcie_interface->PCIeSendBuffer(1, i, k, px);
 
               imod = imod_trig;
               buf_send[0] = (imod << 11) + (mb_trig_prescale8) + (0x0 << 16); // set prescale1 0
               i = 1;
               k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, px);
+              i = pcie_interface->PCIeSendBuffer(1, i, k, px);
               //End EXT Trigger setup as of 11/26/2024
             }
 

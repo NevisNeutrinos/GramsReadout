@@ -6,10 +6,14 @@
 #define PCIE_INTERFACE_H
 #include <cstdint>
 #include <array>
+#include <memory>
+
 
 namespace pcie_int {
 
     typedef void *PCIeDeviceHandle;
+    typedef void *DMABufferHandle;
+
     struct PcieBuffers {
         static constexpr size_t SEND_SIZE = 40000;
         static constexpr size_t READ_SIZE = 10000000;
@@ -23,6 +27,9 @@ namespace pcie_int {
         uint32_t *precv{};
     };
 
+// Forward declaring the struct so as not
+// to introduce dependecies.
+struct DmaBuffStruct;
 
 class PCIeInterface {
 
@@ -49,6 +56,12 @@ public:
     void ReadReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, unsigned long long *data);
     bool WriteReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint64_t data);
 
+    bool DmaContigBufferLock(uint32_t dev_handle, uint32_t dwDMABufSize, DMABufferHandle *pbuf_rec);
+    bool DmaSyncCpu(uint32_t buffer_handle);
+    bool DmaSyncIo(uint32_t buffer_handle);
+    uint32_t GetBufferPageAddrUpper(uint32_t buffer_handle);
+    uint32_t GetBufferPageAddrLower(uint32_t buffer_handle);
+
     static constexpr uint32_t kDev1 = 1;
     static constexpr uint32_t kDev2 = 2;
 
@@ -64,8 +77,13 @@ private:
     PCIeDeviceHandle dev_handle_2;
     PCIeDeviceHandle hDev;
 
+    // DMA Data Aquisition
+    std::unique_ptr<DmaBuffStruct> buffer_info_struct1;
+    std::unique_ptr<DmaBuffStruct> buffer_info_struct2;
+
     bool is_initialized;
     PCIeDeviceHandle GetDeviceHandle(uint32_t dev_handle);
+    void GetBufferHandle(uint32_t buffer_handle, DmaBuffStruct *dma_struct);
 
     // Magic numbers for DMA R/W
     static constexpr uint32_t t1_tr_bar = 0;

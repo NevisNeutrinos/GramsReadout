@@ -2,8 +2,8 @@
 // Created by Jon Sensenig on 1/29/25.
 //
 
-#include <iostream>
 #include "pcie_interface.h"
+#include <iostream>
 #include "gramsreadout_lib.h"
 
 namespace pcie_int {
@@ -11,7 +11,12 @@ namespace pcie_int {
     std::array<uint32_t, PcieBuffers::SEND_SIZE> PcieBuffers::send_array = {};
     std::array<uint32_t, PcieBuffers::READ_SIZE> PcieBuffers::read_array = {};
 
-    PCIeInterface::PCIeInterface() {
+    struct DmaBuffStruct {
+        WD_DMA *dma_buff;
+    };
+
+    PCIeInterface::PCIeInterface() : buffer_info_struct1(std::make_unique<DmaBuffStruct>()),
+                                     buffer_info_struct2(std::make_unique<DmaBuffStruct>()){
         dev_handle_1 = nullptr;
         dev_handle_2 = nullptr;
         hDev = nullptr;
@@ -47,6 +52,7 @@ namespace pcie_int {
     }
 
     bool PCIeInterface::InitPCIeDevices(uint32_t dev1, uint32_t dev2) {
+
         /* Initialize the GRAMSREADOUT library */
         DWORD dwStatus = GRAMSREADOUT_LibInit();
         if (WD_STATUS_SUCCESS != dwStatus) {
@@ -147,21 +153,32 @@ namespace pcie_int {
         if (dev_handle == 2) {
             return  dev_handle_2;
         }
-
         std::cerr << "PCIeInterface::PCIeSendBuffer: Invalid device handle: " << dev_handle << std::endl;
         return nullptr;
     }
 
+    void PCIeInterface::GetBufferHandle(uint32_t buffer_handle, DmaBuffStruct *dma_struct) {
+        if (buffer_handle == 1) {
+            dma_struct->dma_buff = buffer_info_struct1->dma_buff;
+        }
+        else if (buffer_handle == 2) {
+            dma_struct->dma_buff = buffer_info_struct2->dma_buff;
+        }
+        else {
+            std::cerr << "Unknown dev handle!" << std::endl;
+            dma_struct->dma_buff = nullptr;
+        }
+    }
+
     uint32_t PCIeInterface::PCIeSendBuffer(uint32_t dev, uint32_t mode, uint32_t nword, uint32_t *buff_send) {
         /* imode =0 single word transfer, imode =1 DMA */
-
         hDev = GetDeviceHandle(dev);
 
         static DWORD dwAddrSpace;
         static DWORD dwDMABufSize;
 
         static UINT32 *buf_send;
-        static WD_DMA *pDma_send;
+        static WD_DMA *pDma_send; // this is from the Windriver C library
         static DWORD dwStatus;
         static DWORD dwOptions_send = DMA_TO_DEVICE;
         static DWORD dwOffset;
@@ -292,7 +309,7 @@ namespace pcie_int {
         static DWORD dwDMABufSize;
 
         static UINT32 *buf_rec;
-        static WD_DMA *pDma_rec;
+        static ::WD_DMA *pDma_rec; // this is from the Windriver C library
         static DWORD dwStatus;
         static DWORD dwOptions_rec = DMA_FROM_DEVICE;
         static DWORD dwOffset;
@@ -439,5 +456,69 @@ namespace pcie_int {
         }
         return 0;
     }
+
+    bool PCIeInterface::DmaContigBufferLock(uint32_t dev_handle, uint32_t dwDMABufSize, DMABufferHandle *pbuf_rec) {
+        static DWORD dwStatus;
+        static uint32_t u32Data, is;
+        static int idebug = 1;
+
+        WD_DMA **pDma_rec;
+        if (dev_handle == 1) { pDma_rec = &buffer_info_struct1->dma_buff; }
+        else if (dev_handle == 2) { pDma_rec = &buffer_info_struct2->dma_buff; }
+        else { std::cerr << "Unknown dev handle!" << std::endl; return false; }
+
+        DWORD dwOptions_rec = DMA_FROM_DEVICE | DMA_ALLOW_64BIT_ADDRESS;
+
+        PCIeDeviceHandle hDev2 = GetDeviceHandle(dev_handle);
+
+        dwStatus = WDC_DMAContigBufLock(hDev2, pbuf_rec, dwOptions_rec, dwDMABufSize, pDma_rec);
+        if (WD_STATUS_SUCCESS != dwStatus) {
+            printf("Failed locking a rec 2 Contiguous DMA buffer. Error 0x%lx - %s\n", dwStatus, Stat2Str(dwStatus));
+            printf("enter 1 to continue \n");
+            scanf("%d", &is);
+            if (is != 1) return false;
+        }
+        std::cout << std::hex;
+        std::cout << "*pDma_rec: " << *pDma_rec << std::endl;
+        std::cout << "buffer_info_struct1->dma_buff: " << buffer_info_struct1->dma_buff << std::endl;
+        std::cout << "buffer_info_struct2->dma_buff: " << buffer_info_struct2->dma_buff << std::endl;
+        std::cout << std::dec;
+
+        return true;
+    }
+
+    bool PCIeInterface::DmaSyncCpu(uint32_t buffer_handle) {
+        DmaBuffStruct dma_struct{};
+        GetBufferHandle(buffer_handle, &dma_struct);
+
+        if (WDC_DMASyncCpu(dma_struct.dma_buff) != WD_STATUS_SUCCESS) {
+            std::cerr << "DMA Sync failed for buffer: " << buffer_handle << std::endl;
+            return false;
+        }
+        return true;
+    }
+
+    bool PCIeInterface::DmaSyncIo(uint32_t buffer_handle) {
+        DmaBuffStruct dma_struct{};
+        GetBufferHandle(buffer_handle, &dma_struct);
+        if (WDC_DMASyncIo(dma_struct.dma_buff) != WD_STATUS_SUCCESS) {
+            std::cerr << "I/O Sync failed for buffer: " << buffer_handle << std::endl;
+            return false;
+        }
+        return true;
+    }
+
+    uint32_t PCIeInterface::GetBufferPageAddrUpper(uint32_t buffer_handle) {
+        DmaBuffStruct dma_struct{};
+        GetBufferHandle(buffer_handle, &dma_struct);
+        return (dma_struct.dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff;
+    }
+
+    uint32_t PCIeInterface::GetBufferPageAddrLower(uint32_t buffer_handle) {
+        DmaBuffStruct dma_struct{};
+        GetBufferHandle(buffer_handle, &dma_struct);
+        return dma_struct.dma_buff->Page->pPhysicalAddr  & 0xffffffff;
+    }
+
 
 } // pcie_int
