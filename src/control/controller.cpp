@@ -6,6 +6,7 @@
 #include "quill/LogMacros.h"
 #include "quill/Frontend.h"
 #include "quill/sinks/ConsoleSink.h"
+#include <fstream>
 
 namespace controller {
 
@@ -15,6 +16,11 @@ namespace controller {
         is_running_(is_running) {
         current_state_ = State::kIdle;
         pcie_controller_ = new hardware_ctrl::HardwareControl();
+        data_handler_ = new data_handler::DataHandler();
+
+        std::string config_file("../config/example.json");
+        LoadConfig(config_file);
+
         logger_ = quill::Frontend::create_or_get_logger("root",
                  quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
     }
@@ -24,25 +30,36 @@ namespace controller {
         delete pcie_controller_;
     }
 
+    void Controller::LoadConfig(std::string &config_file) {
+        if (std::ifstream f(config_file); !f.is_open()) {
+            LOG_ERROR(logger_, "Could not open config file {}", config_file);
+        } else {
+            LOG_INFO(logger_, "Successfully opened config file {}", config_file);
+            config_ = json::parse(f);
+        }
+    }
 
     bool Controller::Init() {
+
         current_state_ = State::kIdle;
         // Start listening to the TCP receiver for any
         // commands.
 
         // Set up PCIe Tx/Rx
-        if (!pcie_controller_->Initialize()) {
+        if (!pcie_controller_->Initialize(config_)) {
             return false;
         }
         LOG_INFO(logger_, "Initialized PCIe Devices!");
 
         // Configure Hardware
         usleep(1000);
-        if (!pcie_controller_->InitializeHardware()) {
+        if (!pcie_controller_->InitializeHardware(config_)) {
             return false;
         }
-        // LOG_INFO(logger_, "Configured Hardware!");
+        LOG_INFO(logger_, "Configured Hardware!");
 
+        usleep(10000);
+        data_handler_->SetRun(true);
         // If something fails
         //return false;
 

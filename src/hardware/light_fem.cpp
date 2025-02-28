@@ -8,7 +8,7 @@
 
 namespace light_fem {
 
-    bool LightFem::Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
+    bool LightFem::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
         static long imod, ichip;
         static uint32_t i, k, iprint, ik, is;
         static int count, counta, nword;
@@ -49,7 +49,6 @@ namespace light_fem {
         struct timeval;
         time_t rawtime;
         char timestr[500];
-        char subrun[50];
         int trigtype;
         time(&rawtime);
 
@@ -57,8 +56,6 @@ namespace light_fem {
 
     time(&rawtime);
     strftime(timestr, sizeof(timestr), "%Y_%m_%d", localtime(&rawtime));
-    printf("\n ######## SiPM+TPC XMIT Readout \n\n Enter SUBRUN NUMBER or NAME:\t");
-    scanf("%s", &subrun);
     printf("\n Enter 0 for EXT trigger or 1 for triggers issued by SiPM ADC:\t");
     scanf("%i", &trigtype);
 

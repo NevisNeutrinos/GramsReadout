@@ -17,18 +17,26 @@ endif ()
 add_subdirectory(quill)
 add_subdirectory(lib/pcie_driver)
 add_subdirectory(networking)
-include_directories(networking)
 #add_subdirectory(tests)
-include_directories(lib/pcie_driver)
-include_directories(src/control)
-include_directories(src/hardware)
+
+include_directories(networking
+                    src/control
+                    src/hardware
+                    lib/pcie_driver
+                    lib/nlohmann_json)
+
+#include_directories(lib/pcie_driver)
+#include_directories(src/control)
+#include_directories(src/hardware)
 
 file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp)
+file(GLOB_RECURSE DATA_HANDLER_SRC src/data/*.cpp)
 file(GLOB_RECURSE HARDWARE_SRC src/hardware/*.cpp)
 file(GLOB NETWORK_SRC networking/tcp*.cpp)
 
 add_executable(GramsReadout main.cpp
         ${CONTROL_SRC}
+        ${DATA_HANDLER_SRC}
         ${HARDWARE_SRC}
         ${NETWORK_SRC})
 

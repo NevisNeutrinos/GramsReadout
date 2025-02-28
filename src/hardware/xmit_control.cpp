@@ -9,7 +9,7 @@
 
 namespace xmit_control {
 
-    bool XmitControl::Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
+    bool XmitControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
 
         static long imod, ichip;
         static uint32_t i, k, iprint, ik;

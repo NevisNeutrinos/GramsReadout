@@ -37,7 +37,7 @@ namespace hardware_ctrl {
         delete buffers_;
     }
 
-    bool HardwareControl::Initialize() {
+    bool HardwareControl::Initialize(json &config) {
 
         std::cout << "Initializing PCIe Bus and Device IDs" << std::endl;
         std::cout << std::hex;
@@ -61,30 +61,30 @@ namespace hardware_ctrl {
         return true;
     }
 
-    bool HardwareControl::InitializeHardware() {
+    bool HardwareControl::InitializeHardware(json &config) {
         LOG_INFO(logger_, "Initializing PCIe Bus and Device IDs");
         auto* pconfig = new pcie_control::PcieControl();
-        pconfig->Configure(pcie_interface_, *buffers_);
+        pconfig->Configure(config, pcie_interface_, *buffers_);
 
         LOG_INFO(logger_, "Starting XMIT Config...");
         auto* xconfig = new xmit_control::XmitControl();
-        xconfig->Configure(pcie_interface_, *buffers_);
+        xconfig->Configure(config, pcie_interface_, *buffers_);
 
         LOG_INFO(logger_, "Starting Light FEM Config...");
         auto* lconfig = new light_fem::LightFem();
-        lconfig->Configure(pcie_interface_, *buffers_);
+        lconfig->Configure(config, pcie_interface_, *buffers_);
 
         LOG_INFO(logger_, "Starting Charge FEM Config...");
         auto* tconfig = new charge_fem::ChargeFem();
-        tconfig->Configure(pcie_interface_, *buffers_);
+        tconfig->Configure(config, pcie_interface_, *buffers_);
 
         LOG_INFO(logger_, "Starting Trigger Config...");
         auto* trigconfig = new trig_ctrl::TriggerControl();
-        trigconfig->Configure(pcie_interface_, *buffers_);
+        trigconfig->Configure(config, pcie_interface_, *buffers_);
 
         LOG_INFO(logger_, "Starting Trigger Config...");
         auto* runconfig = new dma_control::DmaControl();
-        runconfig->Configure(pcie_interface_, *buffers_);
+        runconfig->Configure(config, pcie_interface_, *buffers_);
 
         // Config config;
         // if (!configure_hardware_->Configure(config, pcie_interface_)) {

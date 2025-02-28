@@ -8,8 +8,10 @@
 #include <iostream>
 #include <string>
 #include "quill/Logger.h"
+#include "json.hpp"
 #include "../../networking/tcp_connection.h"
 #include "../hardware/hardware_control.h"
+#include "../data/data_handler.h"
 
     namespace controller {
 
@@ -87,14 +89,18 @@
 
         void ReceiveCommand();
         void SendAckCommand(bool success);
+        void LoadConfig(std::string &config_file);
 
         TCPConnection tcp_connection_;
         hardware_ctrl::HardwareControl* pcie_controller_;
+        data_handler::DataHandler *data_handler_;
 
         std::atomic_bool is_running_;
 
         quill::Logger* logger_;
         State current_state_;
+
+        json config_;
 
     };
 

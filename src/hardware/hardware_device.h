@@ -9,6 +9,9 @@
 #include <vector>
 #include "pcie_interface.h"
 #include "hardware_constants.h"
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 class HardwareDevice {
   public:
@@ -17,12 +20,13 @@ class HardwareDevice {
     *  Abstract class which will be the common interface to configure the respective hardware.
     *
     *   @param [in] config:  The configuration passed from the top level.
+    *   @param config
     *   @param [in] pcie_interface:  The PCIe interface library.
     *   @param buffers
     *
     * @return  Returns true on successful configuration, false on failure.
     */
-    virtual bool Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) = 0;
+    virtual bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) = 0;
 
     /**
     *  Abstract class to get status of the respective hardware.

@@ -15,7 +15,7 @@ public:
     LightFem() = default;
     ~LightFem() override = default;
 
-    bool Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
+    bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
     std::vector<uint32_t> GetStatus() override;
     bool CloseDevice() override;
 

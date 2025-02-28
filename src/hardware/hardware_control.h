@@ -8,6 +8,7 @@
 #include "pcie_interface.h"
 #include "configure_hardware.h"
 #include "quill/Logger.h"
+#include "json.hpp"
 #include "pcie_control.h"
 #include "xmit_control.h"
 #include "charge_fem.h"
@@ -31,8 +32,8 @@ class HardwareControl {
     HardwareControl &operator=(const HardwareControl &) = delete;
 
     // Initialize class
-    bool Initialize();
-    bool InitializeHardware();
+    bool Initialize(json &config);
+    bool InitializeHardware(json &config);
 
 private:
 

@@ -3,10 +3,11 @@
 //
 
 #include "trigger_control.h"
+#include <unistd.h>
 
 namespace trig_ctrl {
 
-    bool TriggerControl::Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
+    bool TriggerControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
     /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRIGGER_SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
       static uint32_t i, k;
       static long imod, ichip;
@@ -145,4 +146,54 @@ namespace trig_ctrl {
         int j = 6;
         return i > j;
     }
+
+    void TriggerControl::SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers, int itrig_c, int itrig_ext) {
+        static int imod_trig   = 11;
+        static int imod, ichip;
+
+        if (itrig_c == 1)
+        {
+            imod = imod_trig; /* trigger module */
+            buffers.buf_send[0] = (imod << 11) + hw_consts::mb_trig_pctrig + ((0x0) << 16);
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+            usleep(5000); // 3x frame size
+        }
+        else if (itrig_ext == 1)
+        {
+            //
+            //     only need to restart the run if we use the test data or 1st run
+            //
+            imod = imod_trig;
+            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+        }
+        else
+        {
+            imod = 0;
+            ichip = 1;
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_cntrl_set_trig1 + (0x0 << 16); // send trigger
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+            usleep(5000);
+        }
+    }
+
+    void TriggerControl::SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers, int itrig_c, int itrig_ext) {
+        static int imod_trig   = 11;
+        static int imod;
+        if (itrig_c == 1) {
+            //******************************************************
+            // stop run
+            imod = imod_trig;
+            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up run off
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+        } else if ((itrig_ext == 1)) {
+            //
+            //  set trigger module run off
+            //
+            imod = imod_trig;
+            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up run off
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+        }
+    }
+
 } // trig_ctrl

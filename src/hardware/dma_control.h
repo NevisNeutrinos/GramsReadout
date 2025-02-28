@@ -15,13 +15,21 @@ public:
     DmaControl() = default;
     ~DmaControl() override = default;
 
-    bool Configure(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
+    bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
     std::vector<uint32_t> GetStatus() override;
     bool CloseDevice() override;
 
 private:
 
+    bool SetRecvBuffer(pcie_int::PCIeInterface *pcie_interface,
+        pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2);
 
+    uint32_t dma_buf_size_ = 100000;
+
+    pcie_int::DMABufferHandle  pbuf_rec1_;
+    pcie_int::DMABufferHandle pbuf_rec2_;
+
+    // trig_ctrl::TriggerControl trig_ctrl_;
 };
 
 } // dma_control
