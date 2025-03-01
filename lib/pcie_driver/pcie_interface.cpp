@@ -492,9 +492,9 @@ namespace pcie_int {
             dwStatus = WDC_DMAContigBufLock(hDev2, pbuf_rec, dwOptions_rec, dwDMABufSize,
                                             &buffer_info_struct2->dma_buff);
         }
-
+        // FIXME handle this error automatically
         if (WD_STATUS_SUCCESS != dwStatus) {
-            printf("Failed locking a rec 2 Contiguous DMA buffer. Error 0x%lx - %s\n", dwStatus, Stat2Str(dwStatus));
+            printf("Failed locking recv Contiguous DMA buffer. Error 0x%lx - %s\n", dwStatus, Stat2Str(dwStatus));
             printf("enter 1 to continue \n");
             scanf("%d", &is);
             if (is != 1) return false;

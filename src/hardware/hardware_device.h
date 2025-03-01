@@ -7,6 +7,9 @@
 
 #include <cstdint>
 #include <vector>
+#include "quill/LogMacros.h"
+#include "quill/Frontend.h"
+#include "quill/sinks/ConsoleSink.h"
 #include "pcie_interface.h"
 #include "hardware_constants.h"
 #include "json.hpp"

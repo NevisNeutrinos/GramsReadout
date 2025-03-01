@@ -12,7 +12,7 @@ namespace dma_control {
 class DmaControl : public HardwareDevice {
 public:
 
-    DmaControl() = default;
+    DmaControl();
     ~DmaControl() override = default;
 
     bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
@@ -29,7 +29,8 @@ private:
     pcie_int::DMABufferHandle  pbuf_rec1_;
     pcie_int::DMABufferHandle pbuf_rec2_;
 
-    // trig_ctrl::TriggerControl trig_ctrl_;
+    quill::Logger* logger_;
+
 };
 
 } // dma_control
