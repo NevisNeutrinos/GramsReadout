@@ -55,7 +55,7 @@
         "timesize": { "type": "integer" },
         "frame_length": { "type": "integer" }
       },
-      "required": ["timesize", "iframe_length"]
+      "required": ["timesize", "frame_length"]
     }
   },
   "required": ["crate", "readout_windows"]
