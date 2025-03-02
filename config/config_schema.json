@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/config.schema.json",
+  "title": "Hardware Configuration Schema",
+  "description": "Schema for hardware configuration settings",
+  "type": "object",
+  "properties": {
+    "crate" : {
+      "type": "object",
+      "properties": {
+        "imod_xmit": { "type": "integer" },
+        "imod_st1": { "type": "integer", "description": "Last PMT slot (closest to XMIT)" },
+        "imod_st2": { "type": "integer", "description": "Last TPC slot (farthest from XMIT)" },
+        "imod_pmt": { "type": "integer" },
+        "imod_tpc": { "type": "integer", "description": "TPC slot closest to XMIT" },
+        "imod_trig": { "type": "integer" },
+        "imod_shaper": { "type": "integer" }
+      },
+      "required": ["imod_xmit", "imod_st1", "imod_st2", "imod_pmt", "imod_tpc", "imod_trig", "imod_shaper"]
+    },
+    "xmit" : {
+      "type": "object",
+      "properties": {
+        "fpga_bitfile" : { "type" :  "string" }
+      },
+      "required": ["fpga_bitfile"]
+    },
+    "controller" : {
+      "type": "object",
+      "properties": {
+      }
+    },
+    "charge_fem" : {
+      "type": "object",
+      "properties": {
+        "fpga_bitfile" : { "type" : "string" }
+      },
+      "required": ["fpga_bitfile"]
+    },
+    "light_fem_" : {
+      "type": "object",
+      "properties": {
+      "fpga_bitfile" : { "type" : "string" }
+      },
+      "required": ["fpga_bitfile"]
+    },
+    "trigger" : {
+      "type": "object",
+      "properties": {
+        }
+      },
+    "readout_windows" : {
+      "type": "object",
+      "properties": {
+        "timesize": { "type": "integer" },
+        "frame_length": { "type": "integer" }
+      },
+      "required": ["timesize", "iframe_length"]
+    }
+  },
+  "required": ["crate", "readout_windows"]
+  }
