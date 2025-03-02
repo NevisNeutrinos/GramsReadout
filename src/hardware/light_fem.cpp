@@ -3,6 +3,7 @@
 //
 
 #include "light_fem.h"
+#include <iostream>
 #include <unistd.h>
 #include <cmath>
 
@@ -32,19 +33,12 @@ namespace light_fem {
         bool print_debug = true;
 
         static int imod_fem;
-        static int imod_xmit   = 12;
-        static int imod_st1    = 16;  //st1 corresponds to last pmt slot (closest to xmit)
-        static int imod_st2    = 15;  //st2 corresponds to last tpc slot (farthest to XMIT)
-        static int imod_pmt    = 16;
-        static int imod_tpc    = 13;  // tpc slot closest to XMIT
-        static int imod_trig   = 11;
-        static int imod_shaper = 17;
+        static int imod_st1  = config["crate"]["imod_st1"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
+        static int imod_st2  = config["crate"]["imod_st2"].get<int>();  //st2 corresponds to last tpc slot (farthest to XMIT)
+        static int imod_pmt  = config["crate"]["imod_pmt"].get<int>();
+        static int iframe_length = config["readout_windows"]["frame_length"].get<int>();
 
-        static int timesize, a_id, itrig_delay;
-        timesize = 255;
-
-        static int iframe, iframe_length;
-        iframe_length = 2047;
+        static int a_id, iframe;
 
         struct timeval;
         time_t rawtime;
@@ -192,9 +186,10 @@ namespace light_fem {
     k = 1;
     i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
     usleep(200000); // wait for 200 ms
-    //inpf = fopen("/home/uboonedaq/pmt_fpga_code/module1x_pmt_64MHz_new_head_07162013.rbf","r");
-    inpf = fopen("/home/sabertooth/GramsReadoutFirmware/pmt_fem/module1x_pmt_64MHz_new_head_07162013.rbf", "r");
-    // fprintf(outinfo, "PMT FEM FPGA: /home/sabertooth/GramsReadoutFirmware/pmt_fem/module1x_pmt_64MHz_new_head_07162013.rbf");
+
+    std::cout << "Loading FPGA bitfile: " << config["light_fem"]["fpga_bitfile"].get<std::string>() << std::endl;
+    inpf = fopen(config["light_fem"]["fpga_bitfile"].get<std::string>().c_str(), "r");
+
     imod = imod_fem;
     ichip = hw_consts::mb_feb_conf_add;
     buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 0x0 + (0x0 << 16); // turn conf to be on

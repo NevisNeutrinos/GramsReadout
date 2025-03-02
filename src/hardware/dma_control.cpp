@@ -63,7 +63,7 @@ namespace dma_control {
         static int idone, r_cs_reg;
         static int ntot_rec, nred;
         static int itrig_c = 0;
-        static uint32_t iwritem, nwrite, dmasizewrite;
+        static uint32_t iwritem, nwrite;
         static int ibytec, fd, itrig_ext;
 
         std::string name;
@@ -79,7 +79,6 @@ namespace dma_control {
 
         itrig_ext = 1;
         iwrite = 1;
-        dmasizewrite = 1;
 
         LOG_INFO(logger_, "\n Enter desired DMA size (<{}) \t", dma_buf_size_);
         std::cin >> ibytec;
@@ -99,7 +98,6 @@ namespace dma_control {
 
         if (iwrite == 1) {
             iwritem = 0; // grams
-            dmasizewrite = 1; // grams
             LOG_INFO(logger_, "\n ######## SiPM+TPC Readout \n Enter SUBRUN NUMBER or NAME:\t");
             std::cin >> subrun;
 
@@ -179,14 +177,12 @@ namespace dma_control {
                     pcie_interface->DmaSyncIo(dma_num);
                     nred = (nwrite_byte - (u64Data & 0xffff)) / 4;
 
-                    if (iwrite == 1 || irawprint == 1) {
+                    ntot_rec = ntot_rec + nred;
+                    if (iwrite == 1) {
                         for (is = 0; is < nred; is++) {
                             pcie_int::PcieBuffers::read_array[is] = *buffp_rec32++;
                             LOG_INFO(logger_, "{%x} \n", pcie_int::PcieBuffers::read_array[is]);
                         }
-                    }
-                    ntot_rec = ntot_rec + nred;
-                    if (iwrite == 1 && dmasizewrite == 1) {
                         n_write = write(fd, pcie_int::PcieBuffers::read_array.data(), nred * 4);
                     }
                     u64Data = 0;
@@ -223,12 +219,8 @@ namespace dma_control {
                 }
 
                 nwrite = nwrite_byte / 4;
-                if (iwrite == 1 || irawprint == 1) {
-                    for (is = 0; is < nwrite; is++) {
-                        pcie_int::PcieBuffers::read_array[is] = *buffp_rec32++;
-                    }
-                }
-                if (iwrite == 1 && dmasizewrite == 1) {
+                if (iwrite == 1) {
+                    for (is = 0; is < nwrite; is++) { pcie_int::PcieBuffers::read_array[is] = *buffp_rec32++; }
                     n_write = write(fd, pcie_int::PcieBuffers::read_array.data(), nwrite * 4);
                 }
                 ntot_rec = ntot_rec + nwrite;

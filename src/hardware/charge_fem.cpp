@@ -10,6 +10,11 @@
 
 namespace charge_fem {
 
+    uint32_t ChargeFem::ConstructSendWord(uint32_t module, uint32_t chip, uint32_t command, uint32_t data) {
+        return (module << 11) + (chip << 8) + command +data;
+    }
+
+
     bool ChargeFem::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
 
         static long imod, ichip;
@@ -21,24 +26,17 @@ namespace charge_fem {
         static int ihuff = 0;
         struct timespec tim ={0, 100}, tim2 = {0, 100};
 
-        FILE *inpf;
+        // FILE *inpf;
         iprint = 0;
-        bool print_debug = true;
 
         static int imod_fem;
-        static int imod_xmit   = 12;
-        static int imod_st1    = 16;  //st1 corresponds to last pmt slot (closest to xmit)
-        static int imod_st2    = 15;  //st2 corresponds to last tpc slot (farthest to XMIT)
-        static int imod_pmt    = 16;
-        static int imod_tpc    = 13;  // tpc slot closest to XMIT
-        static int imod_trig   = 11;
-        static int imod_shaper = 17;
+        static int imod_xmit = config["crate"]["imod_xmit"].get<int>();
+        static int imod_st1  = config["crate"]["imod_st1"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
+        static int imod_st2  = config["crate"]["imod_st2"].get<int>();  //st2 corresponds to last tpc slot (farthest to XMIT)
+        static int imod_tpc  = config["crate"]["imod_tpc"].get<int>();  // tpc slot closest to XMIT
 
-        static int timesize, a_id, itrig_delay;
-        timesize = 255;
-
-        static int iframe, iframe_length;
-        iframe_length = 2047;
+        static int a_id;
+        static int timesize = config["readout_windows"]["timesize"].get<int>();
 
         struct timeval;
         time_t rawtime;
@@ -73,14 +71,19 @@ namespace charge_fem {
 
                 // turn on the Stratix III power supply
                 ichip = 1;
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_power_add + (0x0 << 16); // turn module 11 power on
+                // turn module 11 power on
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_power_add, (0x0 << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
                 usleep(200000); // wait for 200 ms
-                FILE *inpf = fopen("/home/sabertooth/GramsReadoutFirmware/fem/module1x_140820_deb_fixbase_nf_8_31_2018.rbf", "r");
-                ichip = hw_consts::mb_feb_conf_add;                                       // ichip=mb_feb_config_add(=2) is for configuration chip
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 0x0 + (0x0 << 16); // turn conf to be on
+
+                std::cout << "Loading FPGA bitfile: " << config["charge_fem"]["fpga_bitfile"].get<std::string>() << std::endl;
+                FILE *inpf = fopen(config["charge_fem"]["fpga_bitfile"].get<std::string>().c_str(), "r");
+
+                ichip = hw_consts::mb_feb_conf_add;    // ichip=mb_feb_config_add(=2) is for configuration chip
+                // turn conf to be on
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, 0x0, (0x0 << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -100,7 +103,7 @@ namespace charge_fem {
                     counta++;
                     if ((count % (nsend * 2)) == 0)
                     {
-                        buffers.buf_send[0] = (imod << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip_c, 0x0, (buffers.carray[0] << 16));
                         pcie_int::PcieBuffers::send_array[0] = buffers.buf_send[0];
                         if (dummy1 <= 5)
                             printf(" counta = %d, first word = %x, %x, %x %x %x \n", counta, buffers.buf_send[0],
@@ -125,7 +128,8 @@ namespace charge_fem {
                 if (feof(inpf))
                 {
                     printf(" You have reached the end-of-file word count= %d %d\n", counta, count);
-                    buffers.buf_send[0] = (imod << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip_c, 0x0, (buffers.carray[0] << 16));
+
                     if (count > 1)
                     {
                         if (((count - 1) % 2) == 0)
@@ -191,20 +195,23 @@ namespace charge_fem {
             {
                 imod = imod_fem;
                 ichip = 3;
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_dram_reset + (0x1 << 16); // reset FEB DRAM (step 1) // turm the DRAM reset on
+                // reset FEB DRAM (step 1) // turm the DRAM reset on
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_dram_reset, (0x1 << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
                 ichip = 3;
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_dram_reset + (0x0 << 16); // reset FEB DRAM (step 2) // turm the DRAM reset off
+                // reset FEB DRAM (step 2) // turm the DRAM reset off
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_dram_reset, (0x0 << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
                 usleep(5000); // wait for 5 ms for DRAM to be initialized
 
-                ichip = 3;                                                                    // set module number
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_mod_number + (imod << 16); // set module number
+                ichip = 3;
+                // set module number
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_mod_number, (imod << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -216,8 +223,9 @@ namespace charge_fem {
                     for (is = 0; is < 8; is++)
                     {
 
-                        ichip = 5;                                                                         // ADC control
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_spi_add) + ((is & 0xf) << 16); // set ADC address (same op id =2 for PMT and TPC); second 16bit word is the address; the loop sets first 0-7 ADC addresses
+                        ichip = 5; // ADC control
+                        // set ADC address (same op id =2 for PMT and TPC); second 16bit word is the address; the loop sets first 0-7 ADC addresses
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_spi_add, ((is & 0xf) << 16));
                         i = 1;
                         k = 1;
                         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -225,22 +233,27 @@ namespace charge_fem {
                         // The ADC spi stream: The 16 bits data before the last word is r/w, w1, w2 and 13 bits address;
                         //                     the last 16 bits.upper byte = 8 bits data and lower 8 bits ignored.
                         ichip = 5;
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_adc_data_load) + (0x0300 << 16); // op id = 3; first data word is 16bit 1st next word will be overwrite by the next next word //sync pattern, b for sync, 7 for skew, 3 for normal
-                        buffers.buf_send[1] = (((0x0) << 13) + (0xd)) + ((0xc) << 24) + ((0x0) << 16);               // 8 more bits to fill 24-bit data word; data is in <<24 operation; r/w op goes to 13 0xd is address and data is <<24; top 8 bits bottom 8 bits discarded; 0xc is mixed frequency pattern  (04/25/12)
+                        // op id = 3; first data word is 16bit 1st next word will be overwrite by the next next word //sync pattern, b for sync, 7 for skew, 3 for normal
+                        // 8 more bits to fill 24-bit data word; data is in <<24 operation; r/w op goes to 13 0xd is address and data is <<24; top 8 bits bottom 8 bits discarded; 0xc is mixed frequency pattern  (04/25/12)
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_adc_data_load, (0x0300 << 16));
+                        buffers.buf_send[1] = (((0x0) << 13) + (0xd)) + ((0xc) << 24) + ((0x0) << 16);
                         i = 1;
                         k = 2;
                         usleep(5000); // sleep for 2ms
 
                         ichip = 5;
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_adc_data_load) + (0x0300 << 16); // 1st next word will be overwrite by the next next word
-                        buffers.buf_send[1] = (((0x0) << 13) + (0xff)) + ((0x1) << 24) + ((0x0) << 16);              // write to transfer register:  set r/w =0, w1,w2 =0, a12-a0 = 0xff, data =0x1;
+                        // 1st next word will be overwrite by the next next word
+                        // write to transfer register:  set r/w =0, w1,w2 =0, a12-a0 = 0xff, data =0x1;
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_adc_data_load, (0x0300 << 16));
+                        buffers.buf_send[1] = (((0x0) << 13) + (0xff)) + ((0x1) << 24) + ((0x0) << 16);
                         i = 1;
                         k = 2;
                         usleep(5000); // sleep for 2ms
 
                         // double terminate ADC driver
-                        ichip = 5;                                                                         // ADC control
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_spi_add) + ((is & 0xf) << 16); // set ADC address (same op id =2 for PMT and TPC); second 16bit word is the address; the loop sets first 0-7 ADC addresses
+                        ichip = 5;  // ADC control
+                        // set ADC address (same op id =2 for PMT and TPC); second 16bit word is the address; the loop sets first 0-7 ADC addresses
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_spi_add, (is & 0xf) << 16);
                         i = 1;
                         k = 1;
                         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -251,7 +264,8 @@ namespace charge_fem {
                     for (is = 0; is < 8; is++) // Set ADC address 2
                     {
                         ichip = 5;
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_spi_add) + ((is & 0xf) << 16); // set spi address
+                        // set spi address
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_spi_add, (is & 0xf) << 16);
                         i = 1;
                         k = 1;
                         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -260,9 +274,10 @@ namespace charge_fem {
                         //       scanf("%d",&ik);
 
                         ichip = 5;
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_adc_data_load) + (0x0300 << 16); // 1st next word will be overwrite by the next next word
-                        //            buffers.buf_send[1]=(((0x0)<<13)+(0xd))+((0x9)<<24)+((0x0)<<16);
-                        buffers.buf_send[1] = (((0x0) << 13) + (0xd)) + ((0xc) << 24) + ((0x0) << 16); // 0x0<<24 is for baseline //  set /w =0, w1,w2 =0, a12-a0 = 0xd, data =0xc (mixed frequency);
+                        // 1st next word will be overwrite by the next next word
+                        // 0x0<<24 is for baseline //  set /w=0, w1,w2=0, a12-a0 = 0xd, data=0xc (mixed frequency);
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_adc_data_load, (0x0300 << 16));
+                        buffers.buf_send[1] = (((0x0) << 13) + (0xd)) + ((0xc) << 24) + ((0x0) << 16);
                         i = 1;
                         k = 2;
                         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -271,8 +286,10 @@ namespace charge_fem {
                         //       scanf("%d",&ik);
 
                         ichip = 5;
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_adc_data_load) + (0x0300 << 16); // 1st next word will be overwrite by the next next word
-                        buffers.buf_send[1] = (((0x0) << 13) + (0xff)) + ((0x1) << 24) + ((0x0) << 16);              //  set /w =0, w1,w2 =0, a12-a0 = 0xff, data =0x1; //  write to transfer register
+                        // 1st next word will be overwrite by the next next word
+                        //  set /w =0, w1,w2 =0, a12-a0 = 0xff, data =0x1; //  write to transfer register
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_adc_data_load, (0x0300 << 16));
+                        buffers.buf_send[1] = (((0x0) << 13) + (0xff)) + ((0x1) << 24) + ((0x0) << 16);
                         i = 1;
                         k = 2;
                         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -280,15 +297,17 @@ namespace charge_fem {
 
                     } // end ADC address set
                     // Reset ADC receiver
-                    ichip = 3;                                                                  // stratix III
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_adc_reset + (0x1 << 16); // FPGA ADC receiver reset on, cmd=1 on mb_feb_adc_reset=33
+                    ichip = 3; // stratix III
+                    // FPGA ADC receiver reset on, cmd=1 on mb_feb_adc_reset=33
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_adc_reset, (0x1 << 16));
                     i = 1;
                     k = 1;
                     i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
                     usleep(5000);
                     // Align ADC receiver
-                    ichip = 3;                                                                  // stratix III
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_adc_align + (0x0 << 16); // FPGA ADC align, cmd=0 on mb_feb_adc_align=1
+                    ichip = 3;  // stratix III
+                    // FPGA ADC align, cmd=0 on mb_feb_adc_align=1
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_adc_align, (0x0 << 16));
                     i = 1;
                     k = 1;
                     i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -298,7 +317,8 @@ namespace charge_fem {
                     for (is = 0; is < 8; is++)
                     {
                         ichip = 5;
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_spi_add) + ((is & 0xf) << 16); // set spi address
+                        // set spi address
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_spi_add, ((is & 0xf) << 16));
                         i = 1;
                         k = 1;
                         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -307,7 +327,8 @@ namespace charge_fem {
                         //       scanf("%d",&ik);
 
                         ichip = 5;
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_adc_data_load) + (0x0300 << 16); // 1st next word will be overwrite by the next next word
+                        // 1st next word will be overwrite by the next next word
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_adc_data_load, (0x0300 << 16));
                         //            buffers.buf_send[1]=(((0x0)<<13)+(0xd))+((0x9)<<24)+((0x0)<<16);
                         if (fakeadcdata == 1)
                             buffers.buf_send[1] = (((0x0) << 13) + (0xd)) + ((0xc) << 24) + ((0x0) << 16);
@@ -321,8 +342,10 @@ namespace charge_fem {
                         //       scanf("%d",&ik);
 
                         ichip = 5;
-                        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_pmt_adc_data_load) + (0x0300 << 16); // 1st next word will be overwrite by the next next word
-                        buffers.buf_send[1] = (((0x0) << 13) + (0xff)) + ((0x1) << 24) + ((0x0) << 16);              //  set /w =0, w1,w2 =0, a12-a0 = 0xff, data =0x1; //  write to transfer register
+                        // 1st next word will be overwrite by the next next word
+                        //  set /w =0, w1,w2 =0, a12-a0 = 0xff, data =0x1; //  write to transfer register
+                        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_pmt_adc_data_load, (0x0300 << 16));
+                        buffers.buf_send[1] = (((0x0) << 13) + (0xff)) + ((0x1) << 24) + ((0x0) << 16);
                         i = 1;
                         k = 2;
                         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -336,10 +359,10 @@ namespace charge_fem {
 
                 // set test mode
                 ichip = hw_consts::mb_feb_pass_add;
-                if (femfakedata == 1)
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_test_source + (0x2 << 16); // set test source to 2
+                if (femfakedata == 1) // set test source to 2
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_test_source, (0x2 << 16));
                 else
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_test_source + (0x0 << 16);
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_test_source, (0x0 << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -348,9 +371,11 @@ namespace charge_fem {
                 imod = imod_fem;
                 ichip = 3;
                 if (ihuff == 1)
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_b_nocomp + (0x0 << 16); // turn the compression
+                    // turn the compression
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_b_nocomp, (0x0 << 16));
                 else
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_b_nocomp + (0x1 << 16); // set b channel no compression
+                    // set b channel no compression
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_b_nocomp, (0x1 << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -359,9 +384,11 @@ namespace charge_fem {
                 imod = imod_fem;
                 ichip = 3;
                 if (ihuff == 1)
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_a_nocomp + (0x0 << 16); // turn the compression
+                    // turn the compression
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_a_nocomp, (0x0 << 16));
                 else
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_a_nocomp + (0x1 << 16); // set b channel no compression
+                    // set b channel no compression
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_a_nocomp, (0x1 << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -369,7 +396,8 @@ namespace charge_fem {
                 //******************************************************
                 // set drift size
                 ichip = 3;
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_timesize + (timesize << 16); // set drift time size
+                // set drift time size
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_timesize, (timesize << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -377,13 +405,15 @@ namespace charge_fem {
                 // set id
                 a_id = 0xf;
                 ichip = 3;
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_b_id + (a_id << 16); // set a_id
+                // set a_id
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_b_id, (a_id << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
                 ichip = 4;
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_b_id + (a_id << 16); // set b_id
+                // set b_id
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_b_id, (a_id << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -391,14 +421,16 @@ namespace charge_fem {
                 // set max word in the pre-buffer memory
                 ik = 8000;
                 ichip = 3;
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_max + (ik << 16); // set pre-buffer max word
+                // set pre-buffer max word
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_max, (ik << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
                 // enable hold
                 ichip = 3;
-                buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_hold_enable + (0x1 << 16); // enable the hold
+                // enable the hold
+                buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_hold_enable, (0x1 << 16));
                 i = 1;
                 k = 1;
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -408,7 +440,8 @@ namespace charge_fem {
                 {
                     std::cout << "set last module, module address: " << imod << std::endl;
                     ichip = 4;
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_lst_on + (0x0 << 16); // set last module on
+                    // set last module on
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_lst_on, (0x0 << 16));
                     i = 1;
                     k = 1;
                     i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -417,7 +450,8 @@ namespace charge_fem {
                 {
                     std::cout << "set last module off, module address: " << imod << std::endl;
                     ichip = 4;
-                    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_lst_off + (0x0 << 16); // set last module on
+                    // set last module on
+                    buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_lst_off, (0x0 << 16));
                     i = 1;
                     k = 1;
                     i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -437,7 +471,9 @@ namespace charge_fem {
             imod = imod_fem;
             printf("Resetting TPC link PLL for module %x \n", imod);
             ichip = 4;
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pll_reset + (0x0 << 16); // reset LINKIN PLL
+            // reset LINKIN PLL
+            buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_pll_reset, (0x0 << 16));
+
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -451,7 +487,8 @@ namespace charge_fem {
             i = pcie_interface->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers.precv); // init the receiver
             imod = imod_fem;
             ichip = 3;
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 20 + (0x0 << 16); // read out status
+            // read out status
+            buffers.buf_send[0] = ConstructSendWord(imod, ichip, 20, (0x0 << 16));
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -488,14 +525,16 @@ namespace charge_fem {
         imod = imod_fem;
         printf(" reset the link for TPC module %d \n", imod);
         ichip = 4;
-        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_rxreset + (0x0 << 16); // reset LINKIN DPA
+        // reset LINKIN DPA
+        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_rxreset, (0x0 << 16));
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
         usleep(1000); // give DPA time to reset (1ms  JLS)
 
         ichip = 4;
-        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_align + (0x0 << 16); // send alignment command
+        // send alignment command
+        buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_align, (0x0 << 16));
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -506,7 +545,8 @@ namespace charge_fem {
         i = pcie_interface->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers.precv);
         imod = imod_fem;
         ichip = 3;
-        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 20 + (0x0 << 16); // read out status
+        // read out status
+        buffers.buf_send[0] = ConstructSendWord(imod, ichip, 20, (0x0 << 16));
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);

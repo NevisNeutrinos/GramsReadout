@@ -9,24 +9,14 @@ namespace trig_ctrl {
 
     bool TriggerControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
     /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRIGGER_SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-      static uint32_t i, k;
-      static long imod, ichip;
-      static int mask1, mask8;
-      int trigtype;
-        static int imod_fem;
-        static int imod_xmit   = 12;
-        static int imod_st1    = 16;  //st1 corresponds to last pmt slot (closest to xmit)
-        static int imod_st2    = 15;  //st2 corresponds to last tpc slot (farthest to XMIT)
-        static int imod_pmt    = 16;
-        static int imod_tpc    = 13;  // tpc slot closest to XMIT
-        static int imod_trig   = 11;
-        static int imod_shaper = 17;
+        static uint32_t i, k;
+        static long imod, ichip;
+        static int mask1, mask8;
+        int trigtype;
+        static int iframe, itrig_delay;
 
-        static int timesize, a_id, itrig_delay;
-        timesize = 255;
-
-        static int iframe, iframe_length;
-        iframe_length = 2047;
+        static int imod_trig  = config["crate"]["imod_trig"].get<int>();
+        static int iframe_length = config["readout_windows"]["frame_length"].get<int>();
 
         printf("\n Enter 0 for EXT trigger or 1 for triggers issued by SiPM ADC:\t");
         scanf("%i", &trigtype);

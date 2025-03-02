@@ -21,6 +21,8 @@ public:
 
 private:
 
+    uint32_t ConstructSendWord(uint32_t module, uint32_t chip, uint32_t command, uint32_t data);
+
 };
 
 } // charge_fem

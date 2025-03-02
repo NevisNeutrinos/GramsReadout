@@ -18,7 +18,7 @@ namespace controller {
         pcie_controller_ = new hardware_ctrl::HardwareControl();
         data_handler_ = new data_handler::DataHandler();
 
-        std::string config_file("../config/example.json");
+        std::string config_file("../config/test.json");
         LoadConfig(config_file);
 
         logger_ = quill::Frontend::create_or_get_logger("root",

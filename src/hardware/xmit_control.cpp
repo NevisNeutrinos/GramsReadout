@@ -23,16 +23,12 @@ namespace xmit_control {
         iprint = 0;
         bool print_debug = true;
 
-        static int imod_xmit   = 12;
-        static int imod_st1    = 16;  //st1 corresponds to last pmt slot (closest to xmit)
-        // static int imod_st2    = 15;  //st2 corresponds to last tpc slot (farthest to XMIT)
-        // static int imod_pmt    = 16;
-        // static int imod_tpc    = 13;  // tpc slot closest to XMIT
-        // static int imod_trig   = 11;
-        // static int imod_shaper = 17;
+        static int imod_xmit = config["crate"]["imod_xmit"].get<int>();
+        static int imod_st1  = config["crate"]["imod_st1"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
 
-        /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ XMIT BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-        inpf = fopen("/home/sabertooth/GramsReadoutFirmware/xmit/readcontrol_110601_v3_play_header_hist_l1block_9_21_2018.rbf", "r"); // tpc readout akshay
+        /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ XMIT BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+
+        inpf = fopen(config["xmit"]["fpga_bitfile"].get<std::string>().c_str(), "r");
 
         printf("\nBooting XMIT module...\n\n");
         imod = imod_xmit;

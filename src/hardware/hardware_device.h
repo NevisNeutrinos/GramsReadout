@@ -44,14 +44,16 @@ class HardwareDevice {
     *  Abstract class which shall implement all required shutdown procedures to
     *  safely close the hardware and handle any errors which might occur.
     *
-    *
-    *
     * @return  Returns true on successful shutdown, false on failure.
     */
     virtual bool CloseDevice() = 0;
 
     virtual ~HardwareDevice() = default;
 
+    /**
+    *  Members to access the two PCIe devices.
+    *
+    */
     static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
     static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
 
