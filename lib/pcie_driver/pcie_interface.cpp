@@ -34,15 +34,16 @@ namespace pcie_int {
         std::cout << std::dec;
 
         // Make sure the DMA buffer memory is free
-        if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct1->dma_buff) != WD_STATUS_SUCCESS) {
-           std::cerr << "DMA Buffer 1 close failed" << std::endl;
-           std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
-        }
-
-        if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct2->dma_buff) != WD_STATUS_SUCCESS) {
-           std::cerr << "DMA Buffer 2 close failed" << std::endl;
-           std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
-        }
+        // if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct1->dma_buff) != WD_STATUS_SUCCESS) {
+        //    std::cerr << "DMA Buffer 1 close failed" << std::endl;
+        //    std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+        // }
+        //
+        // if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct2->dma_buff) != WD_STATUS_SUCCESS) {
+        //    std::cerr << "DMA Buffer 2 close failed" << std::endl;
+        //    std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+        // }
+        FreeDmaContigBuffers();
 
         if (dev_handle_1) {
             if (!GRAMSREADOUT_DeviceClose(dev_handle_1)) {
@@ -508,6 +509,28 @@ namespace pcie_int {
         return true;
     }
 
+    bool PCIeInterface::FreeDmaContigBuffers() {
+        bool buffers_free = true;
+        if (buffer_info_struct1->dma_buff) {
+            if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct1->dma_buff) != WD_STATUS_SUCCESS) {
+                std::cerr << "DMA Buffer 1 close failed" << std::endl;
+                std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+                buffers_free = false;
+            }
+            buffer_info_struct1->dma_buff = nullptr;
+        }
+
+        if (buffer_info_struct2->dma_buff) {
+            if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct2->dma_buff) != WD_STATUS_SUCCESS) {
+                std::cerr << "DMA Buffer 2 close failed" << std::endl;
+                std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+                buffers_free = false;
+            }
+            buffer_info_struct2->dma_buff = nullptr;
+        }
+        return buffers_free;
+    }
+
     bool PCIeInterface::DmaSyncCpu(uint32_t buffer_handle) {
         if ((buffer_handle != 1) && (buffer_handle != 2)) {
             std::cerr << "Unknown dev handle!" << std::endl;
@@ -537,13 +560,6 @@ namespace pcie_int {
             std::cerr << "DMA Sync failed for buffer: " << buffer_handle << std::endl;
             return false;
         }
-
-        // DmaBuffStruct dma_struct{};
-        // GetBufferHandle(buffer_handle, &dma_struct);
-        // if (WDC_DMASyncIo(dma_struct.dma_buff) != WD_STATUS_SUCCESS) {
-        //     std::cerr << "I/O Sync failed for buffer: " << buffer_handle << std::endl;
-        //     return false;
-        // }
         return true;
     }
 
@@ -554,11 +570,6 @@ namespace pcie_int {
         }
         return buffer_handle == 1 ? (buffer_info_struct1->dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff :
                                     (buffer_info_struct2->dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff;
-
-
-        // DmaBuffStruct dma_struct{};
-        // GetBufferHandle(buffer_handle, &dma_struct);
-        // return (dma_struct.dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff;
     }
 
     uint32_t PCIeInterface::GetBufferPageAddrLower(uint32_t buffer_handle) {
@@ -568,9 +579,6 @@ namespace pcie_int {
         }
         return buffer_handle == 1 ? buffer_info_struct1->dma_buff->Page->pPhysicalAddr & 0xffffffff :
                                     buffer_info_struct2->dma_buff->Page->pPhysicalAddr & 0xffffffff;
-        // DmaBuffStruct dma_struct{};
-        // GetBufferHandle(buffer_handle, &dma_struct);
-        // return dma_struct.dma_buff->Page->pPhysicalAddr  & 0xffffffff;
     }
 
 

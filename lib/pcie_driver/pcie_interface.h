@@ -57,6 +57,7 @@ public:
     bool WriteReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint64_t data);
 
     bool DmaContigBufferLock(uint32_t dev_handle, uint32_t dwDMABufSize, DMABufferHandle *pbuf_rec);
+    bool FreeDmaContigBuffers();
     bool DmaSyncCpu(uint32_t buffer_handle);
     bool DmaSyncIo(uint32_t buffer_handle);
     uint32_t GetBufferPageAddrUpper(uint32_t buffer_handle);
