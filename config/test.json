@@ -1,12 +1,16 @@
 {
   "crate" : {
-    "imod_xmit": 12,
-    "imod_st1": 16,
-    "imod_st2": 15,
-    "imod_pmt": 16,
-    "imod_tpc": 13,
-    "imod_trig": 11,
-    "imod_shaper": 17
+    "xmit_slot": 12,
+    "last_light_slot": 16,
+    "last_charge_slot": 15,
+    "light_fem_slot": 16,
+    "charge_fem_slot": 13,
+    "trig_slot": 11,
+    "shaper_slot": 17
+  },
+  "data_handler" : {
+    "num_events" : 30,
+    "dma_buffer_size" : 200000
   },
   "xmit" : {
     "fpga_bitfile" : "/home/sabertooth/GramsReadoutFirmware/xmit/readcontrol_110601_v3_play_header_hist_l1block_9_21_2018.rbf"
@@ -21,7 +25,7 @@
     "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/pmt_fem/module1x_pmt_64MHz_new_head_07162013.rbf"
   },
   "trigger" : {
-
+    "trigger_source" : "ext"
   },
   "readout_windows" : {
     "timesize": 255,

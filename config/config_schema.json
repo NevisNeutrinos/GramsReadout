@@ -8,15 +8,23 @@
     "crate" : {
       "type": "object",
       "properties": {
-        "imod_xmit": { "type": "integer" },
-        "imod_st1": { "type": "integer", "description": "Last PMT slot (closest to XMIT)" },
-        "imod_st2": { "type": "integer", "description": "Last TPC slot (farthest from XMIT)" },
-        "imod_pmt": { "type": "integer" },
-        "imod_tpc": { "type": "integer", "description": "TPC slot closest to XMIT" },
-        "imod_trig": { "type": "integer" },
-        "imod_shaper": { "type": "integer" }
+        "xmit_slot": { "type": "integer" },
+        "last_light_slot": { "type": "integer", "description": "Last Light slot (closest to XMIT)" },
+        "last_charge_slot": { "type": "integer", "description": "Last Charge slot (farthest from XMIT)" },
+        "light_fem_slot": { "type": "integer" },
+        "charge_fem_slot": { "type": "integer", "description": "Charge FEM slot closest to XMIT" },
+        "trig_slot": { "type": "integer" },
+        "shaper_slot": { "type": "integer" }
       },
-      "required": ["imod_xmit", "imod_st1", "imod_st2", "imod_pmt", "imod_tpc", "imod_trig", "imod_shaper"]
+      "required": ["xmit_slot", "last_light_slot", "last_charge_slot", "light_fem_slot", "charge_fem_slot", "trig_slot", "shaper_slot"]
+    },
+    "data_handler" : {
+      "type": "object",
+      "properties": {
+        "num_events" : { "type": "integer" },
+        "dma_buffer_size": { "type": "integer" }
+      },
+      "required": ["dma_buffer_size"]
     },
     "xmit" : {
       "type": "object",
@@ -47,8 +55,10 @@
     "trigger" : {
       "type": "object",
       "properties": {
-        }
+        "trigger_source" : { "type" : "string", "enum": ["ext", "light"], "description" : "External or light based triggers." }
       },
+      "required": ["trigger_source"]
+    },
     "readout_windows" : {
       "type": "object",
       "properties": {
