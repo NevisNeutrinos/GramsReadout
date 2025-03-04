@@ -4,8 +4,6 @@
 
 #include "hardware_control.h"
 
-#include <dma_control.h>
-
 #include "quill/LogMacros.h"
 #include "quill/Frontend.h"
 #include "quill/sinks/ConsoleSink.h"
@@ -83,8 +81,8 @@ namespace hardware_ctrl {
         trigconfig->Configure(config, pcie_interface_, *buffers_);
 
         LOG_INFO(logger_, "Starting Trigger Config...");
-        auto* runconfig = new dma_control::DmaControl();
-        runconfig->Configure(config, pcie_interface_, *buffers_);
+        auto* runconfig = new data_handler::DataHandler();
+        runconfig->Configure(config);
 
         // Config config;
         // if (!configure_hardware_->Configure(config, pcie_interface_)) {

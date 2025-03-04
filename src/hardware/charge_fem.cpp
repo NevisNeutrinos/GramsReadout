@@ -20,51 +20,23 @@ namespace charge_fem {
         static long imod, ichip;
         static uint32_t i, k, iprint, ik, is;
         static int count, counta, nword;
-        static int ij, nsend;
-        static int ichip_c, dummy1;
-        unsigned char charchannel;
         static int ihuff = 0;
-        struct timespec tim ={0, 100}, tim2 = {0, 100};
-
-        // FILE *inpf;
         iprint = 0;
 
         static int imod_fem;
-        static int imod_xmit = config["crate"]["imod_xmit"].get<int>();
-        static int imod_st1  = config["crate"]["imod_st1"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
-        static int imod_st2  = config["crate"]["imod_st2"].get<int>();  //st2 corresponds to last tpc slot (farthest to XMIT)
-        static int imod_tpc  = config["crate"]["imod_tpc"].get<int>();  // tpc slot closest to XMIT
+        static int imod_xmit = config["crate"]["xmit_slot"].get<int>();
+        static int imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last SiPM slot (closest to xmit)
+        static int imod_st2  = config["crate"]["last_charge_slot"].get<int>();  //st2 corresponds to last TPC slot (farthest to XMIT)
+        static int imod_tpc  = config["crate"]["charge_fem_slot"].get<int>();  // tpc slot closest to XMIT
 
         static int a_id;
         static int timesize = config["readout_windows"]["timesize"].get<int>();
-
-        struct timeval;
-        time_t rawtime;
-        char timestr[500];
-        int trigtype;
-        time(&rawtime);
-
-        strftime(timestr, sizeof(timestr), "%Y_%m_%d", localtime(&rawtime));
-        printf("\n Enter 0 for EXT trigger or 1 for triggers issued by SiPM ADC:\t");
-        scanf("%i", &trigtype);
-
-        static int mask1, mask8;
-        if(trigtype){
-            //PMT Trigger
-            mask8 = 0x0;
-            mask1 = 0x8;  //this is either 0x1 (PMT beam) 0x4 (PMT cosmic) or 0x8 (PMT all)
-        } else{
-            //EXT trigger
-            mask1 = 0x0;
-            mask8 = 0x2;
-        }
+        std::string fw_file = config["charge_fem"]["fpga_bitfile"].get<std::string>();
 
     ///////////////////////////  BOOT CHARGE FEM //////////////////////////////////////////
-    //
-    //
+
             // //imod_xmit = imod_xmit + 1;
             for (imod_fem = (imod_tpc); imod_fem < (imod_st2 + 1); imod_fem++) //++ -> -- JLS
-            //for (imod_fem = (imod_tpc); imod_fem > (imod_st2 - 1); imod_fem--) //++ -> -- JLS
             { // loop over module numbers
                 imod = imod_fem;
                 std::cout << " Booting module in slot " << imod << std::endl;
@@ -78,8 +50,8 @@ namespace charge_fem {
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
                 usleep(200000); // wait for 200 ms
 
-                std::cout << "Loading FPGA bitfile: " << config["charge_fem"]["fpga_bitfile"].get<std::string>() << std::endl;
-                FILE *inpf = fopen(config["charge_fem"]["fpga_bitfile"].get<std::string>().c_str(), "r");
+                std::cout << "Loading FPGA bitfile: " << fw_file << std::endl;
+                // FILE *inpf = fopen(config["charge_fem"]["fpga_bitfile"].get<std::string>().c_str(), "r");
 
                 ichip = hw_consts::mb_feb_conf_add;    // ichip=mb_feb_config_add(=2) is for configuration chip
                 // turn conf to be on
@@ -89,82 +61,7 @@ namespace charge_fem {
                 i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
                 usleep(2000); // wait for a while (1ms->2ms JLS)
 
-                count = 0;   // keeps track of config file data sent
-                counta = 0;  // keeps track of total config file data read
-                ichip_c = 7; // this chip number is actually a "ghost"; it doesn't exist; it's just there so the config chip
-                // doesn't treat the first data word i'll be sending as a command designated for the config chip (had i used ichip_c=1)
-                nsend = 500; // this defines number of 32bit-word-sized packets I'm allowed to use to send config file data
-                dummy1 = 0;
-
-                while (fread(&charchannel, sizeof(char), 1, inpf) == 1)
-                {
-                    buffers.carray[count] = charchannel;
-                    count++;
-                    counta++;
-                    if ((count % (nsend * 2)) == 0)
-                    {
-                        buffers.buf_send[0] = ConstructSendWord(imod, ichip_c, 0x0, (buffers.carray[0] << 16));
-                        pcie_int::PcieBuffers::send_array[0] = buffers.buf_send[0];
-                        if (dummy1 <= 5)
-                            printf(" counta = %d, first word = %x, %x, %x %x %x \n", counta, buffers.buf_send[0],
-                                buffers.carray[0], buffers.carray[1], buffers.carray[2], buffers.carray[3]);
-                        for (ij = 0; ij < nsend; ij++)
-                        {
-                            if (ij == (nsend - 1))
-                                buffers.buf_send[ij + 1] = buffers.carray[2 * ij + 1] + (0x0 << 16);
-                            else
-                                buffers.buf_send[ij + 1] = buffers.carray[2 * ij + 1] + (buffers.carray[2 * ij + 2] << 16);
-                            pcie_int::PcieBuffers::send_array[ij + 1] = buffers.buf_send[ij + 1];
-                        }
-                        nword = nsend + 1;
-                        i = 1;
-                        ij = pcie_interface->PCIeSendBuffer(1, i, nword, buffers.psend);
-                        nanosleep(&tim, &tim2);
-                        dummy1 = dummy1 + 1;
-                        count = 0;
-                    }
-                }
-
-                if (feof(inpf))
-                {
-                    printf(" You have reached the end-of-file word count= %d %d\n", counta, count);
-                    buffers.buf_send[0] = ConstructSendWord(imod, ichip_c, 0x0, (buffers.carray[0] << 16));
-
-                    if (count > 1)
-                    {
-                        if (((count - 1) % 2) == 0)
-                        {
-                            ik = (count - 1) / 2;
-                        }
-                        else
-                        {
-                            ik = (count - 1) / 2 + 1;
-                        }
-                        ik = ik + 2; // add one more for safety
-                        // std::cout << " ik= " << ik << std::endl;
-                        for (ij = 0; ij < ik; ij++)
-                        {
-                            if (ij == (ik - 1))
-                                buffers.buf_send[ij + 1] = buffers.carray[(2 * ij) + 1] + (((imod << 11) + (ichip << 8) + 0x0) << 16);
-                            else
-                                buffers.buf_send[ij + 1] = buffers.carray[(2 * ij) + 1] + (buffers.carray[(2 * ij) + 2] << 16);
-                            pcie_int::PcieBuffers::send_array[ij + 1] = buffers.buf_send[ij + 1];
-                        }
-                    }
-                    else
-                        ik = 1;
-
-                    for (ij = ik - 10; ij < ik + 1; ij++)
-                    {
-                        printf(" Last data = %d, %x\n", ij, buffers.buf_send[ij]);
-                    }
-
-                    nword = ik + 1;
-                    i = 1;
-                    i = pcie_interface->PCIeSendBuffer(1, i, nword, buffers.psend);
-                }
-                usleep(5000); // wait for 2ms to cover the packet time plus fpga init time (2ms->5ms JLS)
-                fclose(inpf);
+                LoadFirmware(imod, hw_consts::mb_feb_conf_add, fw_file, pcie_interface, buffers);
                 std::cout << " Configuration for module in slot " << imod << " COMPLETE." << std::endl;
             }
 

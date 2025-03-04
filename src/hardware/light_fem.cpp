@@ -26,40 +26,23 @@ namespace light_fem {
         static int lg_ch, hg_ch, trig_ch, bg_ch, beam_mult, beam_thres, pmt_wordslg, pmt_wordshg, pmt_precount;
         static int pmt_deadtimehg, pmt_deadtimelg, pmt_mich_window, bg, bge, tre, beam_size, pmt_width;
         static int pmt_deadtime;
-
+        static int a_id, iframe;
 
         FILE *inpf;
         iprint = 0;
         bool print_debug = true;
 
         static int imod_fem;
-        static int imod_st1  = config["crate"]["imod_st1"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
-        static int imod_st2  = config["crate"]["imod_st2"].get<int>();  //st2 corresponds to last tpc slot (farthest to XMIT)
-        static int imod_pmt  = config["crate"]["imod_pmt"].get<int>();
+        static int imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
+        static int imod_st2  = config["crate"]["last_charge_slot"].get<int>();  //st2 corresponds to last tpc slot (farthest to XMIT)
+        static int imod_pmt  = config["crate"]["light_fem_slot"].get<int>();
         static int iframe_length = config["readout_windows"]["frame_length"].get<int>();
 
-        static int a_id, iframe;
+        std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
+        static int mode = trig_src == "ext" ? 0 : 3;
 
-        struct timeval;
-        time_t rawtime;
-        char timestr[500];
-        int trigtype;
-        time(&rawtime);
 
-                    /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ LIGHT FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-
-    time(&rawtime);
-    strftime(timestr, sizeof(timestr), "%Y_%m_%d", localtime(&rawtime));
-    printf("\n Enter 0 for EXT trigger or 1 for triggers issued by SiPM ADC:\t");
-    scanf("%i", &trigtype);
-
-    static int mode;
-    if(trigtype){
-      mode = 3;
-    }
-    else{
-      mode = 0;
-    }
+        /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ LIGHT FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
     iframe = iframe_length;
     imod_fem = imod_pmt;

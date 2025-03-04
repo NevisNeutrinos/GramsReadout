@@ -12,23 +12,16 @@ namespace xmit_control {
     bool XmitControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
 
         static long imod, ichip;
-        static uint32_t i, k, iprint, ik;
-        static int count, counta, nword;
-        static int ij, nsend;
-        static int ichip_c, dummy1;
-        unsigned char charchannel;
-        struct timespec tim, tim2;
-
-        FILE *inpf;
-        iprint = 0;
+        static uint32_t i, k, iprint;
+        static int count, nword;
         bool print_debug = true;
+        iprint = 0;
 
-        static int imod_xmit = config["crate"]["imod_xmit"].get<int>();
-        static int imod_st1  = config["crate"]["imod_st1"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
+        static int imod_xmit = config["crate"]["xmit_slot"].get<int>();
+        static int imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
+        std::string fw_file = config["xmit"]["fpga_bitfile"].get<std::string>();
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ XMIT BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-
-        inpf = fopen(config["xmit"]["fpga_bitfile"].get<std::string>().c_str(), "r");
 
         printf("\nBooting XMIT module...\n\n");
         imod = imod_xmit;
@@ -41,85 +34,7 @@ namespace xmit_control {
         std::cout << "2am i: " << i << std::endl;
         std::cout << "2am psend: " << buffers.psend << std::endl;
 
-        usleep(2000); // wait for a while (1ms->2ms JLS)
-        count = 0;
-        counta = 0;
-        nsend = 500;
-        ichip_c = 7; // set ichip_c to stay away from any other command in the
-        nword = 1;
-        imod = imod_xmit;
-        dummy1 = 0;
-
-        if (print_debug == true) std::cout << "boot_xmit debug" << std::endl;
-
-        while (fread(&charchannel, sizeof(char), 1, inpf) == 1)
-        {
-            buffers.carray[count] = charchannel;
-            count++;
-            counta++;
-            if ((count % (nsend * 2)) == 0)
-            {
-                buffers.buf_send[0] = (imod << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
-                pcie_int::PcieBuffers::send_array[0] = buffers.buf_send[0];
-                if (dummy1 <= 5)
-                    printf("\tcounta = %d, first word = %x, %x, %x %x %x \n", counta, buffers.buf_send[0],
-                         buffers.carray[0], buffers.carray[1], buffers.carray[2], buffers.carray[3]);
-
-                for (ij = 0; ij < nsend; ij++)
-                {
-                    if (ij == (nsend - 1))
-                        buffers.buf_send[ij + 1] = buffers.carray[2 * ij + 1] + (0x0 << 16);
-                    else
-                        buffers.buf_send[ij + 1] = buffers.carray[2 * ij + 1] + (buffers.carray[2 * ij + 2] << 16);
-                    pcie_int::PcieBuffers::send_array[ij + 1] = buffers.buf_send[ij + 1];
-                }
-                nword = nsend + 1;
-                i = 1;
-                i = pcie_interface->PCIeSendBuffer(1, i, nword, buffers.psend);
-
-                nanosleep(&tim, &tim2);
-                dummy1 = dummy1 + 1;
-                count = 0;
-            }
-        }
-        if (feof(inpf))
-        {
-            printf("\tend-of-file word count= %d %d\n", counta, count);
-            buffers.buf_send[0] = (imod << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
-            if (count > 1)
-            {
-                if (((count - 1) % 2) == 0)
-                {
-                    ik = (count - 1) / 2;
-                }
-                else
-                {
-                    ik = (count - 1) / 2 + 1;
-                }
-                ik = ik + 2; // add one more for safety
-                // printf("\tik= %d\n", ik);
-                std::cout << "ik = " << ik << std::endl;
-                for (ij = 0; ij < ik; ij++)
-                {
-                    if (ij == (ik - 1))
-                        buffers.buf_send[ij + 1] = buffers.carray[(2 * ij) + 1] + (((imod << 11) + (ichip << 8) + 0x0) << 16);
-                    else
-                        buffers.buf_send[ij + 1] = buffers.carray[(2 * ij) + 1] + (buffers.carray[(2 * ij) + 2] << 16);
-                    pcie_int::PcieBuffers::send_array[ij + 1] = buffers.buf_send[ij + 1];
-                }
-            }
-            else
-                ik = 1;
-            for (ij = ik - 10; ij < ik + 1; ij++)
-            {
-                printf("\tlast data = %d, %x\n", ij, buffers.buf_send[ij]);
-            }
-            nword = ik + 1;
-            i = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, nword, buffers.psend);
-        }
-        usleep(3000); // wait for 2ms to cover the packet time plus fpga init time (change to 3ms JLS)
-        fclose(inpf);
+        LoadFirmware(imod_xmit, hw_consts::mb_xmit_conf_add, fw_file, pcie_interface, buffers);
 
         nword = 1;
         i = pcie_interface->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers.precv);

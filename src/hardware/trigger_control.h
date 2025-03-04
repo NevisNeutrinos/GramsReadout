@@ -19,11 +19,8 @@ public:
     std::vector<uint32_t> GetStatus() override;
     bool CloseDevice() override;
 
-    static void SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers,
-        int itrig_c, int itrig_ext);
-
-    static void SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers,
-        int itrig_c, int itrig_ext);
+    static void SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext);
+    static void SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext);
 
 private:
 

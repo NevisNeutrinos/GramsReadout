@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <string>
+#include <thread>
 #include "quill/Logger.h"
 #include "json.hpp"
 #include "../../networking/tcp_connection.h"
@@ -87,13 +88,33 @@
 
     private: // data members
 
+        // State machine functions
+        bool Configure();
+        bool StartRun();
+        bool StopRun();
+        bool GetStatus();
+        bool Reset();
+
         void ReceiveCommand();
         void SendAckCommand(bool success);
-        void LoadConfig(std::string &config_file);
+        bool LoadConfig(std::string &config_file);
+
+        bool is_configured_;
 
         TCPConnection tcp_connection_;
-        hardware_ctrl::HardwareControl* pcie_controller_;
+
+        std::thread data_thread_;
+
+        hw_config::ConfigureHardware *configure_hardware_;
+        pcie_control::PcieControl *pcie_ctrl_;
+        xmit_control::XmitControl *xmit_ctrl_;
+        light_fem::LightFem *light_fem_;
+        charge_fem::ChargeFem *charge_fem_;
+        trig_ctrl::TriggerControl *trigger_ctrl_;
         data_handler::DataHandler *data_handler_;
+
+        pcie_int::PCIeInterface *pcie_interface_;
+        pcie_int::PcieBuffers *buffers_;
 
         std::atomic_bool is_running_;
 

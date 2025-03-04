@@ -44,12 +44,12 @@ target_link_libraries(GramsReadout PRIVATE
         quill::quill
         gramsreadout_lib)
 
-add_executable(ReadoutTest test.cpp ${HARDWARE_SRC})
-
-
-target_link_libraries(ReadoutTest PRIVATE
-        quill::quill
-        gramsreadout_lib)
+#add_executable(ReadoutTest test.cpp ${HARDWARE_SRC})
+#
+#
+#target_link_libraries(ReadoutTest PRIVATE
+#        quill::quill
+#        gramsreadout_lib)
 
 
 #######################

@@ -5,45 +5,51 @@
 #ifndef DATA_HANDLER_H
 #define DATA_HANDLER_H
 
-#include "hardware_device.h"
+// #include "hardware_device.h"
+#include "pcie_control.h"
 #include <atomic>
 #include <fcntl.h>
+#include "json.hpp"
 
 namespace data_handler {
 
-class DataHandler : public HardwareDevice {
+class DataHandler {
 public:
 
     DataHandler();
-    ~DataHandler() override = default;
+    ~DataHandler() = default;
 
-    bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
-    std::vector<uint32_t> GetStatus() override;
-    bool CloseDevice() override;
+    bool Configure(json &config);
+    void CollectData(pcie_int::PCIeInterface *pcie_interface);
+    std::vector<uint32_t> GetStatus();
+    bool CloseDevice();
 
-    void SetRun(bool set_running);
+    //std::atomic_bool is_running_;
+    void SetRun(bool set_running) { is_running_.store(set_running); };
 
 private:
 
-    bool SetRecvBuffer(json &config, pcie_int::PCIeInterface *pcie_interface,
+    bool SetRecvBuffer(pcie_int::PCIeInterface *pcie_interface,
         pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2);
-	bool CollectData(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers);
+
+    static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
+    static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
 
     uint32_t dma_buf_size_ = 100000;
     size_t num_events_;
     size_t num_dma_loops_ = 1;
-    size_t num_recv_bytes_;
+    size_t num_recv_bytes_{};
     size_t event_count_ = 0;
 
-    pcie_int::DMABufferHandle  pbuf_rec1_;
-    pcie_int::DMABufferHandle pbuf_rec2_;
+    std::atomic_bool is_running_;
+
+    pcie_int::DMABufferHandle  pbuf_rec1_{};
+    pcie_int::DMABufferHandle pbuf_rec2_{};
 
 //    std::unique_ptr<FILE> data_file_;
     static int file_ptr_;
 
     quill::Logger* logger_;
-
-	std::atomic_bool is_running_;
 
 };
 

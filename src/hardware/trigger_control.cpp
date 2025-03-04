@@ -4,6 +4,7 @@
 
 #include "trigger_control.h"
 #include <unistd.h>
+#include <iostream>
 
 namespace trig_ctrl {
 
@@ -11,25 +12,18 @@ namespace trig_ctrl {
     /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRIGGER_SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
         static uint32_t i, k;
         static long imod, ichip;
-        static int mask1, mask8;
-        int trigtype;
         static int iframe, itrig_delay;
 
-        static int imod_trig  = config["crate"]["imod_trig"].get<int>();
+        static int imod_trig  = config["crate"]["trig_slot"].get<int>();
         static int iframe_length = config["readout_windows"]["frame_length"].get<int>();
 
-        printf("\n Enter 0 for EXT trigger or 1 for triggers issued by SiPM ADC:\t");
-        scanf("%i", &trigtype);
+        std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
+        //this is either 0x1 (PMT beam) 0x4 (PMT cosmic) or 0x8 (PMT all)
+        int trigtype = trig_src == "ext" ? 0 : 1;;
+        static int mask1 = trig_src == "ext" ? 0x0 : 0x8;
+        static int mask8 = trig_src == "ext" ? 0x2 : 0x0;
 
-        if(trigtype){
-            //PMT Trigger
-            mask8 = 0x0;
-            mask1 = 0x8;  //this is either 0x1 (PMT beam) 0x4 (PMT cosmic) or 0x8 (PMT all)
-        } else{
-            //EXT trigger
-            mask1 = 0x0;
-            mask8 = 0x2;
-        }
+        std::cout << "Trigger source [" << trig_src << "]" << std::endl;
 
       /* FROM TPC PART*/
       imod = 0; // set offline test
@@ -137,52 +131,54 @@ namespace trig_ctrl {
         return i > j;
     }
 
-    void TriggerControl::SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers, int itrig_c, int itrig_ext) {
+    void TriggerControl::SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext) {
         static int imod_trig   = 11;
         static int imod, ichip;
+        std::array<uint32_t, 2> buf_send{0,0};
+        uint32_t *psend{};
 
-        if (itrig_c == 1)
-        {
+        psend = buf_send.data();
+
+        if (itrig_c == 1) {
             imod = imod_trig; /* trigger module */
-            buffers.buf_send[0] = (imod << 11) + hw_consts::mb_trig_pctrig + ((0x0) << 16);
-            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+            buf_send[0] = (imod << 11) + hw_consts::mb_trig_pctrig + ((0x0) << 16);
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
             usleep(5000); // 3x frame size
         }
-        else if (itrig_ext == 1)
-        {
-            //
-            //     only need to restart the run if we use the test data or 1st run
-            //
+        else if (itrig_ext == 1) {
+            // only need to restart the run if we use the test data or 1st run
             imod = imod_trig;
-            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
-            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+            buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
         }
-        else
-        {
+        else {
             imod = 0;
             ichip = 1;
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_cntrl_set_trig1 + (0x0 << 16); // send trigger
-            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+            buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_cntrl_set_trig1 + (0x0 << 16); // send trigger
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
             usleep(5000);
         }
     }
 
-    void TriggerControl::SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers, int itrig_c, int itrig_ext) {
+    void TriggerControl::SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext) {
         static int imod_trig   = 11;
         static int imod;
+        std::array<uint32_t, 2> buf_send{0,0};
+        uint32_t *psend{};
+
+        psend = buf_send.data();
+
         if (itrig_c == 1) {
             //******************************************************
             // stop run
             imod = imod_trig;
-            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up run off
-            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+            buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up run off
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
         } else if ((itrig_ext == 1)) {
-            //
             //  set trigger module run off
-            //
             imod = imod_trig;
-            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up run off
-            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers.psend);
+            buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up run off
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
         }
     }
 

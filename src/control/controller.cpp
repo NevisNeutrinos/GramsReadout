@@ -13,56 +13,112 @@ namespace controller {
     Controller::Controller(asio::io_context& io_context, const std::string& ip_address,
                            const short port, const bool is_server, const bool is_running) :
         tcp_connection_(io_context, ip_address, port, is_server),
-        is_running_(is_running) {
-        current_state_ = State::kIdle;
-        pcie_controller_ = new hardware_ctrl::HardwareControl();
-        data_handler_ = new data_handler::DataHandler();
+        is_running_(is_running),
+        is_configured_(false) {
 
-        std::string config_file("../config/test.json");
-        LoadConfig(config_file);
+        current_state_ = State::kIdle;
+        configure_hardware_ = new hw_config::ConfigureHardware;
+        pcie_ctrl_ = new pcie_control::PcieControl;
+        xmit_ctrl_ = new xmit_control::XmitControl;
+        light_fem_ = new light_fem::LightFem;
+        charge_fem_ = new charge_fem::ChargeFem;
+        trigger_ctrl_ = new trig_ctrl::TriggerControl;
+        data_handler_ = new data_handler::DataHandler;
+
+        pcie_interface_ = new pcie_int::PCIeInterface;
+        buffers_ = new pcie_int::PcieBuffers;
 
         logger_ = quill::Frontend::create_or_get_logger("root",
                  quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
+
+        std::string config_file("../config/test.json");
+        if (!LoadConfig(config_file)) {
+            std::cerr << "Config load failed!" << std::endl;
+        }
+
+        LOG_INFO(logger_, "Initialized Controller \n");
+        std::cout << "Initialized Controller" << std::endl;
     }
 
     Controller::~Controller() {
-        LOG_INFO(logger_, "Destructing controller");
-        delete pcie_controller_;
+        LOG_INFO(logger_, "Destructing Controller \n");
+        delete xmit_ctrl_;
+        delete light_fem_;
+        delete charge_fem_;
+        delete trigger_ctrl_;
+        delete data_handler_;
+        delete pcie_ctrl_;
+        delete configure_hardware_;
+        delete pcie_interface_;
+        delete buffers_;
     }
 
-    void Controller::LoadConfig(std::string &config_file) {
-        if (std::ifstream f(config_file); !f.is_open()) {
-            LOG_ERROR(logger_, "Could not open config file {}", config_file);
-        } else {
-            LOG_INFO(logger_, "Successfully opened config file {}", config_file);
+    bool Controller::LoadConfig(std::string &config_file) {
+
+        std::ifstream f(config_file);
+        if (!f.is_open()) {
+            LOG_ERROR(logger_, "Could not open config file \n");
+            std::cerr << "Could not open config file " << config_file << std::endl;
+            return false;
+        }
+
+        try {
             config_ = json::parse(f);
         }
+        catch (json::parse_error& ex) {
+            std::cerr << "parse error at byte " << ex.byte << std::endl;
+        }
+
+        std::cout << "Successfully opened config file " << config_file << std::endl;
+        std::cout << config_.dump() << std::endl;
+        return true;
     }
 
     bool Controller::Init() {
-
         current_state_ = State::kIdle;
-        // Start listening to the TCP receiver for any
-        // commands.
+        return true;
+    }
 
-        // Set up PCIe Tx/Rx
-        if (!pcie_controller_->Initialize(config_)) {
+    bool Controller::Configure() {
+        // Connect to the PCIe bus handle
+        int device_id_0 = 5, device_id_1 = 4;
+        if (!pcie_interface_->InitPCIeDevices(device_id_0, device_id_1)) {
+            LOG_ERROR(logger_, "PCIe device initialization failed!");
             return false;
         }
-        LOG_INFO(logger_, "Initialized PCIe Devices!");
-
-        // Configure Hardware
-        usleep(1000);
-        if (!pcie_controller_->InitializeHardware(config_)) {
-            return false;
-        }
-        LOG_INFO(logger_, "Configured Hardware!");
-
+        LOG_INFO(logger_, "PCIe devices initialized!");
         usleep(10000);
-        data_handler_->SetRun(true);
-        // If something fails
-        //return false;
 
+        LOG_INFO(logger_, "Initializing hardware...");
+        pcie_ctrl_->Configure(config_, pcie_interface_, *buffers_);
+        xmit_ctrl_->Configure(config_, pcie_interface_, *buffers_);
+        light_fem_->Configure(config_, pcie_interface_, *buffers_);
+        charge_fem_->Configure(config_, pcie_interface_, *buffers_);
+        trigger_ctrl_->Configure(config_, pcie_interface_, *buffers_);
+        data_handler_->Configure(config_);
+        LOG_INFO(logger_, "Configured Hardware! \n");
+        is_configured_ = true;
+        return true;
+    }
+
+    bool Controller::StartRun() {
+        LOG_INFO(logger_, "Starting Run...\n");
+
+        data_handler_->SetRun(true);
+        data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_, pcie_interface_);
+        return true;
+    }
+
+    bool Controller::StopRun() {
+        data_handler_->SetRun(false);
+        data_thread_.join();
+        LOG_INFO(logger_, "Collection thread stopped...\n");
+        return true;
+    }
+    bool Controller::GetStatus() {
+        return true;
+    }
+    bool Controller::Reset() {
         return true;
     }
 
@@ -72,9 +128,11 @@ namespace controller {
     }
 
     void Controller::Run() {
+        LOG_INFO(logger_, "Listening for commands..\n");
+        std::cout << "Listening for commands.." << std::endl;
         is_running_ = true;
         ReceiveCommand();
-        LOG_INFO(logger_, "Stopping controller");
+        LOG_INFO(logger_, "Stopping controller\n");
     }
 
     void Controller::ReceiveCommand() {
@@ -82,7 +140,7 @@ namespace controller {
             Command cmd = tcp_connection_.ReadRecvBuffer();
             bool response = HandleCommand(cmd);
             SendAckCommand(response);
-            LOG_INFO(logger_, " \n Current state: [{}]", GetStateName());
+            LOG_INFO(logger_, " \n Current state: [{}] \n", GetStateName());
         }
     }
 
@@ -95,21 +153,30 @@ namespace controller {
 
     // Handle user commands
     bool Controller::HandleCommand(const Command& command) {
-        LOG_INFO(logger_, " \n Sending command: [{}]", command.command);
+        std::cout << " \n Sending command: " << command.command << std::endl;
+        LOG_INFO(logger_, " \n Sending command: [{}] \n", command.command);
         if (command.command == CommandCodes::kConfigure && current_state_ == State::kIdle) {
+            LOG_INFO(logger_, " \n State [Idle] \n");
             // command.arguments // which configuration to use
             current_state_ = State::kConfigured;
+            if (!is_configured_) Configure();
             return current_state_ == State::kConfigured;
 
         } if (command.command == CommandCodes::kStartRun && current_state_ == State::kConfigured) {
+            LOG_INFO(logger_, " \n State [Configure] \n ");
             current_state_ = State::kRunning;
+            StartRun();
             return current_state_ == State::kRunning;
 
         } if (command.command == CommandCodes::kStopRun && current_state_ == State::kRunning) {
+            LOG_INFO(logger_, " \n State [Running] \n");
             current_state_ = State::kStopped;
+            StopRun();
             return current_state_ == State::kStopped;
 
         } if (command.command == CommandCodes::kReset && current_state_ == State::kStopped) {
+            LOG_INFO(logger_, " \n State [Stopped] \n");
+            is_configured_ = false;
             current_state_ = State::kIdle;
             return current_state_ == State::kIdle;
         }

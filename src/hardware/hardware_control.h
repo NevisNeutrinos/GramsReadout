@@ -14,6 +14,7 @@
 #include "charge_fem.h"
 #include "light_fem.h"
 #include "trigger_control.h"
+#include "../data/data_handler.h"
 
 namespace hardware_ctrl {
 
