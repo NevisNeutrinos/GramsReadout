@@ -11,8 +11,13 @@
 #include "quill/Logger.h"
 #include "json.hpp"
 #include "../../networking/tcp_connection.h"
-#include "../hardware/hardware_control.h"
 #include "../data/data_handler.h"
+#include "light_fem.h"
+#include "charge_fem.h"
+#include "configure_hardware.h"
+#include "trigger_control.h"
+#include "xmit_control.h"
+
 
     namespace controller {
 
@@ -98,6 +103,7 @@
         void ReceiveCommand();
         void SendAckCommand(bool success);
         bool LoadConfig(std::string &config_file);
+        bool JoinDataThread();
 
         bool is_configured_;
 

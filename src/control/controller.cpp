@@ -109,15 +109,22 @@ namespace controller {
         return true;
     }
 
+    bool Controller::JoinDataThread() {
+        data_thread_.join();
+        return true;
+    }
+
     bool Controller::StopRun() {
         data_handler_->SetRun(false);
         data_thread_.join();
-        LOG_INFO(logger_, "Collection thread stopped...\n");
+        LOG_INFO(logger_, "Collection thread stopped successfully...\n");
         return true;
     }
+
     bool Controller::GetStatus() {
         return true;
     }
+
     bool Controller::Reset() {
         return true;
     }
