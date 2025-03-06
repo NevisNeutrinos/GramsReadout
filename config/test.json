@@ -9,8 +9,9 @@
     "shaper_slot": 17
   },
   "data_handler" : {
-    "num_events" : 30,
-    "dma_buffer_size" : 200000
+    "num_events" : 15000000,
+    "dma_buffer_size" : 260000,
+    "subrun" : 3
   },
   "xmit" : {
     "fpga_bitfile" : "/home/sabertooth/GramsReadoutFirmware/xmit/readcontrol_110601_v3_play_header_hist_l1block_9_21_2018.rbf"
@@ -22,10 +23,17 @@
     "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/fem/module1x_140820_deb_fixbase_nf_8_31_2018.rbf"
   },
   "light_fem" : {
+    "summed_adc_thresh" : 40,
+    "multiplicity" : 1,
+    "channel_thresh0" : 40,
+    "channel_thresh1" : 40,
+    "channel_thresh3" : 40,
+    "sipm_words" : 20,
+    "sipm_deadtime" : 240,
     "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/pmt_fem/module1x_pmt_64MHz_new_head_07162013.rbf"
   },
   "trigger" : {
-    "trigger_source" : "ext"
+    "trigger_source" : "light"
   },
   "readout_windows" : {
     "timesize": 255,

@@ -17,7 +17,7 @@ namespace controller {
         is_configured_(false) {
 
         current_state_ = State::kIdle;
-        configure_hardware_ = new hw_config::ConfigureHardware;
+        // configure_hardware_ = new hw_config::ConfigureHardware;
         pcie_ctrl_ = new pcie_control::PcieControl;
         xmit_ctrl_ = new xmit_control::XmitControl;
         light_fem_ = new light_fem::LightFem;
@@ -48,7 +48,7 @@ namespace controller {
         delete trigger_ctrl_;
         delete data_handler_;
         delete pcie_ctrl_;
-        delete configure_hardware_;
+        // delete configure_hardware_;
         delete pcie_interface_;
         delete buffers_;
     }

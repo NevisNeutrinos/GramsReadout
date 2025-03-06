@@ -17,7 +17,7 @@ namespace light_fem {
         static int ichip_c, dummy1;
         unsigned char charchannel;
         static int ihuff = 0;
-        struct timespec tim ={0, 100}, tim2 = {0, 100};
+        // struct timespec tim ={0, 100}, tim2 = {0, 100};
 
         static int idelay0, idelay1, threshold0, threshold1, pmt_words;
         static int cos_mult, cos_thres, en_top, en_upper, en_lower, hg, lg;
@@ -28,7 +28,7 @@ namespace light_fem {
         static int pmt_deadtime;
         static int a_id, iframe;
 
-        FILE *inpf;
+        // FILE *inpf;
         iprint = 0;
         bool print_debug = true;
 
@@ -41,11 +41,20 @@ namespace light_fem {
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         static int mode = trig_src == "ext" ? 0 : 3;
 
+        std::string fw_file = config["light_fem"]["fpga_bitfile"].get<std::string>();
+
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ LIGHT FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
     iframe = iframe_length;
     imod_fem = imod_pmt;
+
+    pmt_mich_window = 0; // disable by hand
+    pmt_words = config["light_fem"]["sipm_words"].get<int>();
+    pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<int>();
+    threshold0 = config["light_fem"]["channel_thresh0"].get<int>();
+    threshold1 = config["light_fem"]["channel_thresh1"].get<int>();
+    threshold3 = config["light_fem"]["channel_thresh3"].get<int>();
 
     printf("\nIs there a BNB gate physically input to the FEM?\t"); //
     //  scanf("%d",&bg);
@@ -77,8 +86,8 @@ namespace light_fem {
     //  scanf("%d",&tre);
     tre = 0;
     //tre = 1; //EXT Trigger set up as of 11/26/2024
-    pmt_mich_window = 0; // disable by hand
-    threshold0 = 20;     // discriminator 0 threshold (original =40 JLS)
+    // threshold0 = 20;     // discriminator 0 threshold (original =40 JLS)
+
     printf("\nReadout parameter definitions:\n");
     printf("Discriminator thresholds assume 20 ADC/pe for HG, 2 ADC/pe for LG.\n");
     printf("\nThreshold for discr 0 = %d ADC counts\n", threshold0);
@@ -105,21 +114,25 @@ namespace light_fem {
         scanf("%d", &pmt_deadtimelg);
     }*/
     // for all other channels
-    pmt_words = 20;
-    pmt_deadtime = 240;
-    threshold1 = 40; // original =40 JLS
-    threshold3 = 4095; // original =40 JLS
+    // pmt_words = 20;
+    // pmt_deadtime = 240;
+    // threshold1 = 40; // original =40 JLS
+    // threshold3 = 4095; // original =40 JLS
     //cos_thresh = 80;
     //threshold1 = 40;   //EXT Trigger setup as of 11/26/2024
     //threshold3 = 4095; //EXT Trigger setup as of 11/26/2024
 
+
+
     if ((mode == 3) || (mode == 5) || (mode == 7))
     {
         printf("\nTriggering on SiPMs:");
-        printf("\nEnter SiPM trigger summed-ADC threshold:\t");
-        scanf("%d", &cos_thres);
-        printf("Enter multiplicity:\t");
-        scanf("%d", &cos_mult);
+        cos_thres = config["light_fem"]["summed_adc_thresh"].get<int>();
+        cos_mult = config["light_fem"]["multiplicity"].get<int>();
+        // printf("\nEnter SiPM trigger summed-ADC threshold:\t");
+        // scanf("%d", &cos_thres);
+        // printf("Enter multiplicity:\t");
+        // scanf("%d", &cos_mult);
     }
     else
     { // doesn't matter
@@ -170,9 +183,6 @@ namespace light_fem {
     i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
     usleep(200000); // wait for 200 ms
 
-    std::cout << "Loading FPGA bitfile: " << config["light_fem"]["fpga_bitfile"].get<std::string>() << std::endl;
-    inpf = fopen(config["light_fem"]["fpga_bitfile"].get<std::string>().c_str(), "r");
-
     imod = imod_fem;
     ichip = hw_consts::mb_feb_conf_add;
     buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 0x0 + (0x0 << 16); // turn conf to be on
@@ -180,80 +190,7 @@ namespace light_fem {
     k = 1;
     i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-    printf("\nLoading FEM FPGA...\n");
-    usleep(5000); // wait for a while (1ms->5ms JLS)
-    nsend = 500;
-    count = 0;
-    counta = 0;
-    ichip_c = 7; // set ichip_c to stay away from any other command in the
-    dummy1 = 0;
-    while (fread(&charchannel, sizeof(char), 1, inpf) == 1)
-    {
-        buffers.carray[count] = charchannel;
-        count++;
-        counta++;
-        if ((count % (nsend * 2)) == 0)
-        {
-            buffers.buf_send[0] = (imod << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
-            pcie_int::PcieBuffers::send_array[0] = buffers.buf_send[0];
-            if (dummy1 <= 5)
-                printf(" counta = %d, first word = %x, %x, %x %x %x \n", counta, buffers.buf_send[0], buffers.carray[0],
-                    buffers.carray[1], buffers.carray[2], buffers.carray[3]);
-            for (ij = 0; ij < nsend; ij++)
-            {
-                if (ij == (nsend - 1))
-                    buffers.buf_send[ij + 1] = buffers.carray[2 * ij + 1] + (0x0 << 16);
-                else
-                    buffers.buf_send[ij + 1] = buffers.carray[2 * ij + 1] + (buffers.carray[2 * ij + 2] << 16);
-                pcie_int::PcieBuffers::send_array[ij + 1] = buffers.buf_send[ij + 1];
-            }
-            nword = nsend + 1;
-            i = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, nword, buffers.psend);
-            nanosleep(&tim, &tim2);
-            dummy1 = dummy1 + 1;
-            count = 0;
-        }
-    }
-    if (feof(inpf))
-    {
-        printf("\tend-of-file word count= %d %d\n", counta, count);
-        buffers.buf_send[0] = (imod << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
-        if (count > 1)
-        {
-            if (((count - 1) % 2) == 0)
-            {
-                ik = (count - 1) / 2;
-            }
-            else
-            {
-                ik = (count - 1) / 2 + 1;
-            }
-            ik = ik + 2; // add one more for safety
-            printf("\tik= %d\n", ik);
-            for (ij = 0; ij < ik; ij++)
-            {
-                if (ij == (ik - 1))
-                    buffers.buf_send[ij + 1] = buffers.carray[(2 * ij) + 1] + (((imod << 11) + (ichip << 8) + 0x0) << 16);
-                else
-                    buffers.buf_send[ij + 1] = buffers.carray[(2 * ij) + 1] + (buffers.carray[(2 * ij) + 2] << 16);
-                pcie_int::PcieBuffers::send_array[ij + 1] = buffers.buf_send[ij + 1];
-            }
-        }
-        else
-            ik = 1;
-
-        for (ij = ik - 10; ij < ik + 1; ij++)
-        {
-            printf("\tlast data = %d, %x\n", ij, buffers.buf_send[ij]);
-        }
-
-        nword = ik + 1;
-        i = 1;
-        i = pcie_interface->PCIeSendBuffer(1, i, nword, buffers.psend);
-    }
-    usleep(5000); // wait for 2ms to cover the packet time plus fpga init time (2ms->5ms JLS)
-    fclose(inpf);
+    LoadFirmware(imod, hw_consts::mb_feb_conf_add, fw_file, pcie_interface, buffers);
 
     printf("FEM FPGA configuration done\n");
     ik = 1;

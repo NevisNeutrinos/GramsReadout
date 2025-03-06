@@ -14,7 +14,7 @@
 #include "../data/data_handler.h"
 #include "light_fem.h"
 #include "charge_fem.h"
-#include "configure_hardware.h"
+// #include "configure_hardware.h"
 #include "trigger_control.h"
 #include "xmit_control.h"
 
@@ -111,7 +111,7 @@
 
         std::thread data_thread_;
 
-        hw_config::ConfigureHardware *configure_hardware_;
+        // hw_config::ConfigureHardware *configure_hardware_;
         pcie_control::PcieControl *pcie_ctrl_;
         xmit_control::XmitControl *xmit_ctrl_;
         light_fem::LightFem *light_fem_;

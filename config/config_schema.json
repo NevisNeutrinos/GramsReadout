@@ -22,9 +22,10 @@
       "type": "object",
       "properties": {
         "num_events" : { "type": "integer" },
-        "dma_buffer_size": { "type": "integer" }
+        "dma_buffer_size": { "type": "integer" },
+        "subrun" : { "type" :  "integer" }
       },
-      "required": ["dma_buffer_size"]
+      "required": ["num_events", "dma_buffer_size", "subrun"]
     },
     "xmit" : {
       "type": "object",
@@ -48,9 +49,16 @@
     "light_fem_" : {
       "type": "object",
       "properties": {
+      "summed_adc_thresh" : { "type" :  "integer"},
+      "multiplicity" : { "type" :  "integer"},
+      "channel_thresh1" : { "type" :  "integer"},
+      "channel_thresh3" : { "type" :  "integer"},
+      "sipm_words" : { "type" :  "integer"},
+      "sipm_deadtime" : { "type" :  "integer"},
       "fpga_bitfile" : { "type" : "string" }
       },
-      "required": ["fpga_bitfile"]
+      "required": ["summed_adc_thresh", "multiplicity", "channel_thresh1",
+        "channel_thresh3", "sipm_words", "sipm_deadtime", "fpga_bitfile"]
     },
     "trigger" : {
       "type": "object",
