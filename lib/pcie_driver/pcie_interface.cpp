@@ -484,18 +484,18 @@ namespace pcie_int {
         }
 
         DWORD dwOptions_rec = DMA_FROM_DEVICE | DMA_ALLOW_64BIT_ADDRESS;
-        PCIeDeviceHandle hDev2 = GetDeviceHandle(dev_handle);
+        // PCIeDeviceHandle hDev2 = GetDeviceHandle(2);
 
         if (dev_handle == 1) {
-            dwStatus = WDC_DMAContigBufLock(hDev2, pbuf_rec, dwOptions_rec, dwDMABufSize,
+            dwStatus = WDC_DMAContigBufLock(dev_handle_2, pbuf_rec, dwOptions_rec, dwDMABufSize,
                                             &buffer_info_struct1->dma_buff);
         } else {
-            dwStatus = WDC_DMAContigBufLock(hDev2, pbuf_rec, dwOptions_rec, dwDMABufSize,
+            dwStatus = WDC_DMAContigBufLock(dev_handle_2, pbuf_rec, dwOptions_rec, dwDMABufSize,
                                             &buffer_info_struct2->dma_buff);
         }
         // FIXME handle this error automatically
         if (WD_STATUS_SUCCESS != dwStatus) {
-            printf("Failed locking recv Contiguous DMA buffer. Error 0x%lx - %s\n", dwStatus, Stat2Str(dwStatus));
+            printf("Failed locking recv Contiguous DMA buffer. Error 0x%x - %s\n", dwStatus, Stat2Str(dwStatus));
             printf("enter 1 to continue \n");
             scanf("%d", &is);
             if (is != 1) return false;
