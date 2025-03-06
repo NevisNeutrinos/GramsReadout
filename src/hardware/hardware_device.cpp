@@ -13,7 +13,8 @@ bool HardwareDevice::LoadFirmware(int module, int chip, std::string &fw_file,
     static int ij, nsend;
     static int ichip_c, dummy1;
     unsigned char charchannel;
-    struct timespec tim, tim2;
+    // struct timespec tim, tim2;
+    struct timespec tim ={0, 100}, tim2 = {0, 100};
     bool print_debug = false;
 
     FILE *inpf = fopen(fw_file.c_str(), "r");
