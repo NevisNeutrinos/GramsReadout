@@ -5,10 +5,9 @@
 #ifndef DATA_HANDLER_H
 #define DATA_HANDLER_H
 
-// #include "hardware_device.h"
 #include "pcie_control.h"
 #include <atomic>
-#include <fcntl.h>
+#include "stdio.h"
 #include "json.hpp"
 
 namespace data_handler {
@@ -32,6 +31,8 @@ private:
     bool SetRecvBuffer(pcie_int::PCIeInterface *pcie_interface,
         pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2);
 
+    bool SwitchWriteFile();
+
     static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
     static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
 
@@ -41,13 +42,17 @@ private:
     size_t num_recv_bytes_{};
     size_t event_count_ = 0;
 
+    std::string write_file_name_;
+    size_t file_count_;
+
     std::atomic_bool is_running_;
 
     pcie_int::DMABufferHandle  pbuf_rec1_{};
     pcie_int::DMABufferHandle pbuf_rec2_{};
 
 //    std::unique_ptr<FILE> data_file_;
-    static int file_ptr_;
+    // static int file_ptr_;
+    FILE *file_ptr_;
 
     quill::Logger* logger_;
 

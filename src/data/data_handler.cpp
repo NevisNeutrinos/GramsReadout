@@ -4,15 +4,15 @@
 
 #include "data_handler.h"
 #include <iostream>
-#include <unistd.h>
 #include <cstdio>
+#include <cstring>
 #include "trigger_control.h"
 
 #include "quill/LogMacros.h"
 
 namespace data_handler {
 
-    int DataHandler::file_ptr_ = 0x0;
+    // int DataHandler::file_ptr_ = 0x0;
 
     DataHandler::DataHandler() : num_events_(0) {
         logger_ = quill::Frontend::create_or_get_logger("root",
@@ -50,42 +50,19 @@ namespace data_handler {
 
         dma_buf_size_ = config["data_handler"]["dma_buffer_size"].get<int>();
         num_events_ = config["data_handler"]["num_events"].get<size_t>();
-
-        LOG_INFO(logger_, "Enter number of events to read out and save:\n");
-//        std::cin >> num_events_;
-        int evts_in = -1;
-        if (std::cin >> evts_in; evts_in > 0) {
-            num_events_ = evts_in;
-        }
-        else {
-            LOG_ERROR(logger_, "Incorrect input: {}", evts_in);
-            num_events_ = 0;
-        }
-
-//         LOG_INFO(logger_, "\nEnter 1 to set the RUN on \n");
-// //        std::cin >> ik;
-//         int run_in = -1;
-//         if (std::cin >> run_in; run_in == 1) {
-//             is_running_ = true;
-//         }
-//         else {
-//             LOG_ERROR(logger_, "Incorrect input: {}", run_in);
-//             is_running_ = false;
-//         }
+        const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
 
         LOG_INFO(logger_, "\t [{}] DMA loops with [{}] words \n", num_dma_loops_, dma_buf_size_ / 4);
 
-        std::string subrun;
-        LOG_INFO(logger_, "\n ######## SiPM+TPC Readout \n Enter SUBRUN NUMBER or NAME:\t");
-        std::cin >> subrun;
-
-        std::string name = "data/pGRAMS_bin_" + std::string(subrun) + ".dat";
-        mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH; // Permissions: rw-r--r--
-        file_ptr_ = open(name.data(), O_WRONLY | O_CREAT | O_TRUNC, mode);
-        if (file_ptr_ == -1) {
+        file_count_ = 0;
+        write_file_name_ = "/data/readout_data/pGRAMS_bin_" + std::to_string(subrun) + "_";
+        std::string name = write_file_name_  + std::to_string(file_count_) + ".dat";
+        file_ptr_ = fopen(name.c_str(), "wb");
+        if (!file_ptr_) {
             LOG_ERROR(logger_, "Failed to open file {} aborting run! \n", name);
             return false;
         }
+
         LOG_INFO(logger_, "\n Output file: {}", name);
 
         LOG_INFO(logger_, "Collected {} events... \n", event_count_);
@@ -94,13 +71,33 @@ namespace data_handler {
         return true;
     }
 
+    bool DataHandler::SwitchWriteFile() {
+
+        fflush(file_ptr_);
+        if(fclose(file_ptr_) == EOF) {
+            LOG_ERROR(logger_, "Failed to close data file... \n");
+            return false;
+        }
+
+        file_count_ += 1;
+        std::string name = write_file_name_  + std::to_string(file_count_) + ".dat";
+        LOG_INFO(logger_, "Switching to file: {} \n", name);
+
+        file_ptr_ = fopen(name.c_str(), "wb");
+        if (!file_ptr_) {
+            LOG_ERROR(logger_, "Failed to open file {} aborting run! \n", name);
+            return false;
+        }
+        return true;
+    }
+
     void DataHandler::CollectData(pcie_int::PCIeInterface *pcie_interface) {
 
         bool idebug = false;
+        bool is_first_event = true;
         static uint32_t iv, r_cs_reg;
         static uint32_t nwrite_byte;
         static uint32_t is;
-        static uint32_t ifr = 0;;
         static int idone;
         static int itrig_c = 0;
         static int itrig_ext = 1;
@@ -115,11 +112,18 @@ namespace data_handler {
 
          /*TPC DMA*/
         SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2);
+        usleep(500000);
 
         num_recv_bytes_ = 0; // keeps track of total number of words received
+        // Set IO buffer to size of event + 30%
+        std::array<char, 300000> io_buffer{};
+        if (setvbuf(file_ptr_, io_buffer.data(), _IOFBF, dma_buf_size_) != 0) {
+            LOG_ERROR(logger_, "Failed to initialize IO buffer... \n");
+        }
 
         while(is_running_.load() && event_count_ < num_events_) {
-            if (event_count_ % 10 == 0) LOG_INFO(logger_, " \n ===================> Event No. [{}] \n", event_count_);
+            // if (event_count_ % 10 == 0) LOG_INFO(logger_, " \n ===================> Event No. [{}] \n", event_count_);
+            if (event_count_ % 50 == 0) printf(" \n ===================> Event No. %lu \n", event_count_);
             for (iv = 0; iv < (num_dma_loops_ + 1); iv++) { // note: ndma_loop=1
                 static uint32_t dma_num = (iv % 2) == 0 ? 1 : 2;
                 buffp_rec32 = (iv % 2) == 0 ? static_cast<uint32_t *>(pbuf_rec1) : static_cast<uint32_t *>(pbuf_rec2);
@@ -133,14 +137,14 @@ namespace data_handler {
                 /** initialize and start the receivers ***/
                 for (size_t rcvr = 1; rcvr < 3; rcvr++) {
                     r_cs_reg = rcvr == 1 ? hw_consts::r1_cs_reg : hw_consts::r2_cs_reg;
-                    if (ifr == 0) {
+                    if (is_first_event) {
                         pcie_interface->WriteReg32(kDev2,  hw_consts::cs_bar, r_cs_reg, hw_consts::cs_init);
                     }
                     data = hw_consts::cs_start + nwrite_byte; /* 32 bits mode == 4 bytes per word *2 fibers **/
                     pcie_interface->WriteReg32(kDev2, hw_consts::cs_bar, r_cs_reg, data);
                 }
 
-                ifr = 1;
+                is_first_event = false;
 
                 /** set up DMA for both transceiver together **/
                 data = pcie_interface->GetBufferPageAddrLower(dma_num);
@@ -162,17 +166,20 @@ namespace data_handler {
                 if (iv == 0) trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, itrig_c, itrig_ext);
 
                 // extra wait just to be certain --- WK
-                // usleep(20000);
+                // usleep(200);
                 /***    check to see if DMA is done or not **/
+                // Can get stuck waiting for the DMA to finish so add a way to break from it
                 idone = 0;
                 for (is = 0; is < 6000000000; is++) {
                     u64Data = 0;
                     pcie_interface->ReadReg32(kDev2, hw_consts::cs_bar, hw_consts::cs_dma_cntrl, &data);
                     if ((data & hw_consts::dma_in_progress) == 0) {
                         idone = 1;
-                        if (idebug) LOG_INFO(logger_, "Receive DMA complete...  (iter={}) \n", is);
                         break;
+                        if (idebug) LOG_INFO(logger_, "Receive DMA complete...  (iter={}) \n", is);
                     }
+                    if ((is > 0) && ((is % 10000000) == 0)) std::cout << "Wait iter: " << is << "\n";
+                    if (!is_running_.load()) break;
                 }
                 if (idone == 0) {
                     LOG_WARNING(logger_, " loop [{}] DMA is not finished, aborting...  \n", iv);
@@ -180,12 +187,10 @@ namespace data_handler {
                     pcie_interface->DmaSyncIo(dma_num);
                     static size_t num_read = (nwrite_byte - (u64Data & 0xffff)) / 4;
 
+                    LOG_INFO(logger_, "Received {} bytes, writing to file.. \n", num_read);
                     num_recv_bytes_ = num_recv_bytes_ + num_read;
-                    for (is = 0; is < num_read; is++) {
-                        pcie_int::PcieBuffers::read_array[is] = *buffp_rec32++;
-                        LOG_INFO(logger_, "{%x} \n", pcie_int::PcieBuffers::read_array[is]);
-                    }
-                    n_write = write(file_ptr_, pcie_int::PcieBuffers::read_array.data(), num_read * 4);
+                    memcpy(pcie_int::PcieBuffers::read_array.data(), buffp_rec32, num_read * 4);
+                    n_write = fwrite(pcie_int::PcieBuffers::read_array.data(), 1, (num_read * 4), file_ptr_);
 
                     u64Data = 0;
                     pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t1_cs_reg, &u64Data);
@@ -193,7 +198,7 @@ namespace data_handler {
 
                     u64Data = 0;
                     pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
-                    LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (u64Data >> 32), (u64Data & 0xffff));
+                    LOG_INFO(logger_, " Status word for channel 2 after read = {}, {}", (u64Data >> 32), (u64Data & 0xffff));
 
                     /* write this will abort previous DMA */
                     data = hw_consts::dma_abort;
@@ -221,10 +226,11 @@ namespace data_handler {
                 }
 
                 static size_t nwrite = nwrite_byte / 4;
-                for (is = 0; is < nwrite; is++) { pcie_int::PcieBuffers::read_array[is] = *buffp_rec32++; }
-                n_write = write(file_ptr_, pcie_int::PcieBuffers::read_array.data(), nwrite * 4);
+                memcpy(pcie_int::PcieBuffers::read_array.data(), buffp_rec32, nwrite * 4);
+                n_write = fwrite(pcie_int::PcieBuffers::read_array.data(), 1, (nwrite * 4), file_ptr_);
                 num_recv_bytes_ += nwrite;
             } // end dma loop
+            if ((event_count_ > 0) && (event_count_% 10000 == 0)) SwitchWriteFile();
             event_count_ += 1;
         } // end loop over events
 
@@ -236,9 +242,13 @@ namespace data_handler {
             LOG_ERROR(logger_, "Failed freeing DMA buffers! \n");
         }
 
-        if(close(file_ptr_) == -1) {
+        // Flush the buffer to make sure all data is written to file
+        fflush(file_ptr_);
+        if(fclose(file_ptr_) == EOF) {
             LOG_ERROR(logger_, "Failed to close data file... \n");
         }
+        LOG_INFO(logger_, "Closed file after writing {}B to file {} \n", num_recv_bytes_, write_file_name_);
+        LOG_INFO(logger_, "Wrote {} events to {} files", event_count_, file_count_);
      }
 
     std::vector<uint32_t> DataHandler::GetStatus() {
