@@ -12,7 +12,7 @@
 
 namespace data_handler {
 
-    DataHandler::DataHandler() : num_events_(0), data_queue_(300000) {
+    DataHandler::DataHandler() : num_events_(0), data_queue_(600000) {
         logger_ = quill::Frontend::create_or_get_logger("root",
         quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
     }
@@ -79,8 +79,7 @@ namespace data_handler {
 
         file_count_ += 1;
         std::string name = write_file_name_  + std::to_string(file_count_) + ".dat";
-        // LOG_INFO(logger_, "Switching to file: {} \n", name);
-        printf("Switching file..");
+        LOG_INFO(logger_, "Switching to file: {} \n", name);
 
         file_ptr_ = fopen(name.c_str(), "wb");
         if (!file_ptr_) {
@@ -92,15 +91,18 @@ namespace data_handler {
 
     void DataHandler::CollectData(pcie_int::PCIeInterface *pcie_interface) {
 
-        // auto write_thread = std::thread(&DataHandler::DataWrite, this);
+        auto write_thread = std::thread(&DataHandler::DataWrite, this);
         auto read_thread = std::thread(&DataHandler::DMARead, this, pcie_interface);
         LOG_INFO(logger_, "Started read and write threads... \n");
-        // write_thread.join();
+
         read_thread.join();
-        LOG_INFO(logger_, "read and write threads joined... \n");
+        LOG_INFO(logger_, "read thread joined... \n");
+        write_thread.join();
+        LOG_INFO(logger_, "write thread joined... \n");
     }
 
     void DataHandler::DataWrite() {
+        bool debug = false;
         uint32_t word;
         std::array<uint32_t, 300000> word_arr{};
         event_start_ = false;
@@ -111,22 +113,34 @@ namespace data_handler {
         event_end_count_ = 0;
         num_recv_bytes_ = 0;
 
-        while (is_running_.load() && event_count_ < num_events_) {
+        while (is_running_.load()) {
             while (data_queue_.read(word)) {
-                if (isEventStart(&word)) { event_start_ = true; event_end_ = false; event_start_count_++; }
-                else if (isEventEnd(&word) && event_start_) { event_end_ = true; event_end_count_++; }
+                if (isEventStart(&word)) {
+                    if (event_start_) num_words = 0; // evt didn't finish, overwrite data
+                    if (debug) std::cout << "Evt start: " << event_count_ << "\n";
+                    event_start_ = true; event_start_count_++;
+                }
+                else if (isEventEnd(&word) && event_start_) {
+                    if (debug) std::cout << "Evt end: " << event_count_ << "\n";
+                    event_end_ = true; event_end_count_++;
+                }
                 word_arr[num_words] = std::move(word);
                 num_words += 1;
                 if (event_start_ & event_end_) {
+                    if ((event_count_ % 100) == 0) LOG_INFO(logger_, " **** Event: {}", event_count_);
                     event_count_ += 1;
                     event_start_ = false; event_end_ = false; num_words = 0;
                     num_recv_bytes_ += fwrite(word_arr.data(), 1, (num_words*4), file_ptr_);
-                    if ((event_count_ > 0) && (event_count_ % 500 == 0)) {
+                    if ((event_count_ > 0) && (event_count_ % 5000 == 0)) {
                         SwitchWriteFile();
                     }
                 }
             }
         }
+
+        // Flush queue of any partial events
+        while (!data_queue_.isEmpty()) data_queue_.popFront();
+
         // Flush the buffer to make sure all data is written to file
         fflush(file_ptr_);
         if(fclose(file_ptr_) == EOF) {
@@ -142,7 +156,6 @@ namespace data_handler {
 
         bool idebug = false;
         bool is_first_event = true;
-        bool switch_files = false;
         static uint32_t iv, r_cs_reg;
         static uint32_t nwrite_byte;
         static uint32_t is;
@@ -153,9 +166,8 @@ namespace data_handler {
         uint32_t data;
         static unsigned long long u64Data;
         static uint32_t *buffp_rec32;
-        static size_t n_write;
-        static size_t num_write_bytes;
         size_t dma_loops = 0;
+        static size_t nwrite = 0;
 
         pcie_int::DMABufferHandle  pbuf_rec1;
         pcie_int::DMABufferHandle pbuf_rec2;
@@ -163,18 +175,9 @@ namespace data_handler {
          /*TPC DMA*/
         SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2);
         usleep(500000);
-        event_start_ = false;
-        event_end_ = false;
-        num_recv_bytes_ = 0; // keeps track of total number of words received
-        // Set IO buffer to size of event + 30%
-        std::array<char, 300000> io_buffer{};
-        if (setvbuf(file_ptr_, io_buffer.data(), _IOFBF, dma_buf_size_) != 0) {
-            LOG_ERROR(logger_, "Failed to initialize IO buffer... \n");
-        }
 
         while(is_running_.load() && dma_loops < num_events_) {
-            // if (dma_loops % 10 == 0) LOG_INFO(logger_, " \n ===================> Event No. [{}] \n", dma_loops);
-            if (dma_loops % 50 == 0) printf(" \n ===================> Event No. %lu \n", dma_loops);
+            if (dma_loops % 1000 == 0) LOG_INFO(logger_, "=======> DMA Loop [{}] \n", dma_loops);
             for (iv = 0; iv < (num_dma_loops_ + 1); iv++) { // note: ndma_loop=1
                 static uint32_t dma_num = (iv % 2) == 0 ? 1 : 2;
                 buffp_rec32 = (iv % 2) == 0 ? static_cast<uint32_t *>(pbuf_rec1) : static_cast<uint32_t *>(pbuf_rec2);
@@ -239,9 +242,11 @@ namespace data_handler {
                     static size_t num_read = (nwrite_byte - (u64Data & 0xffff)) / 4;
 
                     LOG_INFO(logger_, "Received {} bytes, writing to file.. \n", num_read);
-                    num_recv_bytes_ = num_recv_bytes_ + num_read;
-                    memcpy(pcie_int::PcieBuffers::read_array.data(), buffp_rec32, num_read * 4);
-                    n_write = fwrite(pcie_int::PcieBuffers::read_array.data(), 1, (num_read * 4), file_ptr_);
+
+                    for (is = 0; is < num_read; is++) {
+                        data_queue_.write(*buffp_rec32++);
+                    }
+                    if (data_queue_.isFull()) LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
 
                     u64Data = 0;
                     pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t1_cs_reg, &u64Data);
@@ -275,30 +280,12 @@ namespace data_handler {
                     pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
                     LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (u64Data >> 32), (u64Data & 0xffff));
                 }
-
-                // memcpy(pcie_int::PcieBuffers::read_array.data(), buffp_rec32, nwrite_byte);
-                static size_t nwrite = nwrite_byte / 4;
-                num_write_bytes = 0;
+                nwrite = nwrite_byte / 4;
                 for (is = 0; is < nwrite; is++) {
-                    if (isEventStart(buffp_rec32)) { event_start_ = true; event_end_ = false; event_start_count_++; }
-                    else if (isEventEnd(buffp_rec32) && event_start_) { event_end_ = true; event_end_count_++; }
-                    pcie_int::PcieBuffers::read_array[is] = *buffp_rec32++;
-                    num_write_bytes += 4;
-                    if (event_start_ & event_end_) {
-                        event_start_ = false; event_end_ = false; num_write_bytes = 0;
-                        n_write = fwrite(pcie_int::PcieBuffers::read_array.data(), 1, num_write_bytes, file_ptr_);
-                        if (switch_files) {
-                            SwitchWriteFile(); switch_files = false;
-                        }
-                    }
+                    data_queue_.write(*buffp_rec32++);
                 }
-                // memcpy(pcie_int::PcieBuffers::read_array.data(), buffp_rec32, nwrite * 4);
-                if (num_write_bytes > 0) {
-                    n_write = fwrite(pcie_int::PcieBuffers::read_array.data(), 1, num_write_bytes, file_ptr_);
-                }
-                num_recv_bytes_ += nwrite;
+                if (data_queue_.isFull()) LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
             } // end dma loop
-            if ((dma_loops > 0) && (dma_loops% 500 == 0)) switch_files = true;
             dma_loops += 1;
         } // end loop over events
 
@@ -310,15 +297,10 @@ namespace data_handler {
             LOG_ERROR(logger_, "Failed freeing DMA buffers! \n");
         }
 
-        // Flush the buffer to make sure all data is written to file
-        fflush(file_ptr_);
-        if(fclose(file_ptr_) == EOF) {
-            LOG_ERROR(logger_, "Failed to close data file... \n");
-        }
+        // If event count triggered the end of run, set stop run flag so write thread completes
+        is_running_.store(false);
+
         LOG_INFO(logger_, "Ran {} DMA loops \n", dma_loops);
-        LOG_INFO(logger_, "Closed file after writing {}B to file {} \n", num_recv_bytes_, write_file_name_);
-        LOG_INFO(logger_, "Wrote {} events to {} files", event_count_, file_count_);
-        LOG_INFO(logger_, "Counted [{}] start events & [{}] end events \n", event_start_count_, event_end_count_);
      }
 
     std::vector<uint32_t> DataHandler::GetStatus() {
