@@ -538,34 +538,34 @@ namespace light_fem {
     k = 1;
     i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-    // readback status
-    i = pcie_interface->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers.precv); // init the receiver
-
-    imod = imod_fem;
-    ichip = 3;
-    buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 20 + (0x0 << 16); // read out status
-    i = 1;
-    k = 1;
-    i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-    buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
-    i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv);
-    printf("\nFEM STATUS -- after reset = %x, %x \n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
-    printf(" module = %d, command = %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1f), (pcie_int::PcieBuffers::read_array[0] & 0xff));
-    printf(" ADC right dpa lock     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1));
-    printf(" ADC left  dpa lock     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1));
-    printf(" block error 2          %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1));
-    printf(" block error 1          %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1));
-    printf(" pll locked             %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1));
-    printf(" supernova mem ready    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1));
-    printf(" beam      mem ready    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1));
-    printf(" ADC right PLL locked   %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1));
-    printf(" ADC left  PLL locked   %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1));
-    printf(" ADC align cmd right    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1));
-    printf(" ADC align cmd left     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1));
-    printf(" ADC align done right   %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 28) & 0x1));
-    printf(" ADC align done left    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 29) & 0x1));
-    printf(" Neutrino data empty    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 30) & 0x1));
-    printf(" Neutrino header empty  %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 31) & 0x1));
+    // // readback status
+    // i = pcie_interface->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers.precv); // init the receiver
+    //
+    // imod = imod_fem;
+    // ichip = 3;
+    // buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 20 + (0x0 << 16); // read out status
+    // i = 1;
+    // k = 1;
+    // i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+    // buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
+    // i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv);
+    // printf("\nFEM STATUS -- after reset = %x, %x \n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
+    // printf(" module = %d, command = %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1f), (pcie_int::PcieBuffers::read_array[0] & 0xff));
+    // printf(" ADC right dpa lock     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1));
+    // printf(" ADC left  dpa lock     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1));
+    // printf(" block error 2          %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1));
+    // printf(" block error 1          %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1));
+    // printf(" pll locked             %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1));
+    // printf(" supernova mem ready    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1));
+    // printf(" beam      mem ready    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1));
+    // printf(" ADC right PLL locked   %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1));
+    // printf(" ADC left  PLL locked   %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1));
+    // printf(" ADC align cmd right    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1));
+    // printf(" ADC align cmd left     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1));
+    // printf(" ADC align done right   %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 28) & 0x1));
+    // printf(" ADC align done left    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 29) & 0x1));
+    // printf(" Neutrino data empty    %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 30) & 0x1));
+    // printf(" Neutrino header empty  %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 31) & 0x1));
 
     // send FPGA ADC align
     imod = imod_fem;

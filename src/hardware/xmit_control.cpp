@@ -150,6 +150,7 @@ namespace xmit_control {
         printf("XMIT status word = %x, %x \n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
 
         printf("\nXMIT STATUS -- Post-Setup = %x, %x \n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
+        printf(" Crate Number        %d \n", ((pcie_int::PcieBuffers::read_array[0]) & 0xE0));
         printf(" pll locked          %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1));
         printf(" receiver lock       %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1));
         printf(" DPA lock            %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1));
@@ -166,11 +167,30 @@ namespace xmit_control {
         printf(" Align1              %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 30) & 0x1));
         printf(" Align2              %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 31) & 0x1));
 
+        //////////
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_xmit_rdcounters + (0x0 << 16); // read out counters
+
+        i = 1;
+        k = 1;
+        nword = 5;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+        buffers.precv = pcie_int::PcieBuffers::read_array.data();
+        i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv); // read out 2 32 bits words
+        printf("XMIT counter word = %x, %x \n", pcie_int::PcieBuffers::read_array[0],
+               pcie_int::PcieBuffers::read_array[1]);
+
+        printf("\nXMIT Counter -- Post-Setup = %x, %x \n", pcie_int::PcieBuffers::read_array[0],
+               pcie_int::PcieBuffers::read_array[1]);
+        printf(" Crate Number        %d \n", ((pcie_int::PcieBuffers::read_array[0]) & 0x1F));
+        printf(" SN Frame Ctr        %d \n", ((pcie_int::PcieBuffers::read_array[1]) & 0xFFFFFF));
+        printf(" Nu Frame Ctr        %d \n", ((pcie_int::PcieBuffers::read_array[2]) & 0xFFFFFF));
+        printf(" Token Path 1 Ctr    %d \n", ((pcie_int::PcieBuffers::read_array[3]) & 0xFFFFFF));
+        printf(" Token Path 2 Ctr    %d \n", ((pcie_int::PcieBuffers::read_array[4]) & 0xFFFFFF));
+
         usleep(10000);
         printf("\n...XMIT setup complete\n");
 
-        if (print_debug == true)
-        {
+        if (print_debug == true) {
             printf("\n setup_xmit debug : \n");
             printf("mb_xmit_modcount %x\n", hw_consts::mb_xmit_modcount);
             printf("mb_opt_dig_reset %x\n", hw_consts::mb_opt_dig_reset);
@@ -183,7 +203,7 @@ namespace xmit_control {
             printf("mb_xmit_rdstatus %x\n", hw_consts::mb_xmit_rdstatus);
         }
 
-      return true;
+        return true;
     }
 
     std::vector<uint32_t> XmitControl::GetStatus() {
@@ -197,5 +217,4 @@ namespace xmit_control {
         int j = 6;
         return i > j;
     }
-
 } // xmit_control
