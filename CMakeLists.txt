@@ -13,23 +13,15 @@ else ()
     message(FATAL_ERROR "WinDriver installation directory does not exist: ${WINDRIVER_ROOT}")
 endif ()
 
-set(FOLLY_ROOT $ENV{HOME}/folly)
-if (EXISTS ${FOLLY_ROOT})
-    message(STATUS "folly installation directory is: ${FOLLY_ROOT}")
-else ()
-    message(FATAL_ERROR "folly installation directory does not exist: ${FOLLY_ROOT}")
-endif ()
-
 add_subdirectory(quill)
 add_subdirectory(lib/pcie_driver)
 add_subdirectory(networking)
-#add_subdirectory(tests)
 
-include_directories(${FOLLY_ROOT}/include)
 include_directories(networking
                     src/control
                     src/hardware
                     lib/pcie_driver
+                    lib/folly
                     lib/nlohmann_json)
 
 file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp)

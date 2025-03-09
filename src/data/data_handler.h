@@ -7,9 +7,9 @@
 
 #include "pcie_control.h"
 #include <atomic>
-#include "stdio.h"
+#include <cstdio>
 #include "json.hpp"
-#include "../../../folly/include/folly/ProducerConsumerQueue.h"
+#include "../../lib/folly/ProducerConsumerQueue.h"
 
 
 namespace data_handler {
@@ -38,14 +38,14 @@ private:
 
     bool SwitchWriteFile();
 
-    bool isEventStart(const uint32_t *word) { return (*word & 0xFFFFFFFF) == 0xFFFFFFFF; }
-    bool isEventEnd(const uint32_t *word) { return (*word & 0xFFFFFFFF) == 0xE0000000; }
-
-    typedef folly::ProducerConsumerQueue<uint32_t> Queue;
-    Queue data_queue_;
+    bool isEventStart(const uint32_t word) { return (word & 0xFFFFFFFF) == 0xFFFFFFFF; }
+    bool isEventEnd(const uint32_t word) { return (word & 0xFFFFFFFF) == 0xE0000000; }
 
     static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
     static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
+
+    typedef folly::ProducerConsumerQueue<uint32_t *> Queue;
+    Queue data_queue_;
 
     uint32_t dma_buf_size_ = 100000;
     size_t num_events_;
@@ -56,6 +56,7 @@ private:
     size_t event_end_count_ = 0;
     bool event_start_;
     bool event_end_;
+    bool test;
 
     std::string write_file_name_;
     size_t file_count_;

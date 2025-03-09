@@ -6,13 +6,14 @@
 #include <iostream>
 #include <cstdio>
 #include <cstring>
+#include <chrono>
 #include "trigger_control.h"
 
 #include "quill/LogMacros.h"
 
 namespace data_handler {
-
-    DataHandler::DataHandler() : num_events_(0), data_queue_(600000) {
+    // FIXME, make queue size configurable
+    DataHandler::DataHandler() : num_events_(0), data_queue_(100) {
         logger_ = quill::Frontend::create_or_get_logger("root",
         quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
     }
@@ -95,16 +96,22 @@ namespace data_handler {
         auto read_thread = std::thread(&DataHandler::DMARead, this, pcie_interface);
         LOG_INFO(logger_, "Started read and write threads... \n");
 
-        read_thread.join();
-        LOG_INFO(logger_, "read thread joined... \n");
+        // Shut down the write thread first so we're not trying to access buffer ptrs
+        // after they have been deleted in the read thread
         write_thread.join();
         LOG_INFO(logger_, "write thread joined... \n");
+
+        read_thread.join();
+        LOG_INFO(logger_, "read thread joined... \n");
+
     }
 
     void DataHandler::DataWrite() {
         bool debug = false;
-        uint32_t word;
-        std::array<uint32_t, 300000> word_arr{};
+        static uint32_t word;
+        std::array<uint32_t, 300000> word_arr2{};
+        static std::array<uint32_t, 100000> word_arr{};
+        uint32_t* received = nullptr;
         event_start_ = false;
         event_end_ = false;
         size_t num_words = 0;
@@ -114,32 +121,30 @@ namespace data_handler {
         num_recv_bytes_ = 0;
 
         while (is_running_.load()) {
-            while (data_queue_.read(word)) {
-                if (isEventStart(&word)) {
-                    if (event_start_) num_words = 0; // evt didn't finish, overwrite data
-                    if (debug) std::cout << "Evt start: " << event_count_ << "\n";
-                    event_start_ = true; event_start_count_++;
-                }
-                else if (isEventEnd(&word) && event_start_) {
-                    if (debug) std::cout << "Evt end: " << event_count_ << "\n";
-                    event_end_ = true; event_end_count_++;
-                }
-                word_arr[num_words] = std::move(word);
-                num_words += 1;
-                if (event_start_ & event_end_) {
-                    if ((event_count_ % 100) == 0) LOG_INFO(logger_, " **** Event: {}", event_count_);
-                    event_count_ += 1;
-                    event_start_ = false; event_end_ = false; num_words = 0;
-                    num_recv_bytes_ += fwrite(word_arr.data(), 1, (num_words*4), file_ptr_);
-                    if ((event_count_ > 0) && (event_count_ % 5000 == 0)) {
-                        SwitchWriteFile();
+            while (data_queue_.read(received)) {
+                for (size_t i = 0; i < (dma_buf_size_/4); i++) {
+                    word = *received++;
+                    if (isEventStart(word)) {
+                        if (event_start_) num_words = 0; // Previous evt didn't finish, drop partial evt data
+                        event_start_ = true; event_start_count_++;
                     }
-                }
-            }
-        }
-
-        // Flush queue of any partial events
-        while (!data_queue_.isEmpty()) data_queue_.popFront();
+                    else if (isEventEnd(word) && event_start_) {
+                        event_end_ = true; event_end_count_++;
+                    }
+                    word_arr[num_words] = word;
+                    num_words++;
+                    if (event_start_ & event_end_) {
+                        if ((event_count_ % 500) == 0) LOG_INFO(logger_, " **** Event: {}", event_count_);
+                        event_count_++;
+                        fwrite(word_arr.data(), 1, (num_words*4), file_ptr_);
+                        if ((event_count_ > 0) && (event_count_ % 5000 == 0)) {
+                            SwitchWriteFile();
+                        }
+                        event_start_ = false; event_end_ = false; num_words = 0;
+                    }
+                } // word loop
+            } // read buffer loop
+        } // run loop
 
         // Flush the buffer to make sure all data is written to file
         fflush(file_ptr_);
@@ -166,8 +171,11 @@ namespace data_handler {
         uint32_t data;
         static unsigned long long u64Data;
         static uint32_t *buffp_rec32;
+        auto* tdata = new uint32_t[75000];
+        static std::array<uint32_t, 300000> word_arr{};
         size_t dma_loops = 0;
         static size_t nwrite = 0;
+        size_t num_buffer_full = 0;
 
         pcie_int::DMABufferHandle  pbuf_rec1;
         pcie_int::DMABufferHandle pbuf_rec2;
@@ -177,10 +185,10 @@ namespace data_handler {
         usleep(500000);
 
         while(is_running_.load() && dma_loops < num_events_) {
-            if (dma_loops % 1000 == 0) LOG_INFO(logger_, "=======> DMA Loop [{}] \n", dma_loops);
+            if (dma_loops % 500 == 0) LOG_INFO(logger_, "=======> DMA Loop [{}] \n", dma_loops);
             for (iv = 0; iv < (num_dma_loops_ + 1); iv++) { // note: ndma_loop=1
                 static uint32_t dma_num = (iv % 2) == 0 ? 1 : 2;
-                buffp_rec32 = (iv % 2) == 0 ? static_cast<uint32_t *>(pbuf_rec1) : static_cast<uint32_t *>(pbuf_rec2);
+                tdata = (iv % 2) == 0 ? static_cast<uint32_t *>(pbuf_rec1) : static_cast<uint32_t *>(pbuf_rec2);
 
                 /* sync CPU cache */
                 pcie_interface->DmaSyncCpu(dma_num);
@@ -243,10 +251,14 @@ namespace data_handler {
 
                     LOG_INFO(logger_, "Received {} bytes, writing to file.. \n", num_read);
 
-                    for (is = 0; is < num_read; is++) {
-                        data_queue_.write(*buffp_rec32++);
+                    data_queue_.write(tdata);
+                    // for (is = 0; is < num_read; is++) {
+                    //     data_queue_.write(*buffp_rec32++);
+                    // }
+                    if (data_queue_.isFull()) {
+                        num_buffer_full++;
+                        LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
                     }
-                    if (data_queue_.isFull()) LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
 
                     u64Data = 0;
                     pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t1_cs_reg, &u64Data);
@@ -281,10 +293,14 @@ namespace data_handler {
                     LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (u64Data >> 32), (u64Data & 0xffff));
                 }
                 nwrite = nwrite_byte / 4;
-                for (is = 0; is < nwrite; is++) {
-                    data_queue_.write(*buffp_rec32++);
+                data_queue_.write(tdata);
+                // for (is = 0; is < nwrite; is++) {
+                //     data_queue_.write(*buffp_rec32++);
+                // }
+                if (data_queue_.isFull()) {
+                    num_buffer_full++;
+                    LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
                 }
-                if (data_queue_.isFull()) LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
             } // end dma loop
             dma_loops += 1;
         } // end loop over events
@@ -292,14 +308,22 @@ namespace data_handler {
         LOG_INFO(logger_, "Stopping triggers..\n");
         trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, itrig_c, itrig_ext);
 
+        // If event count triggered the end of run, set stop run flag so write thread completes
+        LOG_INFO(logger_, "Stopping run and freeing pointer \n");
+        is_running_.store(false);
+
+        if (num_buffer_full > 0) LOG_WARNING(logger_, "Buffer full: [{}]\n", num_buffer_full);
+
+        LOG_INFO(logger_, "Clearing data buffer \n");
+        while (!data_queue_.isEmpty()) data_queue_.popFront();
+        delete[] tdata;
+
         LOG_INFO(logger_, "Freeing DMA buffers and closing file..\n");
         if (!pcie_interface->FreeDmaContigBuffers()) {
             LOG_ERROR(logger_, "Failed freeing DMA buffers! \n");
         }
 
-        // If event count triggered the end of run, set stop run flag so write thread completes
-        is_running_.store(false);
-
+        std::cout << "tdata: " << tdata << std::endl;
         LOG_INFO(logger_, "Ran {} DMA loops \n", dma_loops);
      }
 
