@@ -23,7 +23,7 @@ namespace controller {
         light_fem_ = new light_fem::LightFem;
         charge_fem_ = new charge_fem::ChargeFem;
         trigger_ctrl_ = new trig_ctrl::TriggerControl;
-        data_handler_ = new data_handler::DataHandler;
+        data_handler_ = new data_handler::DataHandler(true);
 
         pcie_interface_ = new pcie_int::PCIeInterface;
         buffers_ = new pcie_int::PcieBuffers;
@@ -35,6 +35,9 @@ namespace controller {
         if (!LoadConfig(config_file)) {
             std::cerr << "Config load failed!" << std::endl;
         }
+
+        bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
+        // data_handler_ = new data_handler::DataHandler(enable_metrics);
 
         LOG_INFO(logger_, "Initialized Controller \n");
         std::cout << "Initialized Controller" << std::endl;
@@ -51,6 +54,7 @@ namespace controller {
         // delete configure_hardware_;
         delete pcie_interface_;
         delete buffers_;
+        LOG_INFO(logger_, "Destructed all hardware \n");
     }
 
     bool Controller::LoadConfig(std::string &config_file) {
