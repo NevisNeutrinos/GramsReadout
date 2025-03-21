@@ -34,12 +34,14 @@ private:
     data_monitor::DataMonitor &metrics_;
 
     void DataWrite();
-    void DMARead(pcie_int::PCIeInterface *pcie_interface);
-    bool WaitForDma(pcie_int::PCIeInterface *pcie_interface, uint32_t *data);
-    void ClearDmaOnAbort(pcie_int::PCIeInterface *pcie_interface, unsigned long long *u64Data);
+    void ReadoutDMARead(pcie_int::PCIeInterface *pcie_interface);
+    void TestReadoutDMARead(pcie_int::PCIeInterface *pcie_interface);
+    void TriggerDMARead(pcie_int::PCIeInterface *pcie_interface);
+    bool WaitForDma(pcie_int::PCIeInterface *pcie_interface, uint32_t *data, uint32_t dev_num);
+    void ClearDmaOnAbort(pcie_int::PCIeInterface *pcie_interface, unsigned long long *u64Data, uint32_t dev_num);
     uint32_t DmaLoop(pcie_int::PCIeInterface *pcie_interface, uint32_t dma_num, size_t loop, unsigned long long *u64Data, bool is_first_loop);
     bool SetRecvBuffer(pcie_int::PCIeInterface *pcie_interface,
-        pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2);
+        pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2, bool is_data);
 
     bool SwitchWriteFile();
 
@@ -51,6 +53,8 @@ private:
 
     typedef folly::ProducerConsumerQueue<std::array<uint32_t, 300000>> Queue;
     Queue data_queue_;
+    typedef folly::ProducerConsumerQueue<std::array<uint32_t, 8>> TrigQueue;
+    TrigQueue trigger_queue_;
 
     int ext_trig_;
     int software_trig_;

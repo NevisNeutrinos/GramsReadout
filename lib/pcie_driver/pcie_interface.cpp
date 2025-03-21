@@ -16,7 +16,8 @@ namespace pcie_int {
     };
 
     PCIeInterface::PCIeInterface() : buffer_info_struct1(std::make_unique<DmaBuffStruct>()),
-                                     buffer_info_struct2(std::make_unique<DmaBuffStruct>()){
+                                     buffer_info_struct2(std::make_unique<DmaBuffStruct>()),
+                                     buffer_info_struct_trig(std::make_unique<DmaBuffStruct>()){
         dev_handle_1 = nullptr;
         dev_handle_2 = nullptr;
         hDev = nullptr;
@@ -31,18 +32,10 @@ namespace pcie_int {
         std::cout << "Dev2: " << dev_handle_2 << std::endl;
         std::cout << "Buf1: " << buffer_info_struct1->dma_buff << std::endl;
         std::cout << "Buf2: " << buffer_info_struct2->dma_buff << std::endl;
+        std::cout << "Trig Buf: " << buffer_info_struct_trig->dma_buff << std::endl;
         std::cout << std::dec;
 
         // Make sure the DMA buffer memory is free
-        // if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct1->dma_buff) != WD_STATUS_SUCCESS) {
-        //    std::cerr << "DMA Buffer 1 close failed" << std::endl;
-        //    std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
-        // }
-        //
-        // if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct2->dma_buff) != WD_STATUS_SUCCESS) {
-        //    std::cerr << "DMA Buffer 2 close failed" << std::endl;
-        //    std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
-        // }
         FreeDmaContigBuffers();
 
         if (dev_handle_1) {
@@ -170,19 +163,6 @@ namespace pcie_int {
         }
         std::cerr << "PCIeInterface::PCIeSendBuffer: Invalid device handle: " << dev_handle << std::endl;
         return nullptr;
-    }
-
-    void PCIeInterface::GetBufferHandle(uint32_t buffer_handle, DmaBuffStruct *dma_struct) {
-        if (buffer_handle == 1) {
-            dma_struct->dma_buff = buffer_info_struct1->dma_buff;
-        }
-        else if (buffer_handle == 2) {
-            dma_struct->dma_buff = buffer_info_struct2->dma_buff;
-        }
-        else {
-            std::cerr << "Unknown dev handle!" << std::endl;
-            dma_struct->dma_buff = nullptr;
-        }
     }
 
     uint32_t PCIeInterface::PCIeSendBuffer(uint32_t dev, uint32_t mode, uint32_t nword, uint32_t *buff_send) {
@@ -478,21 +458,22 @@ namespace pcie_int {
         static int is;
         static int idebug = 1;
 
-        if ((dev_handle != 1) && (dev_handle != 2)) {
-            std::cerr << "Unknown dev handle!" << std::endl;
-            return false;
-        }
-
         DWORD dwOptions_rec = DMA_FROM_DEVICE | DMA_ALLOW_64BIT_ADDRESS;
-        // PCIeDeviceHandle hDev2 = GetDeviceHandle(2);
 
         if (dev_handle == 1) {
             dwStatus = WDC_DMAContigBufLock(dev_handle_2, pbuf_rec, dwOptions_rec, dwDMABufSize,
                                             &buffer_info_struct1->dma_buff);
-        } else {
+        } else if (dev_handle == 2) {
             dwStatus = WDC_DMAContigBufLock(dev_handle_2, pbuf_rec, dwOptions_rec, dwDMABufSize,
                                             &buffer_info_struct2->dma_buff);
+        } else if (dev_handle == 3) {
+            dwStatus = WDC_DMAContigBufLock(dev_handle_1, pbuf_rec, dwOptions_rec, dwDMABufSize,
+                                            &buffer_info_struct_trig->dma_buff);
+        } else {
+            std::cerr << "Unknown dev handle!" << std::endl;
+            return false;
         }
+
         // FIXME handle this error automatically
         if (WD_STATUS_SUCCESS != dwStatus) {
             printf("Failed locking recv Contiguous DMA buffer. Error 0x%x - %s\n", dwStatus, Stat2Str(dwStatus));
@@ -504,6 +485,7 @@ namespace pcie_int {
         std::cout << "Pointer of DMA recv buffer " << dev_handle << ": " << *pbuf_rec << std::endl;
         std::cout << "buffer_info_struct1->dma_buff: " << buffer_info_struct1->dma_buff << std::endl;
         std::cout << "buffer_info_struct2->dma_buff: " << buffer_info_struct2->dma_buff << std::endl;
+        std::cout << "buffer_info_struct_trig->dma_buff: " << buffer_info_struct_trig->dma_buff << std::endl;
         std::cout << std::dec;
 
         return true;
@@ -528,33 +510,38 @@ namespace pcie_int {
             }
             buffer_info_struct2->dma_buff = nullptr;
         }
+
+        if (buffer_info_struct_trig->dma_buff) {
+            if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct_trig->dma_buff) != WD_STATUS_SUCCESS) {
+                std::cerr << "DMA Trig Buffer close failed" << std::endl;
+                std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+                buffers_free = false;
+            }
+            buffer_info_struct_trig->dma_buff = nullptr;
+        }
         return buffers_free;
     }
 
     bool PCIeInterface::DmaSyncCpu(uint32_t buffer_handle) {
-        if ((buffer_handle != 1) && (buffer_handle != 2)) {
-            std::cerr << "Unknown dev handle!" << std::endl;
-            return false;
-        }
 
-        const uint32_t status = buffer_handle == 1 ? WDC_DMASyncCpu(buffer_info_struct1->dma_buff) :
-                                                     WDC_DMASyncCpu(buffer_info_struct2->dma_buff);
+        uint32_t status = 1;
+        if (buffer_handle == 1)      status = WDC_DMASyncCpu(buffer_info_struct1->dma_buff);
+        else if (buffer_handle == 2) status = WDC_DMASyncCpu(buffer_info_struct2->dma_buff);
+        else if (buffer_handle == 3) status = WDC_DMASyncCpu(buffer_info_struct_trig->dma_buff);
 
         if (status != WD_STATUS_SUCCESS) {
             std::cerr << "DMA Sync failed for buffer: " << buffer_handle << std::endl;
             return false;
         }
-
         return true;
     }
 
     bool PCIeInterface::DmaSyncIo(uint32_t buffer_handle) {
-        if ((buffer_handle != 1) && (buffer_handle != 2)) {
-            std::cerr << "Unknown dev handle!" << std::endl;
-            return false;
-        }
-        const uint32_t status = buffer_handle == 1 ? WDC_DMASyncIo(buffer_info_struct1->dma_buff) :
-                                                     WDC_DMASyncIo(buffer_info_struct2->dma_buff);
+
+        uint32_t status = 1;
+        if (buffer_handle == 1)      status = WDC_DMASyncIo(buffer_info_struct1->dma_buff);
+        else if (buffer_handle == 2) status = WDC_DMASyncIo(buffer_info_struct2->dma_buff);
+        else if (buffer_handle == 3) status = WDC_DMASyncIo(buffer_info_struct_trig->dma_buff);
 
         if (status != WD_STATUS_SUCCESS) {
             std::cerr << "DMA Sync failed for buffer: " << buffer_handle << std::endl;
@@ -564,22 +551,19 @@ namespace pcie_int {
     }
 
     uint32_t PCIeInterface::GetBufferPageAddrUpper(uint32_t buffer_handle) {
-        if ((buffer_handle != 1) && (buffer_handle != 2)) {
-            std::cerr << "Unknown dev handle!" << std::endl;
-            return false;
-        }
-        return buffer_handle == 1 ? (buffer_info_struct1->dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff :
-                                    (buffer_info_struct2->dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff;
+        if (buffer_handle == 1) return (buffer_info_struct1->dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff;
+        if (buffer_handle == 2) return (buffer_info_struct2->dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff;
+        if (buffer_handle == 3) return (buffer_info_struct_trig->dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff;
+        std::cerr << "Unknown dev handle!" << std::endl;
+        return false;
     }
 
     uint32_t PCIeInterface::GetBufferPageAddrLower(uint32_t buffer_handle) {
-        if ((buffer_handle != 1) && (buffer_handle != 2)) {
-            std::cerr << "Unknown dev handle!" << std::endl;
-            return false;
-        }
-        return buffer_handle == 1 ? buffer_info_struct1->dma_buff->Page->pPhysicalAddr & 0xffffffff :
-                                    buffer_info_struct2->dma_buff->Page->pPhysicalAddr & 0xffffffff;
+        if (buffer_handle == 1) return buffer_info_struct1->dma_buff->Page->pPhysicalAddr & 0xffffffff;
+        if (buffer_handle == 2) return buffer_info_struct2->dma_buff->Page->pPhysicalAddr & 0xffffffff;
+        if (buffer_handle == 3) return buffer_info_struct_trig->dma_buff->Page->pPhysicalAddr & 0xffffffff;
+        std::cerr << "Unknown dev handle!" << std::endl;
+        return false;
     }
-
 
 } // pcie_int
