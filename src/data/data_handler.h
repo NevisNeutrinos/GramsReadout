@@ -31,13 +31,13 @@ public:
 
 private:
     // The metrics class
-    data_monitor::DataMonitor metrics_;
+    data_monitor::DataMonitor &metrics_;
 
     void DataWrite();
     void DMARead(pcie_int::PCIeInterface *pcie_interface);
     bool WaitForDma(pcie_int::PCIeInterface *pcie_interface, uint32_t *data);
-    void ClearDmaOnAbort(pcie_int::PCIeInterface *pcie_interface);
-    uint32_t DmaLoop(pcie_int::PCIeInterface *pcie_interface, uint32_t dma_num, size_t loop, bool is_first_loop);
+    void ClearDmaOnAbort(pcie_int::PCIeInterface *pcie_interface, unsigned long long *u64Data);
+    uint32_t DmaLoop(pcie_int::PCIeInterface *pcie_interface, uint32_t dma_num, size_t loop, unsigned long long *u64Data, bool is_first_loop);
     bool SetRecvBuffer(pcie_int::PCIeInterface *pcie_interface,
         pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2);
 
@@ -65,6 +65,9 @@ private:
     bool event_start_;
     bool event_end_;
     bool test;
+
+    // uint32_t data;
+    // static unsigned long long u64Data;
 
     std::string write_file_name_;
     size_t file_count_;

@@ -14,14 +14,10 @@ namespace data_handler {
 
     // FIXME, make queue size configurable
     DataHandler::DataHandler(bool enable_metrics) : num_events_(0), data_queue_(100),
-    stop_write_(false), metrics_(data_monitor::DataMonitor(enable_metrics)) {
+    stop_write_(false), metrics_(data_monitor::DataMonitor::GetInstance(enable_metrics)) {
         logger_ = quill::Frontend::create_or_get_logger("root",
         quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
     }
-
-    // DataHandler::~DataHandler() {
-    //     LOG_INFO(logger_, "Destructing data handler.. \n");
-    // }
 
     bool DataHandler::SetRecvBuffer(pcie_int::PCIeInterface *pcie_interface,
         pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2) {
@@ -189,10 +185,11 @@ namespace data_handler {
         LOG_INFO(logger_, "Counted [{}] start events & [{}] end events \n", event_start_count_, event_end_count_);
     }
 
-    uint32_t DataHandler::DmaLoop(pcie_int::PCIeInterface *pcie_interface, uint32_t dma_num, size_t loop, bool is_first_loop) {
+    uint32_t DataHandler::DmaLoop(pcie_int::PCIeInterface *pcie_interface, uint32_t dma_num, size_t loop,
+                                    unsigned long long *u64Data, bool is_first_loop) {
         bool idebug = false;
-        uint32_t data;
-        static unsigned long long u64Data;
+        static uint32_t data;
+        // static unsigned long long u64Data;
 
         /* sync CPU cache */
         pcie_interface->DmaSyncCpu(dma_num);
@@ -229,12 +226,12 @@ namespace data_handler {
         // send trigger
         if (loop == 0) trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
 
-        u64Data = 0;
+        *u64Data = 0;
         if (!WaitForDma(pcie_interface, &data)) {
             LOG_WARNING(logger_, " loop [{}] DMA is not finished, aborting...  \n", loop);
-            pcie_interface->ReadReg64(kDev2,  hw_consts::cs_bar, hw_consts::cs_dma_by_cnt, &u64Data);
+            pcie_interface->ReadReg64(kDev2,  hw_consts::cs_bar, hw_consts::cs_dma_by_cnt, u64Data);
             pcie_interface->DmaSyncIo(dma_num);
-            static size_t num_read = (nwrite_byte - (u64Data & 0xffff)) / sizeof(uint32_t);
+            static size_t num_read = (nwrite_byte - (*u64Data & 0xffff));
 
             LOG_INFO(logger_, "Received {} bytes, writing to file.. \n", num_read);
 
@@ -254,15 +251,15 @@ namespace data_handler {
         pcie_interface->DmaSyncIo(dma_num);
 
         if (idebug) {
-            u64Data = 0;
-            pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t1_cs_reg, &u64Data);
-            LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (u64Data >> 32), (u64Data & 0xffff));
+            *u64Data = 0;
+            pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t1_cs_reg, u64Data);
+            LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (*u64Data >> 32), (*u64Data & 0xffff));
 
-            u64Data = 0;
-            pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
-            LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (u64Data >> 32), (u64Data & 0xffff));
+            *u64Data = 0;
+            pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t2_cs_reg, u64Data);
+            LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (*u64Data >> 32), (*u64Data & 0xffff));
         }
-        return dma_buf_size_ / sizeof(uint32_t);
+        return dma_buf_size_;
 
     }
 
@@ -472,21 +469,22 @@ namespace data_handler {
                 // }
 //// FIXME Comment to here
                 // FIXME /////
-                // size_t num_read = DmaLoop(pcie_interface, dma_num, iv, is_first_event);
+                // size_t num_read = DmaLoop(pcie_interface, dma_num, iv, &u64Data, is_first_event);
                 // is_first_event = false;
                 // FIXME ///
                 // nwrite = nwrite_byte / 4;//sizeof(uint32_t);
 
-                std::memcpy(word_arr.data(), buffp_rec32, nwrite_byte);
+                // std::memcpy(word_arr.data(), buffp_rec32, num_read);
+                std::memcpy(word_arr.data(), buffp_rec32, dma_buf_size_);
                 data_queue_.write(word_arr);
                 if (data_queue_.isFull()) {
                     num_buffer_full++;
                     LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
                 }
                 // FIXME /////
-                // if (num_read != (dma_buf_size_ / sizeof(uint32_t))) {
+                // if (num_read != dma_buf_size_) {
                 //     LOG_WARNING(logger_, "Did not read full DMA buffer! \n");
-                //     ClearDmaOnAbort(pcie_interface);
+                //     ClearDmaOnAbort(pcie_interface, &u64Data);
                 //     break;
                 // }
                 // FIXME /////
@@ -515,14 +513,14 @@ namespace data_handler {
         LOG_INFO(logger_, "Ran {} DMA loops \n", dma_loops);
      }
 
-    void DataHandler::ClearDmaOnAbort(pcie_int::PCIeInterface *pcie_interface) {
-        static unsigned long long u64Data = 0;
-        pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t1_cs_reg, &u64Data);
-        LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (u64Data >> 32), (u64Data & 0xffff));
+    void DataHandler::ClearDmaOnAbort(pcie_int::PCIeInterface *pcie_interface, unsigned long long *u64Data) {
+        // static unsigned long long u64Data = 0;
+        pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t1_cs_reg, u64Data);
+        LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (*u64Data >> 32), (*u64Data & 0xffff));
 
-        u64Data = 0;
-        pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
-        LOG_INFO(logger_, " Status word for channel 2 after read = {}, {}", (u64Data >> 32), (u64Data & 0xffff));
+        *u64Data = 0;
+        pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t2_cs_reg, u64Data);
+        LOG_INFO(logger_, " Status word for channel 2 after read = {}, {}", (*u64Data >> 32), (*u64Data & 0xffff));
 
         /* write this will abort previous DMA */
         pcie_interface->WriteReg32(kDev2, hw_consts::cs_bar, hw_consts::cs_dma_msi_abort, hw_consts::dma_abort);

@@ -12,7 +12,7 @@
     "num_events" : 600000,
     "dma_buffer_size" : 300000,
     "subrun" : 10,
-    "enable_metrics" : false
+    "enable_metrics" : true
   },
   "xmit" : {
     "fpga_bitfile" : "/home/sabertooth/GramsReadoutFirmware/xmit/readcontrol_110601_v3_play_header_hist_l1block_9_21_2018.rbf"

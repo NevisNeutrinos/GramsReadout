@@ -21,8 +21,13 @@ namespace data_monitor {
 class DataMonitor {
 public:
 
-    explicit DataMonitor(bool enable_metrics);
-    ~DataMonitor();
+    // This is a singleton so we only allow access to it via
+    // a static reference, ensuring there can only be one
+    // instance of the class
+    static DataMonitor& GetInstance(const bool enable_metrics) {
+        static DataMonitor instance(enable_metrics);
+        return instance;
+    }
 
     bool LoadMetrics();
     void ResetMetrics();
@@ -30,18 +35,21 @@ public:
     void SendMetrics(T &data, size_t size);
 
     size_t id = reinterpret_cast<size_t>(this);
-    inline void PrintInst() { std::cout << "this METRICS: " << id << std::endl; }
-    inline void IsRunning(bool running) { is_running_.store(running); }
-    inline void DmaSize(size_t dma_size) { dma_size_.store(dma_size); }
-    inline void NumEvents(size_t num_evts) { num_events_.store(num_evts); }
-    inline void EventDiff(size_t event_diff) { event_diff_.store(event_diff); }
-    inline void DmaLoops(size_t num_dma_loops) { num_dma_loops_.store(num_dma_loops); }
-    inline void NumFiles(size_t num_files) { num_files_.store(num_files); }
-    inline void NumAdcWords(size_t num_adc_words) { adc_words_per_event_.store(num_adc_words); }
-    inline void EventSize(size_t num_words) { words_per_event_.store(num_words); }
-    inline void BytesReceived(size_t num_bytes) { bytes_received_.store(num_bytes); }
+    inline void PrintInst() const { std::cout << "this METRICS: " << id << std::endl; }
+    inline void IsRunning(const bool running) { is_running_.store(running); }
+    inline void DmaSize(const size_t dma_size) { dma_size_.store(dma_size); }
+    inline void NumEvents(const size_t num_evts) { num_events_.store(num_evts); }
+    inline void EventDiff(const size_t event_diff) { event_diff_.store(event_diff); }
+    inline void DmaLoops(const size_t num_dma_loops) { num_dma_loops_.store(num_dma_loops); }
+    inline void NumFiles(const size_t num_files) { num_files_.store(num_files); }
+    inline void NumAdcWords(const size_t num_adc_words) { adc_words_per_event_.store(num_adc_words); }
+    inline void EventSize(const size_t num_words) { words_per_event_.store(num_words); }
+    inline void BytesReceived(const size_t num_bytes) { bytes_received_.store(num_bytes); }
 
  private:
+
+    explicit DataMonitor(bool enable_metrics);
+    ~DataMonitor();
 
     std::unique_ptr<zmq::context_t> context_;
     std::unique_ptr<zmq::socket_t> socket_;

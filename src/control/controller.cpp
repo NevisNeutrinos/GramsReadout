@@ -17,27 +17,39 @@ namespace controller {
         is_configured_(false) {
 
         current_state_ = State::kIdle;
+
+        logger_ = quill::Frontend::create_or_get_logger("root",
+         quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
+
+        std::string config_file("../config/test.json");
+        if (!LoadConfig(config_file)) {
+            LOG_ERROR(logger_, "Config load failed! \n");
+        }
+
+        bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
+        data_handler_ = new data_handler::DataHandler(enable_metrics);
+
         // configure_hardware_ = new hw_config::ConfigureHardware;
         pcie_ctrl_ = new pcie_control::PcieControl;
         xmit_ctrl_ = new xmit_control::XmitControl;
         light_fem_ = new light_fem::LightFem;
         charge_fem_ = new charge_fem::ChargeFem;
         trigger_ctrl_ = new trig_ctrl::TriggerControl;
-        data_handler_ = new data_handler::DataHandler(true);
+        // data_handler_ = new data_handler::DataHandler(false);
 
         pcie_interface_ = new pcie_int::PCIeInterface;
         buffers_ = new pcie_int::PcieBuffers;
 
-        logger_ = quill::Frontend::create_or_get_logger("root",
-                 quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
-
-        std::string config_file("../config/test.json");
-        if (!LoadConfig(config_file)) {
-            std::cerr << "Config load failed!" << std::endl;
-        }
-
-        bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
-        // data_handler_ = new data_handler::DataHandler(enable_metrics);
+        // logger_ = quill::Frontend::create_or_get_logger("root",
+        //          quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
+        //
+        // std::string config_file("../config/test.json");
+        // if (!LoadConfig(config_file)) {
+        //     std::cerr << "Config load failed!" << std::endl;
+        // }
+        //
+        // bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
+        // // data_handler_ = new data_handler::DataHandler(enable_metrics);
 
         LOG_INFO(logger_, "Initialized Controller \n");
         std::cout << "Initialized Controller" << std::endl;
