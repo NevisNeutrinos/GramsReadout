@@ -81,6 +81,7 @@ private:
     // DMA Data Aquisition
     std::unique_ptr<DmaBuffStruct> buffer_info_struct1;
     std::unique_ptr<DmaBuffStruct> buffer_info_struct2;
+    // std::unique_ptr<DmaBuffStruct> buffer_info_struct_trig;
 
     bool is_initialized;
     PCIeDeviceHandle GetDeviceHandle(uint32_t dev_handle);
