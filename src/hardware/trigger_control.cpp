@@ -5,6 +5,7 @@
 #include "trigger_control.h"
 #include <unistd.h>
 #include <iostream>
+#include <chrono>
 
 namespace trig_ctrl {
 
@@ -14,12 +15,15 @@ namespace trig_ctrl {
         static long imod, ichip;
         static int iframe, itrig_delay;
 
-        static int imod_trig  = config["crate"]["trig_slot"].get<int>();
+        software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
+        trigger_module_ = config["crate"]["trig_slot"].get<int>();
         static int iframe_length = config["readout_windows"]["frame_length"].get<int>();
 
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         //this is either 0x1 (PMT beam) 0x4 (PMT cosmic) or 0x8 (PMT all)
-        int trigtype = trig_src == "ext" ? 0 : 1;;
+        ext_trig_ = trig_src == "ext" ? 1 : 0;
+        light_trig_ = trig_src == "light" ? 1 : 0;
+        software_trig_ = trig_src == "software" ? 1 : 0;
         static int mask1 = trig_src == "ext" ? 0x0 : 0x8;
         static int mask8 = trig_src == "ext" ? 0x2 : 0x0;
 
@@ -33,13 +37,13 @@ namespace trig_ctrl {
       k = 1;
       i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-      imod = imod_trig;
+      imod = trigger_module_;
       buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up trigger module run off
       i = 1;
       k = 1;
       i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-      imod = imod_trig;
+      imod = trigger_module_;
       buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_deadtime_size) + ((250 & 0xff) << 16); // set trigger module deadtime size
       i = 1;
       k = 1;
@@ -52,7 +56,7 @@ namespace trig_ctrl {
       k = 1;
       i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-      imod = imod_trig; // Set number of ADC samples to (iframe+1)/8;
+      imod = trigger_module_; // Set number of ADC samples to (iframe+1)/8;
       iframe = iframe_length;
       buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_frame_size) + ((iframe & 0xffff) << 16);
       i = 1;
@@ -66,32 +70,31 @@ namespace trig_ctrl {
       k = 1;
       i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-
-      if(trigtype){
+      if(light_trig_) {
       //Begin PMT Trigger setup
 
-        imod = imod_trig;
+        imod = trigger_module_;
         buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask1)+((mask1&0xf)<<16); //set mask1[3] on.
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 //        fprintf(outinfo,"trig_mask1 = 0x%x\n",mask1);
 
-        imod=imod_trig;
+        imod=trigger_module_;
         buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale1)+(0x0<<16); //set prescale1 0
 //        fprintf(outinfo,"trig_prescale1 = 0x%x\n",0x0);
         i = 1;
         k = 1;
       i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-        imod=imod_trig;
+        imod=trigger_module_;
         buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask8)+((mask8&0xff)<<16);
 //        fprintf(outinfo,"trig_mask8 = 0x%x\n",mask8);
         i = 1;
         k = 1;
       i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-        imod=imod_trig;
+        imod=trigger_module_;
         buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale8)+(0x0<<16); //set prescale8 0
 //        fprintf(outinfo,"trig_prescale8 = 0x%x\n",0x0);
         i = 1;
@@ -103,13 +106,13 @@ namespace trig_ctrl {
       else
       {
         //begin EXT Trigger setup as of 11/26/2024
-        imod = imod_trig;
+        imod = trigger_module_;
         buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x2 << 16); // set mask1[3] on.
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-        imod = imod_trig;
+        imod = trigger_module_;
         buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale8) + (0x0 << 16); // set prescale1 0
         i = 1;
         k = 1;
@@ -131,9 +134,9 @@ namespace trig_ctrl {
         return i > j;
     }
 
-    void TriggerControl::SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext) {
-        static int imod_trig   = 11;
+    void TriggerControl::SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext, int trigger_module) {
         static int imod, ichip;
+        static int imod_trig   = 11;
         std::array<uint32_t, 2> buf_send{0,0};
         uint32_t *psend{};
 
@@ -160,9 +163,9 @@ namespace trig_ctrl {
         }
     }
 
-    void TriggerControl::SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext) {
-        static int imod_trig   = 11;
+    void TriggerControl::SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext, int trigger_module) {
         static int imod;
+        static int imod_trig   = 11;
         std::array<uint32_t, 2> buf_send{0,0};
         uint32_t *psend{};
 
@@ -181,5 +184,20 @@ namespace trig_ctrl {
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
         }
     }
+
+    void TriggerControl::SendSoftwareTrigger(pcie_int::PCIeInterface *pcie_interface) {
+        std::array<uint32_t, 2> buf_send{0,0};
+        uint32_t *psend{};
+        psend = buf_send.data();
+
+        auto sleep_for = std::chrono::microseconds(software_trigger_rate_ * 1000000);
+        buf_send[0] = (trigger_module_ << 11) + (hw_consts::mb_trig_pctrig) + ((0x0) << 16);
+
+        while (is_running_.load()) {
+            std::this_thread::sleep_for(sleep_for);
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
+        }
+    }
+
 
 } // trig_ctrl

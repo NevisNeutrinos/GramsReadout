@@ -6,6 +6,7 @@
 #define TRIGGER_CONTROL_H
 
 #include "hardware_device.h"
+#include <atomic>
 
 namespace trig_ctrl {
 
@@ -17,12 +18,22 @@ public:
 
     bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers& buffers) override;
     std::vector<uint32_t> GetStatus() override;
+    // void SetRun(bool set_running) { is_running_.store(set_running); }
     bool CloseDevice() override;
 
-    static void SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext);
-    static void SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext);
+
+    static void SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext, int trigger_module);
+    static void SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext, int trigger_module);
+    void SendSoftwareTrigger(pcie_int::PCIeInterface *pcie_interface);
 
 private:
+
+    std::atomic_bool is_running_ = false;
+    int software_trigger_rate_{};
+    int trigger_module_;
+    int ext_trig_;
+    int light_trig_;
+    int software_trig_;
 
 };
 

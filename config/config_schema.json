@@ -23,7 +23,8 @@
       "properties": {
         "num_events" : { "type": "integer" },
         "dma_buffer_size": { "type": "integer" },
-        "subrun" : { "type" :  "integer" }
+        "subrun" : { "type" :  "integer" },
+        "enable_metrics" : { "type" : "boolean" }
       },
       "required": ["num_events", "dma_buffer_size", "subrun"]
     },
@@ -63,9 +64,10 @@
     "trigger" : {
       "type": "object",
       "properties": {
-        "trigger_source" : { "type" : "string", "enum": ["ext", "light"], "description" : "External or light based triggers." }
+        "trigger_source" : { "type" : "string", "enum": ["ext", "light", "software"], "description" : "External or light based triggers." },
+        "software_trigger_rate_hz" : { "type" : "integer" }
       },
-      "required": ["trigger_source"]
+      "required": ["trigger_source" , "software_trigger_rate_hz"]
     },
     "readout_windows" : {
       "type": "object",
