@@ -17,6 +17,7 @@
 // #include "configure_hardware.h"
 #include "trigger_control.h"
 #include "xmit_control.h"
+#include "data_monitor.h"
 
 
     namespace controller {
@@ -108,10 +109,9 @@
         bool is_configured_;
 
         TCPConnection tcp_connection_;
-
         std::thread data_thread_;
 
-        // hw_config::ConfigureHardware *configure_hardware_;
+        data_monitor::DataMonitor &metrics_;
         pcie_control::PcieControl *pcie_ctrl_;
         xmit_control::XmitControl *xmit_ctrl_;
         light_fem::LightFem *light_fem_;

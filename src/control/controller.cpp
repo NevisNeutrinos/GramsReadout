@@ -14,7 +14,8 @@ namespace controller {
                            const short port, const bool is_server, const bool is_running) :
         tcp_connection_(io_context, ip_address, port, is_server),
         is_running_(is_running),
-        is_configured_(false) {
+        is_configured_(false),
+        metrics_(data_monitor::DataMonitor::GetInstance()) {
 
         current_state_ = State::kIdle;
 
@@ -26,30 +27,17 @@ namespace controller {
             LOG_ERROR(logger_, "Config load failed! \n");
         }
 
-        bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
-        data_handler_ = new data_handler::DataHandler(enable_metrics);
+        const bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
+        metrics_.EnableMonitoring(enable_metrics);
+        data_handler_ = new data_handler::DataHandler;
 
-        // configure_hardware_ = new hw_config::ConfigureHardware;
         pcie_ctrl_ = new pcie_control::PcieControl;
         xmit_ctrl_ = new xmit_control::XmitControl;
         light_fem_ = new light_fem::LightFem;
         charge_fem_ = new charge_fem::ChargeFem;
         trigger_ctrl_ = new trig_ctrl::TriggerControl;
-        // data_handler_ = new data_handler::DataHandler(false);
-
         pcie_interface_ = new pcie_int::PCIeInterface;
         buffers_ = new pcie_int::PcieBuffers;
-
-        // logger_ = quill::Frontend::create_or_get_logger("root",
-        //          quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
-        //
-        // std::string config_file("../config/test.json");
-        // if (!LoadConfig(config_file)) {
-        //     std::cerr << "Config load failed!" << std::endl;
-        // }
-        //
-        // bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
-        // // data_handler_ = new data_handler::DataHandler(enable_metrics);
 
         LOG_INFO(logger_, "Initialized Controller \n");
         std::cout << "Initialized Controller" << std::endl;
@@ -63,7 +51,6 @@ namespace controller {
         delete trigger_ctrl_;
         delete data_handler_;
         delete pcie_ctrl_;
-        // delete configure_hardware_;
         delete pcie_interface_;
         delete buffers_;
         LOG_INFO(logger_, "Destructed all hardware \n");
@@ -178,6 +165,8 @@ namespace controller {
     bool Controller::HandleCommand(const Command& command) {
         std::cout << " \n Sending command: " << command.command << std::endl;
         LOG_INFO(logger_, " \n Sending command: [{}] \n", command.command);
+        metrics_.ControllerState(command.command);
+        metrics_.LoadMetrics();
         if (command.command == CommandCodes::kConfigure && current_state_ == State::kIdle) {
             LOG_INFO(logger_, " \n State [Idle] \n");
             // command.arguments // which configuration to use
@@ -205,7 +194,7 @@ namespace controller {
         }
 
         std::cout << "Invalid command or transition from state: " << GetStateName() << std::endl;
-
+        metrics_.ControllerState(static_cast<int>(current_state_));
         return false;
     }
 

@@ -24,8 +24,8 @@ public:
     // This is a singleton so we only allow access to it via
     // a static reference, ensuring there can only be one
     // instance of the class
-    static DataMonitor& GetInstance(const bool enable_metrics) {
-        static DataMonitor instance(enable_metrics);
+    static DataMonitor& GetInstance() {
+        static DataMonitor instance;
         return instance;
     }
 
@@ -45,10 +45,14 @@ public:
     inline void NumAdcWords(const size_t num_adc_words) { adc_words_per_event_.store(num_adc_words); }
     inline void EventSize(const size_t num_words) { words_per_event_.store(num_words); }
     inline void BytesReceived(const size_t num_bytes) { bytes_received_.store(num_bytes); }
+    inline void ControllerState(const int state) { state_.store(state); }
+
+
+    void EnableMonitoring(bool enable_metrics) ;
 
  private:
 
-    explicit DataMonitor(bool enable_metrics);
+    explicit DataMonitor();
     ~DataMonitor();
 
     std::unique_ptr<zmq::context_t> context_;
@@ -60,6 +64,7 @@ public:
 
     // State
     std::atomic_bool is_running_;
+    std::atomic<int> state_;
 
     // Configuration
     std::atomic<size_t> dma_size_;

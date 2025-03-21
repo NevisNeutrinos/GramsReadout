@@ -20,7 +20,7 @@ namespace data_handler {
 class DataHandler {
 public:
 
-    explicit DataHandler(bool enable_metrics);
+    explicit DataHandler();
     ~DataHandler() = default;
 
     bool Configure(json &config);

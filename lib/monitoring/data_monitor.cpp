@@ -9,12 +9,7 @@ namespace data_monitor {
 
     using json = nlohmann::json;
 
-    DataMonitor::DataMonitor(bool enable_metrics) : enable_metrics_(enable_metrics) {
-        if (enable_metrics_) {
-            context_ = std::make_unique<zmq::context_t>(1); // Single I/O thread context
-            socket_ = std::make_unique<zmq::socket_t>(*context_, ZMQ_PUSH); // PUSH socket type
-            socket_->connect("tcp://localhost:5555"); // Connect to the given endpoint
-        }
+    DataMonitor::DataMonitor() : enable_metrics_(false) {
         ResetMetrics();
     }
 
@@ -30,6 +25,16 @@ namespace data_monitor {
         }
         std::cout << "Closed metric socket.. " << std::endl;
     }
+
+    void DataMonitor::EnableMonitoring(const bool enable_metrics) {
+        enable_metrics_ = enable_metrics;
+        if (enable_metrics_) {
+            context_ = std::make_unique<zmq::context_t>(1); // Single I/O thread context
+            socket_ = std::make_unique<zmq::socket_t>(*context_, ZMQ_PUSH); // PUSH socket type
+            socket_->connect("tcp://localhost:5555"); // Connect to the given endpoint
+        }
+    }
+
 
     template<typename T>
     void DataMonitor::SendMetrics(T &data, const size_t size) {
@@ -52,6 +57,7 @@ namespace data_monitor {
         metrics["adc_words"] = adc_words_per_event_.load();
         metrics["bytes_received"] = bytes_received_.load();
         metrics["event_diff"] = event_diff_.load();
+        metrics["controller_state"] = state_.load();
 
         std::string msg = metrics.dump();
         SendMetrics(msg, msg.size());

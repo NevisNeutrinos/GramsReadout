@@ -13,8 +13,8 @@
 namespace data_handler {
 
     // FIXME, make queue size configurable
-    DataHandler::DataHandler(bool enable_metrics) : num_events_(0), data_queue_(100),
-    stop_write_(false), metrics_(data_monitor::DataMonitor::GetInstance(enable_metrics)) {
+    DataHandler::DataHandler() : num_events_(0), data_queue_(100),
+    stop_write_(false), metrics_(data_monitor::DataMonitor::GetInstance()) {
         logger_ = quill::Frontend::create_or_get_logger("root",
         quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
     }
