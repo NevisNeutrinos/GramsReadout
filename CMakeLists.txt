@@ -13,13 +13,19 @@ else ()
     message(FATAL_ERROR "WinDriver installation directory does not exist: ${WINDRIVER_ROOT}")
 endif ()
 
+# For Grafana metrics
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZeroMQ REQUIRED libzmq)
+
 add_subdirectory(quill)
 add_subdirectory(lib/pcie_driver)
 add_subdirectory(networking)
 
+include_directories(/usr/include)
 include_directories(networking
                     src/control
                     src/hardware
+                    lib/monitoring
                     lib/pcie_driver
                     lib/folly
                     lib/nlohmann_json)
@@ -29,6 +35,11 @@ file(GLOB_RECURSE DATA_HANDLER_SRC src/data/*.cpp)
 file(GLOB_RECURSE HARDWARE_SRC src/hardware/*.cpp)
 file(GLOB NETWORK_SRC networking/tcp*.cpp)
 
+# Create a static library containing DataMonitor
+add_library(data_monitor STATIC lib/monitoring/data_monitor.cpp)
+target_include_directories(data_monitor PRIVATE ${ZeroMQ_INCLUDE_DIRS})
+target_link_libraries(data_monitor PRIVATE ${ZeroMQ_LIBRARIES})
+
 add_executable(GramsReadout main.cpp
         ${CONTROL_SRC}
         ${DATA_HANDLER_SRC}
@@ -36,16 +47,9 @@ add_executable(GramsReadout main.cpp
         ${NETWORK_SRC})
 
 target_link_libraries(GramsReadout PRIVATE
+        data_monitor
         quill::quill
         gramsreadout_lib)
-
-#add_executable(ReadoutTest test.cpp ${HARDWARE_SRC})
-#
-#
-#target_link_libraries(ReadoutTest PRIVATE
-#        quill::quill
-#        gramsreadout_lib)
-
 
 #######################
 # Test
