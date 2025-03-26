@@ -48,6 +48,7 @@ class HardwareDevice {
     */
     virtual bool CloseDevice() = 0;
 
+    HardwareDevice();
     virtual ~HardwareDevice() = default;
 
     /**
@@ -68,6 +69,10 @@ class HardwareDevice {
     */
     static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
     static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
+
+private:
+
+    quill::Logger* logger_;
 
 };
 

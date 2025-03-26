@@ -6,6 +6,7 @@
 #include "quill/LogMacros.h"
 #include "quill/Frontend.h"
 #include "quill/sinks/ConsoleSink.h"
+#include "quill/sinks/FileSink.h"
 #include <fstream>
 
 namespace controller {
@@ -19,12 +20,23 @@ namespace controller {
 
         current_state_ = State::kIdle;
 
-        logger_ = quill::Frontend::create_or_get_logger("root",
-         quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
-
         std::string config_file("../config/test.json");
         if (!LoadConfig(config_file)) {
-            LOG_ERROR(logger_, "Config load failed! \n");
+            std::cerr << "Config load failed! \n";
+        }
+
+        const bool log_to_file = config_["controller"]["log_to_file"].get<bool>();
+        if (log_to_file) {
+            const std::string file_path = config_["controller"]["log_file_path"].get<std::string>();
+            const std::string file_name = file_path + "/readout_log.log";
+            quill::FileSinkConfig cfg;
+            cfg.set_open_mode('w');
+            cfg.set_filename_append_option(quill::FilenameAppendOption::StartDateTime);
+            logger_ = quill::Frontend::create_or_get_logger("readout_logger",
+                quill::Frontend::create_or_get_sink<quill::FileSink>(file_name, cfg));
+        } else {
+            logger_ = quill::Frontend::create_or_get_logger("readout_logger",
+             quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id1"));
         }
 
         const bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
@@ -40,7 +52,6 @@ namespace controller {
         buffers_ = new pcie_int::PcieBuffers;
 
         LOG_INFO(logger_, "Initialized Controller \n");
-        std::cout << "Initialized Controller" << std::endl;
     }
 
     Controller::~Controller() {
@@ -54,25 +65,22 @@ namespace controller {
         delete pcie_interface_;
         delete buffers_;
         LOG_INFO(logger_, "Destructed all hardware \n");
+        // End logging session and close file
+        quill::Frontend::remove_logger(logger_);
     }
 
     bool Controller::LoadConfig(std::string &config_file) {
-
         std::ifstream f(config_file);
         if (!f.is_open()) {
-            LOG_ERROR(logger_, "Could not open config file \n");
             std::cerr << "Could not open config file " << config_file << std::endl;
             return false;
         }
-
         try {
             config_ = json::parse(f);
+        } catch (json::parse_error& ex) {
+            std::cerr << "Parse error at byte: " << ex.byte << std::endl;
         }
-        catch (json::parse_error& ex) {
-            std::cerr << "parse error at byte " << ex.byte << std::endl;
-        }
-
-        std::cout << "Successfully opened config file " << config_file << std::endl;
+        std::cout << "Successfully opened config file.." << std::endl;
         std::cout << config_.dump() << std::endl;
         return true;
     }
@@ -139,7 +147,6 @@ namespace controller {
 
     void Controller::Run() {
         LOG_INFO(logger_, "Listening for commands..\n");
-        std::cout << "Listening for commands.." << std::endl;
         is_running_ = true;
         ReceiveCommand();
         LOG_INFO(logger_, "Stopping controller\n");
@@ -163,7 +170,6 @@ namespace controller {
 
     // Handle user commands
     bool Controller::HandleCommand(const Command& command) {
-        std::cout << " \n Sending command: " << command.command << std::endl;
         LOG_INFO(logger_, " \n Sending command: [{}] \n", command.command);
         metrics_.ControllerState(command.command);
         metrics_.LoadMetrics();
@@ -193,7 +199,7 @@ namespace controller {
             return current_state_ == State::kIdle;
         }
 
-        std::cout << "Invalid command or transition from state: " << GetStateName() << std::endl;
+        LOG_INFO(logger_, "Invalid command or transition from state: {}", GetStateName());
         metrics_.ControllerState(static_cast<int>(current_state_));
         return false;
     }

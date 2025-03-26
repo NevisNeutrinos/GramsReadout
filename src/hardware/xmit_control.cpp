@@ -3,11 +3,16 @@
 //
 
 #include "xmit_control.h"
+#include "quill/LogMacros.h"
 #include <memory>
 #include <iostream>
 #include <unistd.h>
 
 namespace xmit_control {
+
+    XmitControl::XmitControl() {
+        logger_ = quill::Frontend::create_or_get_logger("readout_logger");
+    }
 
     bool XmitControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
 
@@ -23,16 +28,16 @@ namespace xmit_control {
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ XMIT BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
-        printf("\nBooting XMIT module...\n\n");
+        LOG_INFO(logger_, "Booting XMIT module.. \n");
         imod = imod_xmit;
         ichip = hw_consts::mb_xmit_conf_add;
         buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 0x0 + (0x0 << 16); // turn conf to be on
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-        std::cout << "2am i: " << i << std::endl;
-        std::cout << "2am psend: " << buffers.psend << std::endl;
+        
+        LOG_INFO(logger_, "2am i: {} \n", i);
+        LOG_INFO(logger_, "2am psend: 0x{:X} \n", *buffers.psend);
 
         LoadFirmware(imod_xmit, hw_consts::mb_xmit_conf_add, fw_file, pcie_interface, buffers);
 
@@ -49,35 +54,39 @@ namespace xmit_control {
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
         buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
         i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv);
-        printf("XMIT status word = %x, %x \n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
+
+        LOG_INFO(logger_, "XMIT status word = 0x{:X}, 0x{:X} \n", pcie_int::PcieBuffers::read_array[0],
+                                                                  pcie_int::PcieBuffers::read_array[1]);
         // printf("\nDo you want to read out TPC or PMT? Enter 0 for TPC, 1 for PMT, 2 for both\n");
         // scanf("%i", &readtype);
 
         uint32_t first_word = pcie_int::PcieBuffers::read_array[0];
-        if( ((first_word>>5) & 0x7) || (((first_word>>8) & 0xff) != 0xff) || ((first_word>>21) & 0x1) ) {
-          printf("Unexpected XMIT status word!");
+
+        if((first_word & 0xE0) || ((first_word & 0xFF00) != 0xFF00) || (first_word & 0x200000)) {
+          LOG_INFO(logger_, "Unexpected XMIT status word!");
         }
-        printf("\nXMIT STATUS -- Pre-Setup = %x, %x \n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
-        printf(" pll locked          %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1));
-        printf(" receiver lock       %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1));
-        printf(" DPA lock            %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1));
-        printf(" NU Optical lock     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1));
-        printf(" SN Optical lock     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1));
-        printf(" SN Busy             %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1));
-        printf(" NU Busy             %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1));
-        printf(" SN2 Optical         %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1));
-        printf(" SN1 Optical         %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1));
-        printf(" NU2 Optical         %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1));
-        printf(" NU1 Optical         %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1));
-        printf(" Timeout1            %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 28) & 0x1));
-        printf(" Timeout2            %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 29) & 0x1));
-        printf(" Align1              %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 30) & 0x1));
-        printf(" Align2              %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 31) & 0x1));
+        LOG_INFO(logger_, "\nXMIT STATUS -- Pre-Setup = 0x{:X}, 0x{:X} \n", pcie_int::PcieBuffers::read_array[0],
+                                                                            pcie_int::PcieBuffers::read_array[1]);
+        LOG_INFO(logger_, " PLL locked          {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1));
+        LOG_INFO(logger_, " Receiver lock       {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1));
+        LOG_INFO(logger_, " DPA lock            {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1));
+        LOG_INFO(logger_, " NU Optical lock     {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1));
+        LOG_INFO(logger_, " SN Optical lock     {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1));
+        LOG_INFO(logger_, " SN Busy             {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1));
+        LOG_INFO(logger_, " NU Busy             {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1));
+        LOG_INFO(logger_, " SN2 Optical         {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1));
+        LOG_INFO(logger_, " SN1 Optical         {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1));
+        LOG_INFO(logger_, " NU2 Optical         {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1));
+        LOG_INFO(logger_, " NU1 Optical         {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1));
+        LOG_INFO(logger_, " Timeout1            {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 28) & 0x1));
+        LOG_INFO(logger_, " Timeout2            {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 29) & 0x1));
+        LOG_INFO(logger_, " Align1              {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 30) & 0x1));
+        LOG_INFO(logger_, " Align2              {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 31) & 0x1));
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ XMIT SETTUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
         // uint32_t read_array[dmabufsize];
-        printf("Setting up XMIT module\n");
+        LOG_INFO(logger_, "Setting up XMIT module.. \n");
         imod = imod_xmit; // XMIT setup
         ichip = 3;
         buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_xmit_modcount + ((imod_st1 - imod_xmit - 1) << 16); //                  -- number of FEM module -1, counting start at 0
@@ -147,25 +156,27 @@ namespace xmit_control {
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
         buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
         i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv); // read out 2 32 bits words
-        printf("XMIT status word = %x, %x \n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
+        LOG_INFO(logger_, "XMIT status word = 0x{:X}, 0x{:X} \n", pcie_int::PcieBuffers::read_array[0],
+                                                                  pcie_int::PcieBuffers::read_array[1]);
 
-        printf("\nXMIT STATUS -- Post-Setup = %x, %x \n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
-        printf(" Crate Number        %d \n", ((pcie_int::PcieBuffers::read_array[0]) & 0xE0));
-        printf(" pll locked          %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1));
-        printf(" receiver lock       %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1));
-        printf(" DPA lock            %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1));
-        printf(" NU Optical lock     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1));
-        printf(" SN Optical lock     %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1));
-        printf(" SN Busy             %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1));
-        printf(" NU Busy             %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1));
-        printf(" SN2 Optical         %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1));
-        printf(" SN1 Optical         %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1));
-        printf(" NU2 Optical         %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1));
-        printf(" NU1 Optical         %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1));
-        printf(" Timeout1            %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 28) & 0x1));
-        printf(" Timeout2            %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 29) & 0x1));
-        printf(" Align1              %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 30) & 0x1));
-        printf(" Align2              %d \n", ((pcie_int::PcieBuffers::read_array[0] >> 31) & 0x1));
+        LOG_INFO(logger_, "\n XMIT STATUS -- Post-Setup = 0x{:X}, 0x{:X} \n", pcie_int::PcieBuffers::read_array[0],
+                                                                              pcie_int::PcieBuffers::read_array[1]);
+        LOG_INFO(logger_, " Crate Number        {} \n", ((pcie_int::PcieBuffers::read_array[0]) & 0xE0));
+        LOG_INFO(logger_, " PLL locked          {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1));
+        LOG_INFO(logger_, " Receiver lock       {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1));
+        LOG_INFO(logger_, " DPA lock            {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1));
+        LOG_INFO(logger_, " NU Optical lock     {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1));
+        LOG_INFO(logger_, " SN Optical lock     {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1));
+        LOG_INFO(logger_, " SN Busy             {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1));
+        LOG_INFO(logger_, " NU Busy             {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1));
+        LOG_INFO(logger_, " SN2 Optical         {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1));
+        LOG_INFO(logger_, " SN1 Optical         {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1));
+        LOG_INFO(logger_, " NU2 Optical         {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1));
+        LOG_INFO(logger_, " NU1 Optical         {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1));
+        LOG_INFO(logger_, " Timeout1            {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 28) & 0x1));
+        LOG_INFO(logger_, " Timeout2            {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 29) & 0x1));
+        LOG_INFO(logger_, " Align1              {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 30) & 0x1));
+        LOG_INFO(logger_, " Align2              {} \n", ((pcie_int::PcieBuffers::read_array[0] >> 31) & 0x1));
 
         //////////
         buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_xmit_rdcounters + (0x0 << 16); // read out counters
@@ -176,31 +187,31 @@ namespace xmit_control {
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
         buffers.precv = pcie_int::PcieBuffers::read_array.data();
         i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv); // read out 2 32 bits words
-        printf("XMIT counter word = %x, %x \n", pcie_int::PcieBuffers::read_array[0],
-               pcie_int::PcieBuffers::read_array[1]);
+        LOG_INFO(logger_, "XMIT counter word = 0x{:X}, 0x{:X} \n", pcie_int::PcieBuffers::read_array[0],
+                                                                   pcie_int::PcieBuffers::read_array[1]);
 
-        printf("\nXMIT Counter -- Post-Setup = %x, %x \n", pcie_int::PcieBuffers::read_array[0],
-               pcie_int::PcieBuffers::read_array[1]);
-        printf(" Crate Number        %d \n", ((pcie_int::PcieBuffers::read_array[0]) & 0x1F));
-        printf(" SN Frame Ctr        %d \n", ((pcie_int::PcieBuffers::read_array[1]) & 0xFFFFFF));
-        printf(" Nu Frame Ctr        %d \n", ((pcie_int::PcieBuffers::read_array[2]) & 0xFFFFFF));
-        printf(" Token Path 1 Ctr    %d \n", ((pcie_int::PcieBuffers::read_array[3]) & 0xFFFFFF));
-        printf(" Token Path 2 Ctr    %d \n", ((pcie_int::PcieBuffers::read_array[4]) & 0xFFFFFF));
+        LOG_INFO(logger_, "\nXMIT Counter -- Post-Setup = 0x{:X}, 0x{:X} \n", pcie_int::PcieBuffers::read_array[0],
+                                                                              pcie_int::PcieBuffers::read_array[1]);
+        LOG_INFO(logger_, " Crate Number        {} \n", ((pcie_int::PcieBuffers::read_array[0]) & 0x1F));
+        LOG_INFO(logger_, " SN Frame Ctr        {} \n", ((pcie_int::PcieBuffers::read_array[1]) & 0xFFFFFF));
+        LOG_INFO(logger_, " Nu Frame Ctr        {} \n", ((pcie_int::PcieBuffers::read_array[2]) & 0xFFFFFF));
+        LOG_INFO(logger_, " Token Path 1 Ctr    {} \n", ((pcie_int::PcieBuffers::read_array[3]) & 0xFFFFFF));
+        LOG_INFO(logger_, " Token Path 2 Ctr    {} \n", ((pcie_int::PcieBuffers::read_array[4]) & 0xFFFFFF));
 
         usleep(10000);
-        printf("\n...XMIT setup complete\n");
+        LOG_INFO(logger_, "\n XMIT setup complete \n");
 
-        if (print_debug == true) {
-            printf("\n setup_xmit debug : \n");
-            printf("mb_xmit_modcount %x\n", hw_consts::mb_xmit_modcount);
-            printf("mb_opt_dig_reset %x\n", hw_consts::mb_opt_dig_reset);
-            printf("mb_xmit_enable_1 %x\n", hw_consts::mb_xmit_enable_1);
-            printf("mb_xmit_link_pll_reset %x\n", hw_consts::mb_xmit_link_pll_reset);
-            printf("mb_xmit_link_reset %x\n", hw_consts::mb_xmit_link_reset);
-            printf("mb_xmit_dpa_fifo_reset %x\n", hw_consts::mb_xmit_dpa_fifo_reset);
-            printf("mb_xmit_dpa_word_align %x\n", hw_consts::mb_xmit_dpa_word_align);
-            printf("mb_xmit_rdstatus %x\n", hw_consts::mb_xmit_rdstatus);
-            printf("mb_xmit_rdstatus %x\n", hw_consts::mb_xmit_rdstatus);
+        if (print_debug) {
+            LOG_INFO(logger_, "\n setup_xmit debug : \n");
+            LOG_INFO(logger_, "mb_xmit_modcount 0x{:X}       \n", hw_consts::mb_xmit_modcount);
+            LOG_INFO(logger_, "mb_opt_dig_reset 0x{:X}       \n", hw_consts::mb_opt_dig_reset);
+            LOG_INFO(logger_, "mb_xmit_enable_1 0x{:X}       \n", hw_consts::mb_xmit_enable_1);
+            LOG_INFO(logger_, "mb_xmit_link_pll_reset 0x{:X} \n", hw_consts::mb_xmit_link_pll_reset);
+            LOG_INFO(logger_, "mb_xmit_link_reset 0x{:X}     \n", hw_consts::mb_xmit_link_reset);
+            LOG_INFO(logger_, "mb_xmit_dpa_fifo_reset 0x{:X} \n", hw_consts::mb_xmit_dpa_fifo_reset);
+            LOG_INFO(logger_, "mb_xmit_dpa_word_align 0x{:X} \n", hw_consts::mb_xmit_dpa_word_align);
+            LOG_INFO(logger_, "mb_xmit_rdstatus 0x{:X}       \n", hw_consts::mb_xmit_rdstatus);
+            LOG_INFO(logger_, "mb_xmit_rdstatus 0x{:X}       \n", hw_consts::mb_xmit_rdstatus);
         }
 
         return true;

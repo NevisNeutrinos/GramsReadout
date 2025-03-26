@@ -46,6 +46,9 @@ add_executable(GramsReadout main.cpp
         ${HARDWARE_SRC}
         ${NETWORK_SRC})
 
+target_compile_definitions(GramsReadout PUBLIC
+        -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
+
 target_link_libraries(GramsReadout PRIVATE
         data_monitor
         quill::quill

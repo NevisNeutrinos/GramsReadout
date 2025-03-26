@@ -12,7 +12,7 @@ namespace charge_fem {
 class ChargeFem : public HardwareDevice {
 public:
 
-    ChargeFem() = default;
+    ChargeFem();
     ~ChargeFem() override = default;
 
     bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
@@ -23,6 +23,7 @@ private:
 
     uint32_t ConstructSendWord(uint32_t module, uint32_t chip, uint32_t command, uint32_t data);
 
+    quill::Logger* logger_;
 };
 
 } // charge_fem

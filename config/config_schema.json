@@ -38,7 +38,10 @@
     "controller" : {
       "type": "object",
       "properties": {
-      }
+        "log_to_file" : { "type" : "boolean" },
+        "log_file_path" : { "type" : "string" }
+      },
+      "required": ["log_to_file", "log_file_path"]
     },
     "charge_fem" : {
       "type": "object",

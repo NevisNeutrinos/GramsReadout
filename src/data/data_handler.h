@@ -48,10 +48,12 @@ private:
     static bool isEventStart(const uint32_t word) { return (word & 0xFFFFFFFF) == 0xFFFFFFFF; }
     static bool isEventEnd(const uint32_t word) { return (word & 0xFFFFFFFF) == 0xE0000000; }
 
+    constexpr static std::size_t DATABUFFSIZE = 300000;
+
     static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
     static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
 
-    typedef folly::ProducerConsumerQueue<std::array<uint32_t, 300000>> Queue;
+    typedef folly::ProducerConsumerQueue<std::array<uint32_t, DATABUFFSIZE>> Queue;
     Queue data_queue_;
     typedef folly::ProducerConsumerQueue<std::array<uint32_t, 8>> TrigQueue;
     TrigQueue trigger_queue_;

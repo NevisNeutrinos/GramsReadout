@@ -3,11 +3,16 @@
 //
 
 #include "trigger_control.h"
+#include "quill/LogMacros.h"
 #include <unistd.h>
 #include <iostream>
 #include <chrono>
 
 namespace trig_ctrl {
+
+    TriggerControl::TriggerControl() {
+        logger_ = quill::Frontend::create_or_get_logger("readout_logger");
+    }
 
     bool TriggerControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
     /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRIGGER_SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
@@ -27,99 +32,95 @@ namespace trig_ctrl {
         static int mask1 = trig_src == "ext" ? 0x0 : 0x8;
         static int mask8 = trig_src == "ext" ? 0x2 : 0x0;
 
-        std::cout << "Trigger source [" << trig_src << "]" << std::endl;
+        LOG_INFO(logger_, "Trigger source [{}]", trig_src);
 
-      /* FROM TPC PART*/
-      imod = 0; // set offline test
-      ichip = 1;
-      buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_cntrl_test_on) + (0x0 << 16); // enable offline run on
-      i = 1;
-      k = 1;
-      i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-      imod = trigger_module_;
-      buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up trigger module run off
-      i = 1;
-      k = 1;
-      i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-      imod = trigger_module_;
-      buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_deadtime_size) + ((250 & 0xff) << 16); // set trigger module deadtime size
-      i = 1;
-      k = 1;
-      i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-      imod = 0; // set offline test
-      ichip = 1;
-      buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_cntrl_test_off) + (0x0 << 16); // set controller test off
-      i = 1;
-      k = 1;
-      i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-      imod = trigger_module_; // Set number of ADC samples to (iframe+1)/8;
-      iframe = iframe_length;
-      buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_frame_size) + ((iframe & 0xffff) << 16);
-      i = 1;
-      k = 1;
-      i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-      imod = 0; // load trig 1 position relative to the frame..
-      ichip = 1;
-      buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_cntrl_load_trig_pos) + ((itrig_delay & 0xffff) << 16); // enable test mode
-      i = 1;
-      k = 1;
-      i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-      if(light_trig_) {
-      //Begin PMT Trigger setup
-
-        imod = trigger_module_;
-        buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask1)+((mask1&0xf)<<16); //set mask1[3] on.
-        i = 1;
-        k = 1;
-        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-//        fprintf(outinfo,"trig_mask1 = 0x%x\n",mask1);
-
-        imod=trigger_module_;
-        buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale1)+(0x0<<16); //set prescale1 0
-//        fprintf(outinfo,"trig_prescale1 = 0x%x\n",0x0);
-        i = 1;
-        k = 1;
-      i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-        imod=trigger_module_;
-        buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask8)+((mask8&0xff)<<16);
-//        fprintf(outinfo,"trig_mask8 = 0x%x\n",mask8);
-        i = 1;
-        k = 1;
-      i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-        imod=trigger_module_;
-        buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale8)+(0x0<<16); //set prescale8 0
-//        fprintf(outinfo,"trig_prescale8 = 0x%x\n",0x0);
-        i = 1;
-        k = 1;
-      i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-        //End PMT Trigger setup
-      }
-      else
-      {
-        //begin EXT Trigger setup as of 11/26/2024
-        imod = trigger_module_;
-        buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x2 << 16); // set mask1[3] on.
+        /* FROM TPC PART*/
+        imod = 0; // set offline test
+        ichip = 1;
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_cntrl_test_on) + (0x0 << 16); // enable offline run on
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
         imod = trigger_module_;
-        buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale8) + (0x0 << 16); // set prescale1 0
+        buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up trigger module run off
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-        //End EXT Trigger setup as of 11/26/2024
-      }
-      return true;
+
+        imod = trigger_module_;
+        buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_deadtime_size) + ((32 & 0xff) << 16); // set trigger module deadtime size
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+
+        imod = 0; // set offline test
+        ichip = 1;
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_cntrl_test_off) + (0x0 << 16); // set controller test off
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+
+        imod = trigger_module_; // Set number of ADC samples to (iframe+1)/8;
+        iframe = iframe_length;
+        buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_frame_size) + ((iframe & 0xffff) << 16);
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+
+        imod = 0; // load trig 1 position relative to the frame..
+        ichip = 1;
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + (hw_consts::mb_cntrl_load_trig_pos) + ((itrig_delay & 0xffff) << 16); // enable test mode
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+
+        if(light_trig_) {  // Begin PMT Trigger setup
+            imod = trigger_module_;
+            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask1)+((mask1&0xf)<<16); //set mask1[3] on.
+            i = 1;
+            k = 1;
+            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            //        fprintf(outinfo,"trig_mask1 = 0x%x\n",mask1);
+
+            imod=trigger_module_;
+            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale1)+(0x0<<16); //set prescale1 0
+            //        fprintf(outinfo,"trig_prescale1 = 0x%x\n",0x0);
+            i = 1;
+            k = 1;
+            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+
+            imod=trigger_module_;
+            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask8)+((mask8&0xff)<<16);
+            //        fprintf(outinfo,"trig_mask8 = 0x%x\n",mask8);
+            i = 1;
+            k = 1;
+            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+
+            imod=trigger_module_;
+            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale8)+(0x0<<16); //set prescale8 0
+            //        fprintf(outinfo,"trig_prescale8 = 0x%x\n",0x0);
+            i = 1;
+            k = 1;
+            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+
+            //End PMT Trigger setup
+        } else {
+            //begin EXT Trigger setup as of 11/26/2024
+            imod = trigger_module_;
+            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x2 << 16); // set mask1[3] on.
+            i = 1;
+            k = 1;
+            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+
+            imod = trigger_module_;
+            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale8) + (0x0 << 16); // set prescale1 0
+            i = 1;
+            k = 1;
+            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            //End EXT Trigger setup as of 11/26/2024
+        }
+        return true;
     }
 
     std::vector<uint32_t> TriggerControl::GetStatus() {

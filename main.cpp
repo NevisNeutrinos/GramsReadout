@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ctime>
 #include "src/control/controller.h"
 #include "networking/tcp_protocol.h"
 #include "quill/Backend.h"
@@ -6,6 +7,7 @@
 #include "quill/LogMacros.h"
 #include "quill/Logger.h"
 #include "quill/sinks/ConsoleSink.h"
+#include "quill/sinks/FileSink.h"
 
 
 // Gets user input safely.
@@ -38,14 +40,13 @@ void PrintState(const std::string& state) {
 
 // Runs the command-line interface for the state machine.
 void Run(controller::Controller& ctrl) {
-    quill::Logger* logger = quill::Frontend::create_or_get_logger(
-    "root", quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id_1"));
+
+    quill::Logger* logger = quill::Frontend::create_or_get_logger("readout_logger");
 
     Command cmd(0,0);
     while (true) {
         PrintState(ctrl.GetStateName());
         int input = GetUserInput();
-
         if (input == -1) {
             std::cout << "Exiting...\n";
             break;
@@ -54,9 +55,9 @@ void Run(controller::Controller& ctrl) {
         cmd.command = static_cast<uint16_t>(input);
         if (ctrl.HandleCommand(cmd)) {
             std::cout << "State changed to: " << ctrl.GetStateName() << "\n";
-            LOG_INFO(logger, "State changed to {}!", std::string_view{ctrl.GetStateName()});
+            LOG_INFO(logger, "State changed to {}! \n", std::string_view{ctrl.GetStateName()});
         } else {
-            LOG_INFO(logger, "Invalid state transition!");
+            LOG_INFO(logger, "Invalid state transition! \n");
         }
     }
 }
@@ -69,14 +70,14 @@ int main() {
     // frontend buffers up to 2^16 messages which should be more than enough unless
     // the logging system is being abused.
     quill::BackendOptions backend_options;
-    backend_options.sleep_duration = std::chrono::nanoseconds{100000}; //100us
+    backend_options.sleep_duration = std::chrono::microseconds{100}; //100us
     quill::Backend::start(backend_options);
 
     asio::io_context io_context;
 
     bool run = true;
     std::cout << "Starting controller..." << std::endl;
-    controller::Controller controller(io_context, "10.44.1.148", 1730, true, run);
+    controller::Controller controller(io_context, "127.0.0.1", 12345, true, run);
     std::thread io_thread([&]() { io_context.run(); });
 
     if (!controller.Init()) {

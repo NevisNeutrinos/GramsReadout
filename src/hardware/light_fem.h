@@ -12,7 +12,7 @@ namespace light_fem {
 class LightFem : public HardwareDevice {
 public:
 
-    LightFem() = default;
+    LightFem();
     ~LightFem() override = default;
 
     bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
@@ -20,6 +20,8 @@ public:
     bool CloseDevice() override;
 
 private:
+
+    quill::Logger* logger_;
 
 };
 

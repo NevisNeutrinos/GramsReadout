@@ -13,7 +13,7 @@ namespace trig_ctrl {
 class TriggerControl : HardwareDevice {
 public:
 
-    TriggerControl() = default;
+    TriggerControl();
     ~TriggerControl() override = default;
 
     bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers& buffers) override;
@@ -28,6 +28,7 @@ public:
 
 private:
 
+    quill::Logger* logger_;
     std::atomic_bool is_running_ = false;
     int software_trigger_rate_{};
     int trigger_module_;

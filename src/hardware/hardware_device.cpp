@@ -5,17 +5,19 @@
 #include <iostream>
 #include <unistd.h>
 
+HardwareDevice::HardwareDevice() {
+    logger_ = quill::Frontend::create_or_get_logger("readout_logger");
+}
+
 bool HardwareDevice::LoadFirmware(int module, int chip, std::string &fw_file,
                                     pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
 
-    static uint32_t i, k, iprint, ik;
+    static uint32_t i, ik;
     static int count, counta, nword;
     static int ij, nsend;
     static int ichip_c, dummy1;
     unsigned char charchannel;
-    // struct timespec tim, tim2;
-    struct timespec tim ={0, 100}, tim2 = {0, 100};
-    bool print_debug = false;
+    timespec tim ={0, 100}, tim2 = {0, 100};
 
     FILE *inpf = fopen(fw_file.c_str(), "r");
 
@@ -36,16 +38,17 @@ bool HardwareDevice::LoadFirmware(int module, int chip, std::string &fw_file,
         {
             buffers.buf_send[0] = (module << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
             pcie_int::PcieBuffers::send_array[0] = buffers.buf_send[0];
-            if (dummy1 <= 5)
-                printf("\tcounta = %d, first word = %x, %x, %x %x %x \n", counta, buffers.buf_send[0],
-                     buffers.carray[0], buffers.carray[1], buffers.carray[2], buffers.carray[3]);
-
+            if (dummy1 <= 5) {
+                LOG_INFO(logger_, "counta = {}, first word = 0x{:X} 0x{:X} 0x{:X} 0x{:X} 0x{:X}\n", counta,
+                    buffers.buf_send[0], buffers.carray[0], buffers.carray[1], buffers.carray[2], buffers.carray[3]);
+            }
             for (ij = 0; ij < nsend; ij++)
             {
-                if (ij == (nsend - 1))
+                if (ij == (nsend - 1)) {
                     buffers.buf_send[ij + 1] = buffers.carray[2 * ij + 1] + (0x0 << 16);
-                else
+                } else {
                     buffers.buf_send[ij + 1] = buffers.carray[2 * ij + 1] + (buffers.carray[2 * ij + 2] << 16);
+                }
                 pcie_int::PcieBuffers::send_array[ij + 1] = buffers.buf_send[ij + 1];
             }
             nword = nsend + 1;
@@ -57,38 +60,34 @@ bool HardwareDevice::LoadFirmware(int module, int chip, std::string &fw_file,
             count = 0;
         }
     }
-    std::cout << "Finished reading bitfile..." << std::endl;
+    LOG_INFO(logger_, "Finished reading bitfile...\n");
     if (feof(inpf))
     {
-        printf("\tend-of-file word count= %d %d\n", counta, count);
+        LOG_INFO(logger_, "EOF word count = {} {}\n", counta, count);
         buffers.buf_send[0] = (module << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
         if (count > 1)
         {
-            if (((count - 1) % 2) == 0)
-            {
+            if (((count - 1) % 2) == 0) {
                 ik = (count - 1) / 2;
-            }
-            else
-            {
+            } else {
                 ik = (count - 1) / 2 + 1;
             }
             ik = ik + 2; // add one more for safety
-            // printf("\tik= %d\n", ik);
-            std::cout << "ik = " << ik << std::endl;
+            LOG_INFO(logger_, "Num Firmware words to send = {} \n", ik);
             for (ij = 0; ij < ik; ij++)
             {
-                if (ij == (ik - 1))
+                if (ij == (ik - 1)) {
                     buffers.buf_send[ij + 1] = buffers.carray[(2 * ij) + 1] + (((module << 11) + (chip << 8) + 0x0) << 16);
-                else
+                } else {
                     buffers.buf_send[ij + 1] = buffers.carray[(2 * ij) + 1] + (buffers.carray[(2 * ij) + 2] << 16);
+                }
                 pcie_int::PcieBuffers::send_array[ij + 1] = buffers.buf_send[ij + 1];
             }
-        }
-        else
+        } else {
             ik = 1;
-        for (ij = ik - 10; ij < ik + 1; ij++)
-        {
-            printf("\tlast data = %d, %x\n", ij, buffers.buf_send[ij]);
+        }
+        for (ij = ik - 10; ij < ik + 1; ij++) {
+            LOG_INFO(logger_, "Last firmware word {} [0x{:X}] \n", ij, buffers.buf_send[ij]);
         }
         nword = ik + 1;
         i = 1;

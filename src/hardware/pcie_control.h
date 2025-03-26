@@ -13,7 +13,7 @@ namespace pcie_control {
 class PcieControl : HardwareDevice {
 public:
 
-  PcieControl() = default;
+  PcieControl();
   ~PcieControl() override = default;
 
   bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers& buffers) override;
@@ -22,7 +22,7 @@ public:
 
 private:
 
-
+  quill::Logger* logger_;
 
 };
 

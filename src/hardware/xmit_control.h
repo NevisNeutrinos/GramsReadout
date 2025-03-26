@@ -12,7 +12,7 @@ namespace xmit_control {
 class XmitControl : public HardwareDevice {
 public:
 
-    XmitControl() = default;
+    XmitControl();
     ~XmitControl() override = default;
 
     bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
@@ -20,6 +20,8 @@ public:
     bool CloseDevice() override;
 
 private:
+
+    quill::Logger* logger_;
 
 };
 
