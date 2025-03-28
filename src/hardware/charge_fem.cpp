@@ -41,7 +41,7 @@ namespace charge_fem {
         ///////////////////////////  BOOT CHARGE FEM //////////////////////////////////////////
 
         // //imod_xmit = imod_xmit + 1;
-        for (imod_fem = (imod_tpc); imod_fem < (imod_st2 + 1); imod_fem++) //++ -> -- JLS
+        for (imod_fem = (imod_tpc); imod_fem < (imod_st2 + 1); imod_fem++)
         { // loop over module numbers
             imod = imod_fem;
             LOG_INFO(logger_, "Booting module in slot [{}] \n", imod);
@@ -370,7 +370,6 @@ namespace charge_fem {
         /*   here is common block from tpc */
         for (imod_fem = (imod_st2); imod_fem > imod_xmit; imod_fem--) //     now reset all the link port receiver PLL
         {
-            LOG_INFO(logger_, "Module [{}] \n", imod_fem);
             imod = imod_fem;
             LOG_INFO(logger_, "Resetting TPC link PLL for module [{}] \n", imod);
             ichip = 4;

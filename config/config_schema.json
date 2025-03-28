@@ -22,11 +22,10 @@
       "type": "object",
       "properties": {
         "num_events" : { "type": "integer" },
-        "dma_buffer_size": { "type": "integer" },
         "subrun" : { "type" :  "integer" },
         "enable_metrics" : { "type" : "boolean" }
       },
-      "required": ["num_events", "dma_buffer_size", "subrun"]
+      "required": ["num_events", "subrun"]
     },
     "xmit" : {
       "type": "object",

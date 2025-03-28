@@ -9,6 +9,7 @@
 #include "./../lib/monitoring/data_monitor.h"
 #include <atomic>
 #include <cstdio>
+#include <map>
 #include <trigger_control.h>
 
 #include "json.hpp"
@@ -48,7 +49,8 @@ private:
     static bool isEventStart(const uint32_t word) { return (word & 0xFFFFFFFF) == 0xFFFFFFFF; }
     static bool isEventEnd(const uint32_t word) { return (word & 0xFFFFFFFF) == 0xE0000000; }
 
-    constexpr static std::size_t DATABUFFSIZE = 300000;
+    constexpr static std::size_t DATABUFFSIZE = 75000; //300000;
+    constexpr static std::size_t DMABUFFSIZE = DATABUFFSIZE * sizeof(uint32_t);
 
     static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
     static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;
@@ -61,7 +63,6 @@ private:
     int ext_trig_;
     int software_trig_;
     int trigger_module_;
-    uint32_t dma_buf_size_ = 100000;
     size_t num_events_;
     size_t num_dma_loops_ = 1;
     size_t num_recv_bytes_{};
@@ -84,8 +85,7 @@ private:
     pcie_int::DMABufferHandle  pbuf_rec1_{};
     pcie_int::DMABufferHandle pbuf_rec2_{};
 
-    FILE *file_ptr_;
-
+    int fd_;
     quill::Logger* logger_;
 
 };

@@ -3,6 +3,8 @@
 //
 
 #include "data_handler.h"
+#include <unistd.h>
+#include <fcntl.h>
 #include <iostream>
 #include <cstdio>
 #include <cstring>
@@ -13,7 +15,7 @@
 namespace data_handler {
 
     // FIXME, make queue size configurable
-    DataHandler::DataHandler() : num_events_(0), data_queue_(400), trigger_queue_(100),
+    DataHandler::DataHandler() : num_events_(0), data_queue_(800), trigger_queue_(100),
     stop_write_(false), metrics_(data_monitor::DataMonitor::GetInstance()) {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
     }
@@ -26,8 +28,8 @@ namespace data_handler {
 
         // first dma
         if (is_data) {
-            pcie_interface->DmaContigBufferLock(1, dma_buf_size_, pbuf_rec1);
-            pcie_interface->DmaContigBufferLock(2, dma_buf_size_, pbuf_rec2);
+            pcie_interface->DmaContigBufferLock(1, DMABUFFSIZE, pbuf_rec1);
+            pcie_interface->DmaContigBufferLock(2, DMABUFFSIZE, pbuf_rec2);
         } else { // FIXME config trig_dma_size
             pcie_interface->DmaContigBufferLock(3, 32, pbuf_rec1);
         }
@@ -50,51 +52,47 @@ namespace data_handler {
     bool DataHandler::Configure(json &config) {
 
         trigger_module_ = config["crate"]["trig_slot"].get<int>();
-        dma_buf_size_ = config["data_handler"]["dma_buffer_size"].get<int>();
         num_events_ = config["data_handler"]["num_events"].get<size_t>();
-        metrics_.DmaSize(dma_buf_size_);
+        metrics_.DmaSize(DMABUFFSIZE);
         const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         ext_trig_ = trig_src == "ext" ? 1 : 0;
         software_trig_ = trig_src == "software" ? 1 : 0;
         LOG_INFO(logger_, "Trigger source software [{}] external [{}] \n", software_trig_, ext_trig_);
 
-        LOG_INFO(logger_, "\t [{}] DMA loops with [{}] 32b words \n", num_dma_loops_, dma_buf_size_ / 4);
+        LOG_INFO(logger_, "\t [{}] DMA loops with [{}] 32b words \n", num_dma_loops_, DATABUFFSIZE / 4);
 
         file_count_ = 0;
         write_file_name_ = "/data/readout_data/pGRAMS_bin_" + std::to_string(subrun) + "_";
-        std::string name = write_file_name_  + std::to_string(file_count_) + ".dat";
-        file_ptr_ = fopen(name.c_str(), "wb");
-        if (!file_ptr_) {
-            LOG_ERROR(logger_, "Failed to open file {} aborting run! \n", name);
-            return false;
-        }
-
-        LOG_INFO(logger_, "\n Output file: {}", name);
-
-        LOG_INFO(logger_, "Collected {} events... \n", event_count_);
-        // LOG_INFO(logger_, "Closed file after writing {}B to file {} \n", num_recv_bytes_, name);
+        LOG_INFO(logger_, "\n Writing files: {}", write_file_name_);
 
         return true;
     }
 
     bool DataHandler::SwitchWriteFile() {
 
-        fflush(file_ptr_);
-        if(fclose(file_ptr_) == EOF) {
-            LOG_ERROR(logger_, "Failed to close data file... \n");
-            return false;
-        }
+        // Make sure we copy `fd_` so when we re-assign it later it doesn't affect the thread.
+        // Start a thread and detach it so the file closes in the background at its leisure
+        // while we continue to write data to the newly opened file.
+        int fd_copy = fd_;
+        std::thread close_thread([&fd_copy, this]() {
+            LOG_INFO(logger_, "Closing data file {} \n", fd_copy);
+            if(close(fd_copy) == -1) {
+                LOG_ERROR(logger_, "Failed to close data file, with error:{} \n", std::string(strerror(errno)));
+            }
+        });
+        close_thread.detach();
 
         file_count_ += 1;
         std::string name = write_file_name_  + std::to_string(file_count_) + ".dat";
-        LOG_INFO(logger_, "Switching to file: {} \n", name);
 
-        file_ptr_ = fopen(name.c_str(), "wb");
-        if (!file_ptr_) {
-            LOG_ERROR(logger_, "Failed to open file {} aborting run! \n", name);
+        fd_ = open(name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd_ == -1) {
+            LOG_ERROR(logger_, "Failed to open file {} with error {} aborting run! \n", name, std::string(strerror(errno)));
             return false;
         }
+
+        LOG_INFO(logger_, "Switching to file: {} fd={}\n", name, fd_);
         metrics_.NumFiles(file_count_);
         return true;
     }
@@ -103,6 +101,7 @@ namespace data_handler {
 
         auto write_thread = std::thread(&DataHandler::DataWrite, this);
         auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
+
         // FIXME Combines both Data and Trigger DMA readout, works for a little then hangs
         // auto read_thread = std::thread(&DataHandler::TestReadoutDMARead, this, pcie_interface);
         // FIXME Trigger DMA readout, causes both the trigger and data DMA to hang even though they're in
@@ -125,13 +124,21 @@ namespace data_handler {
     void DataHandler::DataWrite() {
         LOG_INFO(logger_, "Read thread start! \n");
 
+        std::string name = write_file_name_  + std::to_string(file_count_) + ".dat";
+        // 0644 user, group and others read/write permissions
+        fd_ = open(name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd_ == -1) {
+            LOG_ERROR(logger_, "Failed to open file {} with error {} aborting run! \n", name, std::string(strerror(errno)));
+        }
+
         static uint32_t word;
         std::array<uint32_t, DATABUFFSIZE> word_arr{};
-        std::array<uint32_t, DATABUFFSIZE*2> word_arr_write{};
+        std::array<uint32_t, 1000000> word_arr_write{}; // ~0.231MB/event
         size_t prev_event_count = 0;
         event_start_ = false;
         event_end_ = false;
         size_t num_words = 0;
+        size_t event_chunk = 0;
         event_count_ = 0;
         event_start_count_ = 0;
         event_end_count_ = 0;
@@ -148,11 +155,11 @@ namespace data_handler {
                     start = now;
                     metrics_.LoadMetrics();
                 }
-                for (size_t i = 0; i < (dma_buf_size_/sizeof(uint32_t)); i++) {
+                for (size_t i = 0; i < (DATABUFFSIZE); i++) {
                     word = word_arr[i];
                     if (num_words > word_arr_write.size()) {
                         LOG_WARNING(logger_, "Unexpectedly large event, dropping it! num_words=[{}] > buffer size=[{}] \n",
-                                    num_words, dma_buf_size_/2);
+                                    num_words, DATABUFFSIZE);
                         num_words = 0;
                         event_start_ = false;
                     }
@@ -161,36 +168,42 @@ namespace data_handler {
                         event_start_ = true; event_start_count_++;
                     }
                     else if (isEventEnd(word) && event_start_) {
-                        event_end_ = true; event_end_count_++;
+                        event_end_ = true; event_end_count_++; event_start_ = false;
+                        event_chunk++;
                     }
                     word_arr_write[num_words] = word;
                     num_words++;
-                    num_recv_bytes_ += 4;
-                    if (event_start_ & event_end_) {
-                        if ((event_count_ % 500) == 0) LOG_INFO(logger_, " **** Event: {}", event_count_);
-                        event_count_++;
-                        //fwrite(word_arr_write.data(), 1, (num_words*4), file_ptr_);
-                        fwrite(word_arr_write.data(), 1, num_words, file_ptr_);
+                    // num_recv_bytes_ += 4;
+                    if (event_chunk == 10) {
+                        if ((event_count_ % 500) == 0) LOG_INFO(logger_, " **** Event: {} \n", event_count_);
+                        event_count_ += event_chunk;
+                        const size_t write_bytes = write(fd_, word_arr_write.data(), num_words*sizeof(uint32_t));
+                        if (write_bytes == -1) LOG_WARNING(logger_, "Failed write {} \n", std::string(strerror(errno)));
+                        else num_recv_bytes_ += write_bytes;
+
                         if ((event_count_ > 0) && (event_count_ % 5000 == 0)) {
                             SwitchWriteFile();
                         }
                         metrics_.EventSize(num_words);
                         metrics_.BytesReceived(num_recv_bytes_);
                         metrics_.NumEvents(event_count_);
-                        event_start_ = false; event_end_ = false; num_words = 0;
+                        event_start_ = false; event_end_ = false; num_words = 0; event_chunk = 0;
                     }
                 } // word loop
             } // read buffer loop
         } // run loop
 
-        // Flush the buffer to make sure all data is written to file
-        fflush(file_ptr_);
-        if(fclose(file_ptr_) == EOF) {
-            LOG_ERROR(logger_, "Failed to close data file... \n");
+        // Make sure all data is flushed to file before closing
+        // fsync(fd_);
+        if(fsync(fd_) == -1) {
+            LOG_ERROR(logger_, "Failed to sync data file with error: {} \n", std::string(strerror(errno)));
+        }
+        if(close(fd_) == -1) {
+            LOG_ERROR(logger_, "Failed to close data file with error: {} \n", std::string(strerror(errno)));
         }
 
         LOG_INFO(logger_, "Closed file after writing {}B to file {} \n", num_recv_bytes_, write_file_name_);
-        LOG_INFO(logger_, "Wrote {} events to {} files", event_count_, file_count_);
+        LOG_INFO(logger_, "Wrote {} events to {} files \n", event_count_, file_count_);
         LOG_INFO(logger_, "Counted [{}] start events & [{}] end events \n", event_start_count_, event_end_count_);
     }
 
@@ -216,7 +229,7 @@ namespace data_handler {
         pcie_int::DMABufferHandle pbuf_rec2;
 
          /*TPC DMA*/
-        LOG_INFO(logger_, "Buffer 1 & 2 allocation size: {} \n", dma_buf_size_);
+        LOG_INFO(logger_, "Buffer 1 & 2 allocation size: {} \n", DMABUFFSIZE);
         SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2, true);
         usleep(500000);
 
@@ -228,8 +241,8 @@ namespace data_handler {
                 // sync CPU cache
                 pcie_interface->DmaSyncCpu(dma_num);
 
-                nwrite_byte = dma_buf_size_;
-                if (idebug) LOG_INFO(logger_, "DMA loop {} with DMA length {}B \n", iv, nwrite_byte);
+                nwrite_byte = DMABUFFSIZE;
+                if (idebug) LOG_INFO(logger_, "DMA loop {} with DMA length {}B \n", iv, DMABUFFSIZE);
 
                 /** initialize and start the receivers ***/
                 for (size_t rcvr = 1; rcvr < 3; rcvr++) {
@@ -292,7 +305,7 @@ namespace data_handler {
                     pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
                     LOG_INFO(logger_, " Status word for channel 1 after read = 0x{:X}, 0x{:X}", (u64Data >> 32), (u64Data & 0xffff));
                 }
-                std::memcpy(word_arr.data(), buffp_rec32, dma_buf_size_);
+                std::memcpy(word_arr.data(), buffp_rec32, DMABUFFSIZE);
                 data_queue_.write(word_arr);
                 if (data_queue_.isFull()) {
                     num_buffer_full++;
@@ -348,7 +361,7 @@ namespace data_handler {
         pcie_int::DMABufferHandle pbuf_rec_trig;
 
          /*TPC DMA*/
-        LOG_INFO(logger_, "Buffer 1 & 2 & Trig allocation size: {} \n", dma_buf_size_);
+        LOG_INFO(logger_, "Buffer 1 & 2 & Trig allocation size: {} \n", DATABUFFSIZE);
         SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2, true);
         SetRecvBuffer(pcie_interface, &pbuf_rec_trig, nullptr, false);
         usleep(500000);
@@ -365,7 +378,7 @@ namespace data_handler {
                 // sync CPU cache
                 pcie_interface->DmaSyncCpu(dma_num);
 
-                nwrite_byte = dma_buf_size_;
+                nwrite_byte = DATABUFFSIZE;
                 if (idebug) LOG_INFO(logger_, "DMA loop {} with DMA length {}B \n", iv, nwrite_byte);
 
                 /** initialize and start the receivers ***/
@@ -432,7 +445,7 @@ namespace data_handler {
                 std::memcpy(trig_word_arr.data(), buffp_rec32, 8*4);
                 // if (dma_num == 3) for (const auto &el : trig_word_arr ) std::cout << el << "  \n";
                 if (dma_num == 3) std::cout << trig_word_arr[0] << "  " << trig_word_arr[1] << " " << trig_word_arr[4] << "  \n";
-                std::memcpy(word_arr.data(), buffp_rec32, dma_buf_size_);
+                std::memcpy(word_arr.data(), buffp_rec32, DATABUFFSIZE);
                 data_queue_.write(word_arr);
                 if (data_queue_.isFull()) {
                     num_buffer_full++;
