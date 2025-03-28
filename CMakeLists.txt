@@ -3,6 +3,12 @@ project(GramsReadout)
 
 set(CMAKE_CXX_STANDARD 17)
 
+# Enable pedantic compile mode, we want to be as strict as possible
+# at compile time rather than find problems at run time which could be too late.
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-Wall -Wextra -pedantic)
+endif()
+
 # Set the expected WinDriver installation and make sure it exists
 # The WinDriver _must_ exist to communicate with the hardware, hence
 # an error if not found.
