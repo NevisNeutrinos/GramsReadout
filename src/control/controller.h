@@ -93,6 +93,9 @@
 
     private: // data members
 
+        Controller(const Controller&) = delete;
+        Controller& operator=(const Controller&) = delete;
+
         // State machine functions
         bool Configure();
         bool StartRun();

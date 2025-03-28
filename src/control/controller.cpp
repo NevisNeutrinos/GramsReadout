@@ -39,6 +39,9 @@ namespace controller {
              quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id1"));
         }
 
+        LOG_INFO(logger_, "Opened config file: {} \n", config_file);
+        LOG_INFO(logger_, "Config dump: {} \n", config_.dump());
+
         const bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
         metrics_.EnableMonitoring(enable_metrics);
         data_handler_ = new data_handler::DataHandler;
