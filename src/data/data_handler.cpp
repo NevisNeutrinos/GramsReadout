@@ -15,7 +15,7 @@
 namespace data_handler {
 
     // FIXME, make queue size configurable
-    DataHandler::DataHandler() : num_events_(0), data_queue_(800), trigger_queue_(100),
+    DataHandler::DataHandler() : num_events_(0), data_queue_(400), trigger_queue_(100),
     stop_write_(false), metrics_(data_monitor::DataMonitor::GetInstance()) {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
     }
@@ -133,16 +133,17 @@ namespace data_handler {
 
         static uint32_t word;
         std::array<uint32_t, DATABUFFSIZE> word_arr{};
-        std::array<uint32_t, 1000000> word_arr_write{}; // ~0.231MB/event
+        std::array<uint32_t, EVENTBUFFSIZE> word_arr_write{}; // event buffer, ~0.231MB/event
         size_t prev_event_count = 0;
-        event_start_ = false;
-        event_end_ = false;
+        bool event_start = false;
         size_t num_words = 0;
         size_t event_chunk = 0;
-        event_count_ = 0;
-        event_start_count_ = 0;
-        event_end_count_ = 0;
-        num_recv_bytes_ = 0;
+        size_t event_start_count = 0;
+        size_t event_end_count = 0;
+        size_t num_recv_bytes = 0;
+        size_t local_event_count = 0;
+        event_count_.store(0);
+
         auto start = std::chrono::high_resolution_clock::now();
 
         while (!stop_write_.load()) {
@@ -150,51 +151,51 @@ namespace data_handler {
                 auto now = std::chrono::high_resolution_clock::now();
                 auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start);
                 if (elapsed.count() >= 4) {
-                    metrics_.EventDiff(event_count_ - prev_event_count);
-                    prev_event_count = event_count_;
+                    metrics_.EventDiff(local_event_count - prev_event_count);
+                    prev_event_count = local_event_count;
                     start = now;
                     metrics_.LoadMetrics();
                 }
-                for (size_t i = 0; i < (DATABUFFSIZE); i++) {
+                for (size_t i = 0; i < DATABUFFSIZE; i++) {
                     word = word_arr[i];
                     if (num_words > word_arr_write.size()) {
                         LOG_WARNING(logger_, "Unexpectedly large event, dropping it! num_words=[{}] > buffer size=[{}] \n",
                                     num_words, DATABUFFSIZE);
                         num_words = 0;
-                        event_start_ = false;
+                        event_start = false;
                     }
                     if (isEventStart(word)) {
-                        if (event_start_) num_words = 0; // Previous evt didn't finish, drop partial evt data
-                        event_start_ = true; event_start_count_++;
+                        if (event_start) num_words = 0; // Previous evt didn't finish, drop partial evt data
+                        event_start = true; event_start_count++;
                     }
-                    else if (isEventEnd(word) && event_start_) {
-                        event_end_ = true; event_end_count_++; event_start_ = false;
+                    else if (isEventEnd(word) && event_start) {
+                        event_end_count++; event_start = false;
                         event_chunk++;
                     }
                     word_arr_write[num_words] = word;
                     num_words++;
-                    // num_recv_bytes_ += 4;
-                    if (event_chunk == 10) {
-                        if ((event_count_ % 500) == 0) LOG_INFO(logger_, " **** Event: {} \n", event_count_);
-                        event_count_ += event_chunk;
+                    // num_recv_bytes += 4;
+                    if (event_chunk == EVENTCHUNK) {
+                        if ((local_event_count % 500) == 0) LOG_INFO(logger_, " **** Event: {} \n", local_event_count);
+                        local_event_count += event_chunk;
+                        event_count_.store(local_event_count);
                         const size_t write_bytes = write(fd_, word_arr_write.data(), num_words*sizeof(uint32_t));
                         if (write_bytes == -1) LOG_WARNING(logger_, "Failed write {} \n", std::string(strerror(errno)));
-                        else num_recv_bytes_ += write_bytes;
+                        else num_recv_bytes += write_bytes;
 
-                        if ((event_count_ > 0) && (event_count_ % 5000 == 0)) {
+                        if ((local_event_count > 0) && (local_event_count % 5000 == 0)) {
                             SwitchWriteFile();
                         }
                         metrics_.EventSize(num_words);
-                        metrics_.BytesReceived(num_recv_bytes_);
-                        metrics_.NumEvents(event_count_);
-                        event_start_ = false; event_end_ = false; num_words = 0; event_chunk = 0;
+                        metrics_.BytesReceived(num_recv_bytes);
+                        metrics_.NumEvents(local_event_count);
+                        event_start = false; num_words = 0; event_chunk = 0;
                     }
                 } // word loop
             } // read buffer loop
         } // run loop
 
         // Make sure all data is flushed to file before closing
-        // fsync(fd_);
         if(fsync(fd_) == -1) {
             LOG_ERROR(logger_, "Failed to sync data file with error: {} \n", std::string(strerror(errno)));
         }
@@ -202,9 +203,9 @@ namespace data_handler {
             LOG_ERROR(logger_, "Failed to close data file with error: {} \n", std::string(strerror(errno)));
         }
 
-        LOG_INFO(logger_, "Closed file after writing {}B to file {} \n", num_recv_bytes_, write_file_name_);
-        LOG_INFO(logger_, "Wrote {} events to {} files \n", event_count_, file_count_);
-        LOG_INFO(logger_, "Counted [{}] start events & [{}] end events \n", event_start_count_, event_end_count_);
+        LOG_INFO(logger_, "Closed file after writing {}B to file {} \n", num_recv_bytes, write_file_name_);
+        LOG_INFO(logger_, "Wrote {} events to {} files \n", event_count_.load(), file_count_);
+        LOG_INFO(logger_, "Counted [{}] start events & [{}] end events \n", event_start_count, event_end_count);
     }
 
     void DataHandler::ReadoutDMARead(pcie_int::PCIeInterface *pcie_interface) {
@@ -213,7 +214,7 @@ namespace data_handler {
         bool idebug = false;
         bool is_first_event = true;
         static uint32_t iv, r_cs_reg;
-        static uint32_t nwrite_byte;
+        static uint32_t num_dma_byte = DMABUFFSIZE;
         static uint32_t is;
         static int itrig_c = 0;
         static int itrig_ext = 1;
@@ -233,7 +234,7 @@ namespace data_handler {
         SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2, true);
         usleep(500000);
 
-        while(is_running_.load() && dma_loops < num_events_) {
+        while(is_running_.load() && event_count_.load() < num_events_) {
             if (dma_loops % 500 == 0) LOG_INFO(logger_, "=======> DMA Loop [{}] \n", dma_loops);
             for (iv = 0; iv < 2; iv++) { // note: ndma_loop=1
                 static uint32_t dma_num = (iv % 2) == 0 ? 1 : 2;
@@ -241,7 +242,7 @@ namespace data_handler {
                 // sync CPU cache
                 pcie_interface->DmaSyncCpu(dma_num);
 
-                nwrite_byte = DMABUFFSIZE;
+                // nwrite_byte = DMABUFFSIZE;
                 if (idebug) LOG_INFO(logger_, "DMA loop {} with DMA length {}B \n", iv, DMABUFFSIZE);
 
                 /** initialize and start the receivers ***/
@@ -250,7 +251,7 @@ namespace data_handler {
                     if (is_first_event) {
                         pcie_interface->WriteReg32(kDev2,  hw_consts::cs_bar, r_cs_reg, hw_consts::cs_init);
                     }
-                    data = hw_consts::cs_start + nwrite_byte; /* 32 bits mode == 4 bytes per word *2 fibers **/
+                    data = hw_consts::cs_start + num_dma_byte; /* 32 bits mode == 4 bytes per word *2 fibers **/
                     pcie_interface->WriteReg32(kDev2, hw_consts::cs_bar, r_cs_reg, data);
                 }
 
@@ -263,14 +264,14 @@ namespace data_handler {
                 data = pcie_interface->GetBufferPageAddrUpper(dma_num);
                 pcie_interface->WriteReg32(kDev2, hw_consts::cs_bar, hw_consts::cs_dma_add_high_reg, data);
 
-                pcie_interface->WriteReg32(kDev2, hw_consts::cs_bar, hw_consts::cs_dma_by_cnt, nwrite_byte);
+                pcie_interface->WriteReg32(kDev2, hw_consts::cs_bar, hw_consts::cs_dma_by_cnt, num_dma_byte);
 
                 /* write this will start DMA */
                 is = pcie_interface->GetBufferPageAddrUpper(dma_num);
                 data = is == 0 ? hw_consts::dma_tr12 + hw_consts::dma_3dw_rec : hw_consts::dma_tr12 + hw_consts::dma_4dw_rec;
 
                 pcie_interface->WriteReg32(kDev2, hw_consts::cs_bar, hw_consts::cs_dma_cntrl, data);
-                if (idebug) LOG_INFO(logger_, "DMA set up done, byte count = {} \n", nwrite_byte);
+                if (idebug) LOG_INFO(logger_, "DMA set up done, byte count = {} \n", DMABUFFSIZE);
 
                 // send trigger
                 if (iv == 0) trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, itrig_c, itrig_ext, 11);
@@ -279,7 +280,7 @@ namespace data_handler {
                     LOG_WARNING(logger_, " loop [{}] DMA is not finished, aborting...  \n", iv);
                     pcie_interface->ReadReg64(kDev2,  hw_consts::cs_bar, hw_consts::cs_dma_by_cnt, &u64Data);
                     pcie_interface->DmaSyncIo(dma_num);
-                    static size_t num_read = (nwrite_byte - (u64Data & 0xffff));
+                    static size_t num_read = (num_dma_byte - (u64Data & 0xffff));
 
                     LOG_INFO(logger_, "Received {} bytes, writing to file.. \n", num_read);
 
@@ -603,11 +604,11 @@ namespace data_handler {
 
     void DataHandler::ClearDmaOnAbort(pcie_int::PCIeInterface *pcie_interface, unsigned long long *u64Data, uint32_t dev_num) {
         pcie_interface->ReadReg64(dev_num, hw_consts::cs_bar, hw_consts::t1_cs_reg, u64Data);
-        LOG_INFO(logger_, " Status word for channel 1 after read = 0x{:X}, 0x{:X}", (*u64Data >> 32), (*u64Data & 0xffff));
+        LOG_INFO(logger_, " Status word for channel 1 after read = 0x{:X}, 0x{:X} \n", (*u64Data >> 32), (*u64Data & 0xffff));
 
         *u64Data = 0;
         pcie_interface->ReadReg64(dev_num, hw_consts::cs_bar, hw_consts::t2_cs_reg, u64Data);
-        LOG_INFO(logger_, " Status word for channel 2 after read = 0x{:X}, 0x{:X}", (*u64Data >> 32), (*u64Data & 0xffff));
+        LOG_INFO(logger_, " Status word for channel 2 after read = 0x{:X}, 0x{:X} \n", (*u64Data >> 32), (*u64Data & 0xffff));
 
         /* write this will abort previous DMA */
         pcie_interface->WriteReg32(dev_num, hw_consts::cs_bar, hw_consts::cs_dma_msi_abort, hw_consts::dma_abort);
@@ -617,7 +618,7 @@ namespace data_handler {
     }
 
     bool DataHandler::WaitForDma(pcie_int::PCIeInterface *pcie_interface, uint32_t *data, uint32_t dev_num) {
-        /***    check to see if DMA is done or not **/
+        // Check to see if DMA is done or not
         // Can get stuck waiting for the DMA to finish, use is_running flag check to break from it
         for (size_t is = 0; is < 6000000000; is++) {
             pcie_interface->ReadReg32(dev_num, hw_consts::cs_bar, hw_consts::cs_dma_cntrl, data);
