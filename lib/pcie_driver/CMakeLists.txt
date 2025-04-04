@@ -2,7 +2,7 @@
 # https://www.jungo.com
 
 cmake_minimum_required(VERSION 3.10)
-project(gramsreadout_lib LANGUAGES C)
+project(pcie_lib LANGUAGES C)
 
 # TODO: Set WD_BASEDIR to the location of your WinDriver installation directory.
 set(WD_BASEDIR "/home/sabertooth/WinDriver" CACHE PATH "WinDriver installation directory")
@@ -69,16 +69,16 @@ set(SRCS
 )
 
 # Create a library target
-add_library(gramsreadout_lib STATIC ${SRCS})
+add_library(pcie_lib STATIC ${SRCS})
 
 # Set compilation flags for the library
-target_compile_options(gramsreadout_lib PRIVATE ${CFLAGS})
+target_compile_options(pcie_lib PRIVATE ${CFLAGS})
 
 # Set linking flags for the library
-target_link_libraries(gramsreadout_lib PRIVATE ${LFLAGS})
+target_link_libraries(pcie_lib PRIVATE ${LFLAGS})
 
 # Set include directories for the library
-target_include_directories(gramsreadout_lib PRIVATE
+target_include_directories(pcie_lib PRIVATE
         ${WD_BASEDIR}/include
         ${WD_BASEDIR}
         ${WD_BASEDIR}/samples/c/shared

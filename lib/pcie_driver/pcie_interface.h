@@ -49,7 +49,7 @@ public:
 
     uint32_t PCIeRecvBuffer(uint32_t dev, uint32_t mode, uint32_t istart, uint32_t nword, uint32_t ipr_status, uint32_t *buff_rec);
 
-    [[nodiscard]] bool getInitStatus() const { return is_initialized; };
+    [[nodiscard]] bool getInitStatus() const { return is_initialized_; };
 
     void ReadReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t *data);
     bool WriteReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t data);
@@ -73,19 +73,34 @@ public:
 
 private:
 
+    bool is_initialized_;
+    PCIeDeviceHandle GetDeviceHandle(uint32_t dev_handle);
+
     // The pointer to the device in memory
     PCIeDeviceHandle dev_handle_1;
     PCIeDeviceHandle dev_handle_2;
     PCIeDeviceHandle hDev;
 
+    // Warning! Make sure the DMA buffer size is memory aligned to 32b
+    // since we cast it from number of bytes into a 32b buffer. In other
+    // words the number set here must be a multiple of 4, if it's not a
+    // compile error will be thrown.
+    static constexpr uint32_t CONFIGDMABUFFSIZE = 14000;
+
+    static_assert((CONFIGDMABUFFSIZE % sizeof(uint32_t)) == 0,
+        "CONFIGDMABUFFSIZE must be a multiple of 4!");
+
+    std::unique_ptr<DmaBuffStruct> buffer_info_struct_send_;
+    std::unique_ptr<DmaBuffStruct> buffer_info_struct_recv_;
+    uint32_t *buffer_send_ = nullptr;
+    uint32_t *buffer_recv_ = nullptr;
+    void *pbuf_send_;
+    void *pbuf_recv_;
+
     // DMA Data Aquisition
     std::unique_ptr<DmaBuffStruct> buffer_info_struct1;
     std::unique_ptr<DmaBuffStruct> buffer_info_struct2;
     std::unique_ptr<DmaBuffStruct> buffer_info_struct_trig;
-
-    bool is_initialized;
-    PCIeDeviceHandle GetDeviceHandle(uint32_t dev_handle);
-    void GetBufferHandle(uint32_t buffer_handle, DmaBuffStruct *dma_struct);
 
     // Magic numbers for DMA R/W
     static constexpr uint32_t t1_tr_bar = 0;

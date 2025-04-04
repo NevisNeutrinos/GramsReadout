@@ -15,13 +15,15 @@ namespace pcie_int {
         WD_DMA *dma_buff;
     };
 
-    PCIeInterface::PCIeInterface() : buffer_info_struct1(std::make_unique<DmaBuffStruct>()),
+    PCIeInterface::PCIeInterface() : buffer_info_struct_send_(std::make_unique<DmaBuffStruct>()),
+                                     buffer_info_struct_recv_(std::make_unique<DmaBuffStruct>()),
+                                     buffer_info_struct1(std::make_unique<DmaBuffStruct>()),
                                      buffer_info_struct2(std::make_unique<DmaBuffStruct>()),
                                      buffer_info_struct_trig(std::make_unique<DmaBuffStruct>()){
         dev_handle_1 = nullptr;
         dev_handle_2 = nullptr;
         hDev = nullptr;
-        is_initialized = false;
+        is_initialized_ = false;
     }
 
     PCIeInterface::~PCIeInterface() {
@@ -38,6 +40,21 @@ namespace pcie_int {
         // Make sure the DMA buffer memory is free
         FreeDmaContigBuffers();
 
+        if (buffer_info_struct_send_->dma_buff) {
+            if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct_send_->dma_buff) != WD_STATUS_SUCCESS) {
+                std::cerr << "DMA SEND Buffer close failed" << std::endl;
+                std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+            }
+            buffer_info_struct_send_->dma_buff = nullptr;
+        }
+        if (buffer_info_struct_recv_->dma_buff) {
+            if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct_recv_->dma_buff) != WD_STATUS_SUCCESS) {
+                std::cerr << "DMA RECV Buffer close failed" << std::endl;
+                std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+            }
+            buffer_info_struct_recv_->dma_buff = nullptr;
+        }
+
         if (dev_handle_1) {
             if (!GRAMSREADOUT_DeviceClose(dev_handle_1)) {
                 std::cerr << "Device 1 close failed" << std::endl;
@@ -52,15 +69,25 @@ namespace pcie_int {
             }
         }
 
-        // Uninitialize the Windriver library
-        if (WD_STATUS_SUCCESS != GRAMSREADOUT_LibUninit()) {
-            std::cerr << "GRAMSREADOUT_LibUninit() failed:" << std::endl;
-            std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+        // Uninitialize the Windriver library but ONLY if it is already initialized.
+        // If not we mess up WinDriver's library instance tracking
+        if (is_initialized_) {
+            if (WD_STATUS_SUCCESS != GRAMSREADOUT_LibUninit()) {
+                std::cerr << "GRAMSREADOUT_LibUninit() failed:" << std::endl;
+                std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+            }
         }
+
+        is_initialized_ = false;
     }
 
     bool PCIeInterface::InitPCIeDevices(uint32_t dev1, uint32_t dev2) {
 
+        // If the PCIe hardware is already initialized we don't, and should not, initialize it again!
+        if (is_initialized_) {
+            std::cout << "PCIe devices already initialized, skipping.. " << std::endl;
+            return true;
+        }
         /* Initialize the GRAMSREADOUT library */
         DWORD dwStatus = GRAMSREADOUT_LibInit();
         if (WD_STATUS_SUCCESS != dwStatus) {
@@ -81,6 +108,27 @@ namespace pcie_int {
         std::cout << "Addr: Dev Handle 1: " << &dev_handle_1 << " Dev Handle 2: " << &dev_handle_2 << std::endl;
         std::cout << std::dec;
 
+        // Open the buffer for the DMAs communication
+        dwStatus = WDC_DMAContigBufLock(dev_handle_1, &pbuf_send_, DMA_TO_DEVICE,
+                            CONFIGDMABUFFSIZE, &buffer_info_struct_send_->dma_buff);
+        if (WD_STATUS_SUCCESS != dwStatus) {
+            printf("Failed locking SEND Contiguous DMA buffer. Error 0x%x - %s\n", dwStatus, Stat2Str(dwStatus));
+        }
+        dwStatus = WDC_DMAContigBufLock(dev_handle_1, &pbuf_recv_, DMA_FROM_DEVICE,
+                            CONFIGDMABUFFSIZE, &buffer_info_struct_recv_->dma_buff);
+        if (WD_STATUS_SUCCESS != dwStatus) {
+            printf("Failed locking SEND Contiguous DMA buffer. Error 0x%x - %s\n", dwStatus, Stat2Str(dwStatus));
+        }
+        buffer_send_ = static_cast<uint32_t*>(pbuf_send_);
+        buffer_recv_ = static_cast<uint32_t *>(pbuf_recv_);
+
+        // Initialize the send and receive buffers
+        for (size_t i = 0; i < CONFIGDMABUFFSIZE; i++) {
+            *(buffer_send_ + i) = 0x0;
+            *(buffer_recv_ + i) = 0x0;
+        }
+
+        is_initialized_ = true;
         return true;
     }
 
@@ -112,9 +160,6 @@ namespace pcie_int {
         static DWORD dwAddrSpace;
         static DWORD dwOffset;
         static UINT32 u32Data;
-        // UINT32 buf_send[40000];
-        // static UINT32 i, k;
-        // UINT32 *px;
         DWORD wr_stat = 0;
 
         dwAddrSpace = 2;
@@ -150,8 +195,7 @@ namespace pcie_int {
         // i = PCIeSendBuffer(kDev1, i, k, px);
         //
         // If all writes succeed it should be 0
-        is_initialized = wr_stat == WD_STATUS_SUCCESS;
-        return is_initialized;
+        return wr_stat == WD_STATUS_SUCCESS;
     }
 
     PCIeDeviceHandle PCIeInterface::GetDeviceHandle(uint32_t dev_handle) {
@@ -170,39 +214,16 @@ namespace pcie_int {
         hDev = GetDeviceHandle(dev);
 
         static DWORD dwAddrSpace;
-        static DWORD dwDMABufSize;
-
-        static UINT32 *buf_send;
-        static WD_DMA *pDma_send; // this is from the Windriver C library
-        static DWORD dwStatus;
-        static DWORD dwOptions_send = DMA_TO_DEVICE;
         static DWORD dwOffset;
         static UINT32 u32Data;
-        static PVOID pbuf_send;
-        uint32_t nwrite, iprint;
+        uint32_t nwrite;
+        uint32_t iprint = 0;
         uint32_t i = 0;
         uint32_t j = 0;
-        static uint32_t ifr = 0;
 
-        iprint = 0;
-
-        if (ifr == 0)
-        {
-            ifr = 1;
-            dwDMABufSize = 140000;
-            dwStatus = WDC_DMAContigBufLock(hDev, &pbuf_send, dwOptions_send, dwDMABufSize, &pDma_send);
-            if (WD_STATUS_SUCCESS != dwStatus)
-            {
-                std::cerr << "Failed locking a send Contiguous DMA buffer. Error "
-                <<  dwStatus << " = " << std::string(Stat2Str(dwStatus)) << std::endl;
-            }
-            buf_send = static_cast<uint32_t *>(pbuf_send);
-        }
-        if (mode == 1)
-        {
-            for (i = 0; i < nword; i++)
-            {
-                *(buf_send + i) = *buff_send++;
+        if (mode == 1) {
+            for (i = 0; i < nword; i++) {
+                *(buffer_send_ + i) = *buff_send++;
             }
         }
         if (mode == 0)
@@ -240,8 +261,9 @@ namespace pcie_int {
         if (mode == 1)
         {
             nwrite = nword * 4;
-            WDC_DMASyncCpu(pDma_send);
-            /*setup transmiiter */
+            // WDC_DMASyncCpu(pDma_send);
+            WDC_DMASyncCpu(buffer_info_struct_send_->dma_buff);
+            /*setup transmitter */
             dwAddrSpace = 2;
             u32Data = cs_init; //0x20000000;
             dwOffset = t1_cs_reg; //0x18
@@ -255,13 +277,13 @@ namespace pcie_int {
             dwAddrSpace = 2;
             u32Data = cs_init; //0x20000000;
             dwOffset = cs_dma_add_low_reg; //0x0
-            u32Data = pDma_send->Page->pPhysicalAddr & 0xffffffff;
+            u32Data = buffer_info_struct_send_->dma_buff->Page->pPhysicalAddr & 0xffffffff;
             WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
 
             dwAddrSpace = 2;
             u32Data = cs_init; //0x20000000;
             dwOffset = cs_dma_add_high_reg; //0x4
-            u32Data = (pDma_send->Page->pPhysicalAddr >> 32) & 0xffffffff;
+            u32Data = (buffer_info_struct_send_->dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff;
             WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
 
             /* byte count */
@@ -275,7 +297,7 @@ namespace pcie_int {
             dwOffset = cs_dma_cntrl; //0xc
             u32Data = dma_tr1; //0x00100000;
             WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
-            // usleep(50); // works in standalone script
+            // works in standalone script
             usleep(50);
             for (i = 0; i < 20000; i++)
             {
@@ -288,9 +310,8 @@ namespace pcie_int {
                     std::cout << "DMA complete: " << i << std::endl;
                 if ((u32Data & dma_in_progress) == 0)
                     break;
-                // continue;
             }
-            WDC_DMASyncIo(pDma_send);
+            WDC_DMASyncIo(buffer_info_struct_send_->dma_buff);
         }
         return i;
     }
@@ -301,38 +322,15 @@ namespace pcie_int {
         hDev = GetDeviceHandle(dev);
 
         static DWORD dwAddrSpace;
-        static DWORD dwDMABufSize;
-
-        static UINT32 *buf_rec;
-        static WD_DMA *pDma_rec; // this is from the Windriver C library
-        static DWORD dwStatus;
-        static DWORD dwOptions_rec = DMA_FROM_DEVICE;
         static DWORD dwOffset;
         static UINT32 u32Data;
         static UINT64 u64Data;
-        static PVOID pbuf_rec;
-        uint32_t nread, i, j, iprint, icomp;
-        static uint32_t ifr = 0;
+        uint32_t nread, i, j, icomp;
+        uint32_t iprint = 0;
 
-        if (ifr == 0)
-        {
-            ifr = 1;
-            dwDMABufSize = 140000;
-            dwStatus = WDC_DMAContigBufLock(hDev, &pbuf_rec, dwOptions_rec, dwDMABufSize, &pDma_rec);
-            if (WD_STATUS_SUCCESS != dwStatus)
-            {
-                std::cerr << "Failed locking a receive Contiguous DMA buffer. Error "
-                <<  dwStatus << " = " << std::string(Stat2Str(dwStatus)) << std::endl;
-            }
-            buf_rec = static_cast<uint32_t *>(pbuf_rec);
-        }
-        iprint = 0;
         /** set up the receiver **/
         if ((istart == 1) | (istart == 3))
         {
-            // initalize transmitter mode register...
-            std::cout << "nword = " << nword << std::endl;
-
             dwAddrSpace = 2;
             u32Data = 0xf0000008; // f0000008
             dwOffset = tx_md_reg; //0x28
@@ -364,7 +362,6 @@ namespace pcie_int {
         }
         if ((istart == 2) | (istart == 3))
         {
-
             if (mode == 0)
             {
                 nread = nword / 2 + 1;
@@ -388,27 +385,26 @@ namespace pcie_int {
                     std::cout << std::hex;
                     std::cout << "status word after read = " << (u64Data >> 32) << ", " << (u64Data & 0xffff) << std::endl;
                     std::cout << std::dec;
-                    // printf("printf status word after read = %x, %x \n", (u64Data >> 32), (u64Data & 0xffff));
                 }
                 return 0;
             }
             if (mode == 1)
             {
                 nread = nword * 4;
-                WDC_DMASyncCpu(pDma_rec);
+                WDC_DMASyncCpu(buffer_info_struct_recv_->dma_buff);
 
                 /* set up sending DMA starting address */
 
                 dwAddrSpace = 2;
                 u32Data = cs_init; //0x20000000;
                 dwOffset = cs_dma_add_low_reg; //0x0
-                u32Data = pDma_rec->Page->pPhysicalAddr & 0xffffffff;
+                u32Data = buffer_info_struct_recv_->dma_buff->Page->pPhysicalAddr & 0xffffffff;
                 WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
 
                 dwAddrSpace = 2;
                 u32Data = cs_init; //0x20000000;
                 dwOffset = cs_dma_add_high_reg; //0x4
-                u32Data = (pDma_rec->Page->pPhysicalAddr >> 32) & 0xffffffff;
+                u32Data = (buffer_info_struct_recv_->dma_buff->Page->pPhysicalAddr >> 32) & 0xffffffff;
                 WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
 
                 /* byte count */
@@ -442,10 +438,10 @@ namespace pcie_int {
                     std::cout <<"DMA timeout" << std::endl;
                     return 1;
                 }
-                WDC_DMASyncIo(pDma_rec);
+                WDC_DMASyncIo(buffer_info_struct_recv_->dma_buff);
                 for (i = 0; i < nword; i++)
                 {
-                    *buff_rec++ = *(buf_rec + i);
+                    *buff_rec++ = *(buffer_recv_ + i);
                 }
             }
         }
