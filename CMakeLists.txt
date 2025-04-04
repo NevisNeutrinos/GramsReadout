@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 project(GramsReadout)
 
 set(CMAKE_CXX_STANDARD 17)
+#set(CMAKE_BUILD_TYPE Debug)
 
 # Enable pedantic compile mode, we want to be as strict as possible
 # at compile time rather than find problems at run time which could be too late.
@@ -46,6 +47,7 @@ add_library(data_monitor STATIC lib/monitoring/data_monitor.cpp)
 target_include_directories(data_monitor PRIVATE ${ZeroMQ_INCLUDE_DIRS})
 target_link_libraries(data_monitor PRIVATE ${ZeroMQ_LIBRARIES})
 
+# Compile the main program into an executable and library
 add_executable(GramsReadout main.cpp
         ${CONTROL_SRC}
         ${DATA_HANDLER_SRC}
@@ -58,11 +60,39 @@ target_compile_definitions(GramsReadout PUBLIC
 target_link_libraries(GramsReadout PRIVATE
         data_monitor
         quill::quill
-        gramsreadout_lib)
+        pcie_lib)
+
+
+add_library(gramsreadout STATIC src/control/controller.cpp
+                                    ${CONTROL_SRC}
+                                    ${DATA_HANDLER_SRC}
+                                    ${HARDWARE_SRC}
+                                    ${NETWORK_SRC})
+
+target_compile_definitions(gramsreadout PUBLIC
+        -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
+
+target_link_libraries(gramsreadout PRIVATE
+        data_monitor
+        quill::quill
+        pcie_lib)
+
+#######################
+# Daemon
+add_executable(daq_orchestrator daemon/daq_orchestrator.cpp)
+
+target_compile_definitions(daq_orchestrator PUBLIC
+        -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
+
+target_link_libraries(daq_orchestrator PRIVATE
+        gramsreadout
+        data_monitor
+        quill::quill
+        pcie_lib)
 
 #######################
 # Test
 
 add_executable(PcieReadWrite tests/pcie_read_write.cpp)
 target_link_libraries(PcieReadWrite PRIVATE
-        gramsreadout_lib)
+        pcie_lib)
