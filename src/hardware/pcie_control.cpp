@@ -30,8 +30,8 @@ namespace pcie_control {
         buffers.buf_send[0] = 0x0; // INITIALIZE
         buffers.buf_send[1] = 0x0;
 
-        static uint32_t mode = 1;
-        static uint32_t num_words = 1;
+        uint32_t mode = 1;
+        uint32_t num_words = 1;
         mode = pcie_interface->PCIeSendBuffer(kDev1, mode, num_words, buffers.psend);
 
         LOG_INFO(logger_, "1am i: {} \n", mode);

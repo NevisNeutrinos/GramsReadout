@@ -24,8 +24,8 @@ public:
     // This is a singleton so we only allow access to it via
     // a static reference, ensuring there can only be one
     // instance of the class
-    static DataMonitor& GetInstance() {
-        static DataMonitor instance;
+    static std::shared_ptr<DataMonitor> GetInstance() {
+        std::shared_ptr<DataMonitor> instance(new DataMonitor());
         return instance;
     }
 
@@ -49,11 +49,11 @@ public:
 
 
     void EnableMonitoring(bool enable_metrics) ;
+    ~DataMonitor();
 
  private:
 
     explicit DataMonitor();
-    ~DataMonitor();
 
     std::unique_ptr<zmq::context_t> context_;
     std::unique_ptr<zmq::socket_t> socket_;

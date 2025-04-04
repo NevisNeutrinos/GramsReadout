@@ -113,7 +113,8 @@
         TCPConnection tcp_connection_;
         std::thread data_thread_;
 
-        data_monitor::DataMonitor &metrics_;
+        // data_monitor::DataMonitor &metrics_;
+        // std::shared_ptr<data_monitor::DataMonitor> metrics_;
         pcie_control::PcieControl *pcie_ctrl_;
         xmit_control::XmitControl *xmit_ctrl_;
         light_fem::LightFem *light_fem_;

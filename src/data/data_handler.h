@@ -22,7 +22,7 @@ class DataHandler {
 public:
 
     explicit DataHandler();
-    ~DataHandler() = default;
+    ~DataHandler();
 
     bool Configure(json &config);
     void CollectData(pcie_int::PCIeInterface *pcie_interface);
@@ -32,7 +32,8 @@ public:
 
 private:
     // The metrics class
-    data_monitor::DataMonitor &metrics_;
+    // data_monitor::DataMonitor &metrics_;
+    std::shared_ptr<data_monitor::DataMonitor> metrics_;
 
     void DataWrite();
     void ReadoutDMARead(pcie_int::PCIeInterface *pcie_interface);

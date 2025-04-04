@@ -20,6 +20,12 @@ namespace data_handler {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
     }
 
+    DataHandler::~DataHandler() {
+        std::cout << "Running DataHandler Destructor" << std::endl;
+        // data_monitor::DataMonitor::ResetInstance();
+        metrics_.reset();
+    }
+
     bool DataHandler::SetRecvBuffer(pcie_int::PCIeInterface *pcie_interface,
         pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2, bool is_data) {
 
@@ -53,7 +59,7 @@ namespace data_handler {
 
         trigger_module_ = config["crate"]["trig_slot"].get<int>();
         num_events_ = config["data_handler"]["num_events"].get<size_t>();
-        metrics_.DmaSize(DMABUFFSIZE);
+        metrics_->DmaSize(DMABUFFSIZE);
         const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         ext_trig_ = trig_src == "ext" ? 1 : 0;
@@ -93,7 +99,7 @@ namespace data_handler {
         }
 
         LOG_INFO(logger_, "Switching to file: {} fd={}\n", name, fd_);
-        metrics_.NumFiles(file_count_);
+        metrics_->NumFiles(file_count_);
         return true;
     }
 
@@ -131,7 +137,7 @@ namespace data_handler {
             LOG_ERROR(logger_, "Failed to open file {} with error {} aborting run! \n", name, std::string(strerror(errno)));
         }
 
-        static uint32_t word;
+        uint32_t word;
         std::array<uint32_t, DATABUFFSIZE> word_arr{};
         std::array<uint32_t, EVENTBUFFSIZE> word_arr_write{}; // event buffer, ~0.231MB/event
         size_t prev_event_count = 0;
@@ -151,16 +157,16 @@ namespace data_handler {
                 auto now = std::chrono::high_resolution_clock::now();
                 auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start);
                 if (elapsed.count() >= 4) {
-                    metrics_.EventDiff(local_event_count - prev_event_count);
+                    metrics_->EventDiff(local_event_count - prev_event_count);
                     prev_event_count = local_event_count;
                     start = now;
-                    metrics_.LoadMetrics();
+                    metrics_->LoadMetrics();
                 }
                 for (size_t i = 0; i < DATABUFFSIZE; i++) {
                     word = word_arr[i];
                     if (num_words > word_arr_write.size()) {
-                        LOG_WARNING(logger_, "Unexpectedly large event, dropping it! num_words=[{}] > buffer size=[{}] \n",
-                                    num_words, DATABUFFSIZE);
+                        LOG_WARNING(logger_, "Unexpectedly large event, dropping it! num_words=[{}] > event buffer size=[{}] \n",
+                                    num_words, EVENTBUFFSIZE);
                         num_words = 0;
                         event_start = false;
                     }
@@ -186,15 +192,16 @@ namespace data_handler {
                         if ((local_event_count > 0) && (local_event_count % 5000 == 0)) {
                             SwitchWriteFile();
                         }
-                        metrics_.EventSize(num_words);
-                        metrics_.BytesReceived(num_recv_bytes);
-                        metrics_.NumEvents(local_event_count);
+                        metrics_->EventSize(num_words);
+                        metrics_->BytesReceived(num_recv_bytes);
+                        metrics_->NumEvents(local_event_count);
                         event_start = false; num_words = 0; event_chunk = 0;
                     }
                 } // word loop
             } // read buffer loop
         } // run loop
 
+        LOG_INFO(logger_, "Ended data write and closing file..\n");
         // Make sure all data is flushed to file before closing
         if(fsync(fd_) == -1) {
             LOG_ERROR(logger_, "Failed to sync data file with error: {} \n", std::string(strerror(errno)));
@@ -210,7 +217,7 @@ namespace data_handler {
 
     void DataHandler::ReadoutDMARead(pcie_int::PCIeInterface *pcie_interface) {
 
-        metrics_.IsRunning(is_running_);
+        metrics_->IsRunning(is_running_);
         bool idebug = false;
         bool is_first_event = true;
         static uint32_t iv, r_cs_reg;
@@ -314,7 +321,7 @@ namespace data_handler {
                 }
             } // end dma loop
             dma_loops += 1;
-            metrics_.DmaLoops(dma_loops);
+            metrics_->DmaLoops(dma_loops);
         } // end loop over events
 
         LOG_INFO(logger_, "Stopping triggers..\n");
@@ -326,8 +333,8 @@ namespace data_handler {
 
         if (num_buffer_full > 0) LOG_WARNING(logger_, "Buffer full: [{}]\n", num_buffer_full);
 
-        LOG_INFO(logger_, "Flushing data buffer \n");
-        while (!data_queue_.isEmpty()) data_queue_.popFront();
+        // LOG_INFO(logger_, "Flushing data buffer \n");
+        // while (!data_queue_.isEmpty()) data_queue_.popFront();
 
         LOG_INFO(logger_, "Freeing DMA buffers and closing file..\n");
         if (!pcie_interface->FreeDmaContigBuffers()) {
@@ -338,8 +345,9 @@ namespace data_handler {
      }
 
     void DataHandler::TestReadoutDMARead(pcie_int::PCIeInterface *pcie_interface) {
-
-        metrics_.IsRunning(is_running_);
+        // This is a test function for running the data and trigger DMAs together
+        // currently does not work.
+        metrics_->IsRunning(is_running_);
         bool idebug = true;
         bool is_first_event = true;
         static uint32_t iv, r_cs_reg;
@@ -454,7 +462,7 @@ namespace data_handler {
                 }
             } // end dma loop
             dma_loops += 1;
-            metrics_.DmaLoops(dma_loops);
+            metrics_->DmaLoops(dma_loops);
         } // end loop over events
 
         LOG_INFO(logger_, "Stopping triggers..\n");

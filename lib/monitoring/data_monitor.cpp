@@ -11,6 +11,7 @@ namespace data_monitor {
 
     DataMonitor::DataMonitor() : enable_metrics_(false) {
         ResetMetrics();
+        EnableMonitoring(true);
     }
 
     DataMonitor:: ~DataMonitor() {

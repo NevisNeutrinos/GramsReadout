@@ -28,13 +28,15 @@ namespace xmit_control {
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ XMIT BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
-        LOG_INFO(logger_, "Booting XMIT module.. \n");
+        LOG_INFO(logger_, "Booting XMIT module.. PCIe Dev [{}] \n", kDev1);
+        buffers.psend = buffers.buf_send.data();
+
         imod = imod_xmit;
         ichip = hw_consts::mb_xmit_conf_add;
         buffers.buf_send[0] = (imod << 11) + (ichip << 8) + 0x0 + (0x0 << 16); // turn conf to be on
         i = 1;
         k = 1;
-        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+        i = pcie_interface->PCIeSendBuffer(kDev1, i, k, buffers.psend);
         
         LOG_INFO(logger_, "2am i: {} \n", i);
         LOG_INFO(logger_, "2am psend: 0x{:X} \n", *buffers.psend);

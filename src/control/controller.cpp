@@ -15,8 +15,8 @@ namespace controller {
                            const short port, const bool is_server, const bool is_running) :
         tcp_connection_(io_context, ip_address, port, is_server),
         is_running_(is_running),
-        is_configured_(false),
-        metrics_(data_monitor::DataMonitor::GetInstance()) {
+        is_configured_(false) {
+        // metrics_(data_monitor::DataMonitor::GetInstance()) {
 
         current_state_ = State::kIdle;
 
@@ -43,7 +43,7 @@ namespace controller {
         LOG_INFO(logger_, "Config dump: {} \n", config_.dump());
 
         const bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
-        metrics_.EnableMonitoring(enable_metrics);
+        // metrics_->EnableMonitoring(enable_metrics);
         data_handler_ = new data_handler::DataHandler;
 
         pcie_ctrl_ = new pcie_control::PcieControl;
@@ -59,6 +59,7 @@ namespace controller {
 
     Controller::~Controller() {
         LOG_INFO(logger_, "Destructing Controller \n");
+        // data_monitor::DataMonitor::ResetInstance();
         delete xmit_ctrl_;
         delete light_fem_;
         delete charge_fem_;
@@ -68,8 +69,9 @@ namespace controller {
         delete pcie_interface_;
         delete buffers_;
         LOG_INFO(logger_, "Destructed all hardware \n");
+
         // End logging session and close file
-        quill::Frontend::remove_logger(logger_);
+        // quill::Frontend::remove_logger(logger_);
     }
 
     bool Controller::LoadConfig(std::string &config_file) {
@@ -100,8 +102,8 @@ namespace controller {
             LOG_ERROR(logger_, "PCIe device initialization failed!");
             return false;
         }
+        // pcie_interface_->ReadReg32(pcie_interface_->kDev1, )
         LOG_INFO(logger_, "PCIe devices initialized!");
-        usleep(10000);
 
         LOG_INFO(logger_, "Initializing hardware...");
         pcie_ctrl_->Configure(config_, pcie_interface_, *buffers_);
@@ -174,8 +176,8 @@ namespace controller {
     // Handle user commands
     bool Controller::HandleCommand(const Command& command) {
         LOG_INFO(logger_, " \n Sending command: [{}] \n", command.command);
-        metrics_.ControllerState(command.command);
-        metrics_.LoadMetrics();
+        // metrics_->ControllerState(command.command);
+        // metrics_->LoadMetrics();
         if (command.command == CommandCodes::kConfigure && current_state_ == State::kIdle) {
             LOG_INFO(logger_, " \n State [Idle] \n");
             // command.arguments // which configuration to use
@@ -203,7 +205,7 @@ namespace controller {
         }
 
         LOG_INFO(logger_, "Invalid command or transition from state: {}", GetStateName());
-        metrics_.ControllerState(static_cast<int>(current_state_));
+        // metrics_->ControllerState(static_cast<int>(current_state_));
         return false;
     }
 
