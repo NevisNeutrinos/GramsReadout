@@ -115,15 +115,15 @@
 
         // data_monitor::DataMonitor &metrics_;
         // std::shared_ptr<data_monitor::DataMonitor> metrics_;
-        pcie_control::PcieControl *pcie_ctrl_;
-        xmit_control::XmitControl *xmit_ctrl_;
-        light_fem::LightFem *light_fem_;
-        charge_fem::ChargeFem *charge_fem_;
-        trig_ctrl::TriggerControl *trigger_ctrl_;
-        data_handler::DataHandler *data_handler_;
 
-        pcie_int::PCIeInterface *pcie_interface_;
-        pcie_int::PcieBuffers *buffers_;
+        std::unique_ptr<pcie_control::PcieControl> pcie_ctrl_;
+        std::unique_ptr<xmit_control::XmitControl> xmit_ctrl_;
+        std::unique_ptr<light_fem::LightFem> light_fem_;
+        std::unique_ptr<charge_fem::ChargeFem> charge_fem_;
+        std::unique_ptr<trig_ctrl::TriggerControl> trigger_ctrl_;
+        std::unique_ptr<data_handler::DataHandler> data_handler_;
+        std::unique_ptr<pcie_int::PCIeInterface> pcie_interface_;
+        std::unique_ptr<pcie_int::PcieBuffers> buffers_;
 
         std::atomic_bool is_running_;
 

@@ -44,15 +44,15 @@ namespace controller {
 
         const bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
         // metrics_->EnableMonitoring(enable_metrics);
-        data_handler_ = new data_handler::DataHandler;
 
-        pcie_ctrl_ = new pcie_control::PcieControl;
-        xmit_ctrl_ = new xmit_control::XmitControl;
-        light_fem_ = new light_fem::LightFem;
-        charge_fem_ = new charge_fem::ChargeFem;
-        trigger_ctrl_ = new trig_ctrl::TriggerControl;
-        pcie_interface_ = new pcie_int::PCIeInterface;
-        buffers_ = new pcie_int::PcieBuffers;
+        data_handler_ = std::make_unique<data_handler::DataHandler>();
+        pcie_ctrl_ = std::make_unique<pcie_control::PcieControl>();
+        xmit_ctrl_ = std::make_unique<xmit_control::XmitControl>();
+        light_fem_ = std::make_unique<light_fem::LightFem>();
+        charge_fem_ = std::make_unique<charge_fem::ChargeFem>();
+        trigger_ctrl_ = std::make_unique<trig_ctrl::TriggerControl>();
+        pcie_interface_ = std::make_unique<pcie_int::PCIeInterface>();
+        buffers_ = std::make_unique<pcie_int::PcieBuffers>();
 
         LOG_INFO(logger_, "Initialized Controller \n");
     }
@@ -60,14 +60,18 @@ namespace controller {
     Controller::~Controller() {
         LOG_INFO(logger_, "Destructing Controller \n");
         // data_monitor::DataMonitor::ResetInstance();
-        delete xmit_ctrl_;
-        delete light_fem_;
-        delete charge_fem_;
-        delete trigger_ctrl_;
-        delete data_handler_;
-        delete pcie_ctrl_;
-        delete pcie_interface_;
-        delete buffers_;
+
+        // Manually release the memory to make sure it's released
+        // in the correct order.
+        xmit_ctrl_.reset();
+        light_fem_.reset();
+        charge_fem_.reset();
+        trigger_ctrl_.reset();
+        data_handler_.reset();
+        pcie_ctrl_.reset();
+        pcie_interface_.reset();
+        buffers_.reset();
+
         LOG_INFO(logger_, "Destructed all hardware \n");
 
         // End logging session and close file
@@ -102,15 +106,13 @@ namespace controller {
             LOG_ERROR(logger_, "PCIe device initialization failed!");
             return false;
         }
-        // pcie_interface_->ReadReg32(pcie_interface_->kDev1, )
         LOG_INFO(logger_, "PCIe devices initialized!");
-
         LOG_INFO(logger_, "Initializing hardware...");
-        pcie_ctrl_->Configure(config_, pcie_interface_, *buffers_);
-        xmit_ctrl_->Configure(config_, pcie_interface_, *buffers_);
-        light_fem_->Configure(config_, pcie_interface_, *buffers_);
-        charge_fem_->Configure(config_, pcie_interface_, *buffers_);
-        trigger_ctrl_->Configure(config_, pcie_interface_, *buffers_);
+        pcie_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
+        xmit_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
+        light_fem_->Configure(config_, pcie_interface_.get(), *buffers_);
+        charge_fem_->Configure(config_, pcie_interface_.get(), *buffers_);
+        trigger_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
         data_handler_->Configure(config_);
         LOG_INFO(logger_, "Configured Hardware! \n");
         is_configured_ = true;
@@ -121,7 +123,7 @@ namespace controller {
         LOG_INFO(logger_, "Starting Run...\n");
 
         data_handler_->SetRun(true);
-        data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_, pcie_interface_);
+        data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get());
         return true;
     }
 
