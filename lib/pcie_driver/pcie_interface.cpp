@@ -119,11 +119,12 @@ namespace pcie_int {
         if (WD_STATUS_SUCCESS != dwStatus) {
             printf("Failed locking SEND Contiguous DMA buffer. Error 0x%x - %s\n", dwStatus, Stat2Str(dwStatus));
         }
+        std::cout << "Opened configuration send/receive DMA buffers.." << std::endl;
         buffer_send_ = static_cast<uint32_t*>(pbuf_send_);
         buffer_recv_ = static_cast<uint32_t *>(pbuf_recv_);
 
         // Initialize the send and receive buffers
-        for (size_t i = 0; i < CONFIGDMABUFFSIZE; i++) {
+        for (size_t i = 0; i < CONFIGDMABUFFSIZE/sizeof(uint32_t); i++) {
             *(buffer_send_ + i) = 0x0;
             *(buffer_recv_ + i) = 0x0;
         }

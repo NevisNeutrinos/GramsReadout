@@ -85,7 +85,7 @@ private:
     // since we cast it from number of bytes into a 32b buffer. In other
     // words the number set here must be a multiple of 4, if it's not a
     // compile error will be thrown.
-    static constexpr uint32_t CONFIGDMABUFFSIZE = 14000;
+    static constexpr uint32_t CONFIGDMABUFFSIZE = 14000; // in bytes
 
     static_assert((CONFIGDMABUFFSIZE % sizeof(uint32_t)) == 0,
         "CONFIGDMABUFFSIZE must be a multiple of 4!");
