@@ -20,7 +20,7 @@ namespace controller {
 
         current_state_ = State::kIdle;
 
-        std::string config_file("../config/test.json");
+        std::string config_file("../config/test_1.json");
         if (!LoadConfig(config_file)) {
             std::cerr << "Config load failed! \n";
         }
@@ -99,7 +99,26 @@ namespace controller {
         return true;
     }
 
-    bool Controller::Configure() {
+    bool Controller::Configure(const std::vector<int32_t>& args) {
+
+        if (args.size() != 2) {
+            LOG_ERROR(logger_, "Wrong number of arguments! {}", args.size());
+            return false;
+        }
+
+        int32_t subrun_number = args.at(0);
+        config_["data_handler"]["subrun"] = subrun_number;
+        LOG_INFO(logger_, "Configuring run number {}", subrun_number);
+
+        // Load requested config file
+        std::string config_file("../config/test_");
+        config_file += std::to_string(args.at(1)) + ".json";
+        LOG_INFO(logger_, "Loading config {}", config_file);
+        if (!LoadConfig(config_file)) {
+            std::cerr << "Config load failed! \n";
+            return  false;
+        }
+
         // Connect to the PCIe bus handle
         int device_id_0 = 5, device_id_1 = 4;
         if (!pcie_interface_->InitPCIeDevices(device_id_0, device_id_1)) {
@@ -120,7 +139,8 @@ namespace controller {
     }
 
     bool Controller::StartRun() {
-        LOG_INFO(logger_, "Starting Run...\n");
+
+        LOG_INFO(logger_, "Starting Run! \n");
 
         data_handler_->SetRun(true);
         data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get());
@@ -184,7 +204,7 @@ namespace controller {
             LOG_INFO(logger_, " \n State [Idle] \n");
             // command.arguments // which configuration to use
             current_state_ = State::kConfigured;
-            if (!is_configured_) Configure();
+            if (!is_configured_) Configure(command.arguments);
             return current_state_ == State::kConfigured;
 
         } if (command.command == CommandCodes::kStartRun && current_state_ == State::kConfigured) {
