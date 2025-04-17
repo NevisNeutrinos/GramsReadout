@@ -9,14 +9,13 @@ After=network.target network-online.target
 # Our C++ code does not fork/daemonize itself.
 Type=simple
 
-# Path to the compiled executable
-# FIXME add path to executable
-ExecStart=/usr/local/bin/my_controller_daemon
+# Path to the compiled, installed executable
+ExecStart=/usr/local/bin/daq_orchestrator
 
 # User and Group to run as (IMPORTANT: create this user/group first!)
 # Avoid running as root unless absolutely necessary.
-User=mycontrolleruser
-Group=mycontrollergroup
+User=root
+Group=root
 # Add SupplementaryGroups= if the user needs access via other groups
 
 # Working directory (optional, defaults to /)
