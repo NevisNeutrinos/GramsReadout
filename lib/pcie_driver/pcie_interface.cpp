@@ -38,7 +38,7 @@ namespace pcie_int {
         std::cout << std::dec;
 
         // Make sure the DMA buffer memory is free
-        FreeDmaContigBuffers();
+        // FreeDmaContigBuffers(); // moved to DataHandler
 
         if (buffer_info_struct_send_->dma_buff) {
             if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct_send_->dma_buff) != WD_STATUS_SUCCESS) {
