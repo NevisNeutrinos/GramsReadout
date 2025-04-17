@@ -27,7 +27,7 @@ public:
     bool Configure(json &config);
     void CollectData(pcie_int::PCIeInterface *pcie_interface);
     std::vector<uint32_t> GetStatus();
-    bool CloseDevice();
+    bool Reset(pcie_int::PCIeInterface *pcie_interface);
     void SetRun(bool set_running) { is_running_.store(set_running); }
 
 private:

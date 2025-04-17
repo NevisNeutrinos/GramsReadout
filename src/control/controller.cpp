@@ -79,16 +79,40 @@ namespace controller {
     }
 
     bool Controller::LoadConfig(std::string &config_file) {
-        std::ifstream f(config_file);
+        std::ifstream f;
+        try {
+            f.open(config_file);
+        } catch (const std::ifstream::failure& e) {
+            if (f.is_open()) f.close();
+            std::cerr << "Error opening config file: " << config_file << "IfStream failure: " << e.what() << "\n";
+            return false;
+        } catch (const std::exception& e) {
+            if (f.is_open()) f.close();
+            std::cerr << "Error opening config file: " << config_file << "Exception: " << e.what() << "\n";
+            return false;
+        } catch (...) {
+            if (f.is_open()) f.close();
+            return false;
+        }
+
         if (!f.is_open()) {
             std::cerr << "Could not open config file " << config_file << std::endl;
             return false;
         }
+
         try {
             config_ = json::parse(f);
         } catch (json::parse_error& ex) {
+            std::cerr << "Parse error: " << ex.what() << std::endl;
             std::cerr << "Parse error at byte: " << ex.byte << std::endl;
+            if (f.is_open()) f.close();
+            return false;
+        } catch (...) {
+            std::cerr << "Unknown error occurred while parsing config file!" << std::endl;
+            if (f.is_open()) f.close();
+            return false;
         }
+
         std::cout << "Successfully opened config file.." << std::endl;
         std::cout << config_.dump() << std::endl;
         return true;
@@ -141,20 +165,27 @@ namespace controller {
     bool Controller::StartRun() {
 
         LOG_INFO(logger_, "Starting Run! \n");
+        try {
+            data_handler_->SetRun(true);
+            data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get());
+        } catch (std::exception& ex) {
+            LOG_ERROR(logger_, "Exception occurred starting DataHandler: {}", ex.what());
+            data_handler_->SetRun(false);
+            return false;
+        } catch (...) {
+            LOG_ERROR(logger_, "Unknown exception occurred starting DataHandler!");
+            data_handler_->SetRun(false);
+            return false;
+        }
 
-        data_handler_->SetRun(true);
-        data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get());
-        return true;
-    }
-
-    bool Controller::JoinDataThread() {
-        data_thread_.join();
         return true;
     }
 
     bool Controller::StopRun() {
         data_handler_->SetRun(false);
-        data_thread_.join();
+        if (data_thread_.joinable()) {
+            data_thread_.join();
+        }
         LOG_INFO(logger_, "Collection thread stopped successfully...\n");
         return true;
     }
@@ -164,6 +195,7 @@ namespace controller {
     }
 
     bool Controller::Reset() {
+        data_handler_->Reset(pcie_interface_.get());
         return true;
     }
 
@@ -202,28 +234,30 @@ namespace controller {
         // metrics_->LoadMetrics();
         if (command.command == CommandCodes::kConfigure && current_state_ == State::kIdle) {
             LOG_INFO(logger_, " \n State [Idle] \n");
-            // command.arguments // which configuration to use
+            if (!is_configured_) {
+                if (!Configure(command.arguments)) return false;
+            }
             current_state_ = State::kConfigured;
-            if (!is_configured_) Configure(command.arguments);
-            return current_state_ == State::kConfigured;
+            return true;
 
         } if (command.command == CommandCodes::kStartRun && current_state_ == State::kConfigured) {
             LOG_INFO(logger_, " \n State [Configure] \n ");
             current_state_ = State::kRunning;
             StartRun();
-            return current_state_ == State::kRunning;
+            return true;
 
         } if (command.command == CommandCodes::kStopRun && current_state_ == State::kRunning) {
             LOG_INFO(logger_, " \n State [Running] \n");
             current_state_ = State::kStopped;
             StopRun();
-            return current_state_ == State::kStopped;
+            return true;
 
         } if (command.command == CommandCodes::kReset && current_state_ == State::kStopped) {
             LOG_INFO(logger_, " \n State [Stopped] \n");
+            Reset();
             is_configured_ = false;
             current_state_ = State::kIdle;
-            return current_state_ == State::kIdle;
+            return true;
         }
 
         LOG_INFO(logger_, "Invalid command or transition from state: {}", GetStateName());

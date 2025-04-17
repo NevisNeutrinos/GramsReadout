@@ -22,7 +22,6 @@ namespace data_handler {
 
     DataHandler::~DataHandler() {
         std::cout << "Running DataHandler Destructor" << std::endl;
-        // data_monitor::DataMonitor::ResetInstance();
         metrics_.reset();
     }
 
@@ -32,10 +31,12 @@ namespace data_handler {
         static uint32_t data_32_;
         uint32_t dev_handle = is_data ? kDev2 : kDev1;
 
-        // first dma
+        // Lock DMA buffers, they should have been unlocked
         if (is_data) {
-            pcie_interface->DmaContigBufferLock(1, DMABUFFSIZE, pbuf_rec1);
-            pcie_interface->DmaContigBufferLock(2, DMABUFFSIZE, pbuf_rec2);
+            bool init_buffer = pcie_interface->DmaContigBufferLock(1, DMABUFFSIZE, pbuf_rec1);
+            if (!init_buffer) return false;
+            init_buffer = pcie_interface->DmaContigBufferLock(2, DMABUFFSIZE, pbuf_rec2);
+            if (!init_buffer) return false;
         } else { // FIXME config trig_dma_size
             pcie_interface->DmaContigBufferLock(3, 32, pbuf_rec1);
         }
@@ -333,9 +334,8 @@ namespace data_handler {
 
         if (num_buffer_full > 0) LOG_WARNING(logger_, "Buffer full: [{}]\n", num_buffer_full);
 
-        // LOG_INFO(logger_, "Flushing data buffer \n");
-        // while (!data_queue_.isEmpty()) data_queue_.popFront();
-
+        // Since the two PCIe buffer handles are scoped to this function, free the buffer before
+        // they go out of scope
         LOG_INFO(logger_, "Freeing DMA buffers and closing file..\n");
         if (!pcie_interface->FreeDmaContigBuffers()) {
             LOG_ERROR(logger_, "Failed freeing DMA buffers! \n");
@@ -645,9 +645,23 @@ namespace data_handler {
         return status;
     }
 
-    bool DataHandler::CloseDevice() {
-        int i = 5;
-        int j = 6;
-        return i > j;
+    bool DataHandler::Reset(pcie_int::PCIeInterface *pcie_interface) {
+
+        // Reset some counting variables
+        file_count_ = 0;
+        event_count_.store(0);
+        num_dma_loops_ = 0;
+        num_recv_bytes_ = 0;
+
+        // Reset the stop write flag so we can restart
+        stop_write_.store(false);
+
+        // Double check the buffer is emptied
+        while (!data_queue_.isEmpty()) data_queue_.popFront();
+
+        // Reset the metrics
+        metrics_->ResetMetrics();
+
+        return true;
     }
 } // data_handler

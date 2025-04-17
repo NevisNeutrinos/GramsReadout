@@ -49,6 +49,7 @@ namespace trig_ctrl {
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
         imod = trigger_module_;
+        // set for 32
         buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_deadtime_size) + ((32 & 0xff) << 16); // set trigger module deadtime size
         i = 1;
         k = 1;
@@ -129,7 +130,7 @@ namespace trig_ctrl {
         return status;
     }
 
-    bool TriggerControl::CloseDevice() {
+    bool TriggerControl::Reset(pcie_int::PCIeInterface *pcie_interface) {
         int i = 5;
         int j = 6;
         return i > j;

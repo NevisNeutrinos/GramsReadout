@@ -501,7 +501,7 @@ namespace charge_fem {
         return status;
     }
 
-    bool ChargeFem::CloseDevice() {
+    bool ChargeFem::Reset(pcie_int::PCIeInterface *pcie_interface) {
         int i = 5;
         int j = 6;
         return i > j;

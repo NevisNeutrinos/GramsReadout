@@ -225,7 +225,7 @@ namespace xmit_control {
         return status;
     }
 
-    bool XmitControl::CloseDevice() {
+    bool XmitControl::Reset(pcie_int::PCIeInterface *pcie_interface) {
         int i = 5;
         int j = 6;
         return i > j;

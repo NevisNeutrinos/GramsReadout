@@ -46,7 +46,7 @@ class HardwareDevice {
     *
     * @return  Returns true on successful shutdown, false on failure.
     */
-    virtual bool CloseDevice() = 0;
+    virtual bool Reset(pcie_int::PCIeInterface *pcie_interface) = 0;
 
     HardwareDevice();
     virtual ~HardwareDevice() = default;

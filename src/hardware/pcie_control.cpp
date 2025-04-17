@@ -46,7 +46,7 @@ namespace pcie_control {
         return status;
     }
 
-    bool PcieControl::CloseDevice() {
+    bool PcieControl::Reset(pcie_int::PCIeInterface *pcie_interface) {
         int i = 5;
         int j = 6;
         return i > j;

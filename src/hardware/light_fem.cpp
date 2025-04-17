@@ -728,7 +728,7 @@ namespace light_fem {
         return status;
     }
 
-    bool LightFem::CloseDevice() {
+    bool LightFem::Reset(pcie_int::PCIeInterface *pcie_interface) {
         int i = 5;
         int j = 6;
         return i > j;
