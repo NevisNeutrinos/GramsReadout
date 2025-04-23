@@ -108,6 +108,8 @@ namespace data_handler {
 
         auto write_thread = std::thread(&DataHandler::DataWrite, this);
         auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
+        // TODO thread to send software triggers
+        // auto trigger_thread = std::thread(&trig_ctrl::TriggerControl::SendSoftwareTrigger, trigger_, pcie_interface);
 
         // FIXME Combines both Data and Trigger DMA readout, works for a little then hangs
         // auto read_thread = std::thread(&DataHandler::TestReadoutDMARead, this, pcie_interface);
@@ -115,6 +117,9 @@ namespace data_handler {
         // separate threads with separate DMAs
         //auto trigger_thread = std::thread(&DataHandler::TriggerDMARead, this, pcie_interface);
         LOG_INFO(logger_, "Started read and write threads... \n");
+
+        // trigger_thread.join();
+        // LOG_INFO(logger_, "trigger thread joined... \n");
 
         // Shut down the write thread first so we're not trying to access buffer ptrs
         // after they have been deleted in the read thread
@@ -144,6 +149,7 @@ namespace data_handler {
         size_t prev_event_count = 0;
         bool event_start = false;
         size_t num_words = 0;
+        size_t event_words = 0;
         size_t event_chunk = 0;
         size_t event_start_count = 0;
         size_t event_end_count = 0;
@@ -178,6 +184,7 @@ namespace data_handler {
                     else if (isEventEnd(word) && event_start) {
                         event_end_count++; event_start = false;
                         event_chunk++;
+                        event_words = num_words + 1; // add one for event end word
                     }
                     word_arr_write[num_words] = word;
                     num_words++;
@@ -196,11 +203,16 @@ namespace data_handler {
                         metrics_->EventSize(num_words);
                         metrics_->BytesReceived(num_recv_bytes);
                         metrics_->NumEvents(local_event_count);
-                        event_start = false; num_words = 0; event_chunk = 0;
+                        event_start = false; num_words = 0; event_words = 0; event_chunk = 0;
                     }
                 } // word loop
             } // read buffer loop
         } // run loop
+
+        // Write any remaining full events in the buffer to file before closing
+        const size_t write_bytes = write(fd_, word_arr_write.data(), event_words*sizeof(uint32_t));
+        if (write_bytes == -1) LOG_WARNING(logger_, "Failed write {} \n", std::string(strerror(errno)));
+        else num_recv_bytes += write_bytes;
 
         LOG_INFO(logger_, "Ended data write and closing file..\n");
         // Make sure all data is flushed to file before closing

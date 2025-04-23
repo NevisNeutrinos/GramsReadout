@@ -31,9 +31,12 @@ public:
     void SetRun(bool set_running) { is_running_.store(set_running); }
 
 private:
+    // trig_ctrl::TriggerControl trigger_{};
     // The metrics class
     // data_monitor::DataMonitor &metrics_;
     std::shared_ptr<data_monitor::DataMonitor> metrics_;
+
+
 
     void DataWrite();
     void ReadoutDMARead(pcie_int::PCIeInterface *pcie_interface);
