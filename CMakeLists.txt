@@ -77,6 +77,7 @@ target_link_libraries(gramsreadout PRIVATE
 
 #######################
 # Daemon
+
 add_executable(daq_orchestrator daemon/daq_orchestrator.cpp)
 
 target_compile_definitions(daq_orchestrator PUBLIC
@@ -86,7 +87,8 @@ target_link_libraries(daq_orchestrator PRIVATE
         gramsreadout
         data_monitor
         quill::quill
-        pcie_lib)
+        pcie_lib
+        statgrab)
 
 # Define the installation location for the daemon
 install(TARGETS daq_orchestrator DESTINATION /usr/local/bin)

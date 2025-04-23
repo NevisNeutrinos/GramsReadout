@@ -25,6 +25,10 @@
 #include <string>
 #include <system_error>
 #include <thread>
+// Status calls
+#include <sys/vfs.h>
+#include <sys/sysinfo.h>
+#include <statgrab.h>
 
 // --- Configuration ---
 // Best practice: Load these from a config file or environment variables
@@ -117,6 +121,113 @@ void SetupLogging() {
     QUILL_LOG_INFO(logger, "Logging initialized successfully. Outputting to stdout.");
 }
 
+int32_t GetMemoryStats(quill::Logger *logger) {
+    int32_t memory_usage_percent = 0;
+    size_t mem_entries;
+    sg_mem_stats *mem_stats = sg_get_mem_stats(&mem_entries);
+    if (!mem_stats) {
+        QUILL_LOG_ERROR(logger, "Error getting memory stats: {}", strerror(errno));
+        return memory_usage_percent;
+    }
+
+    try {
+        if (mem_entries > 0) {
+            const size_t total_memory_bytes = mem_stats->total;
+            const size_t free_memory_bytes = mem_stats->free;
+            const size_t used_memory_bytes = total_memory_bytes - free_memory_bytes;
+            const double memory_usage = (total_memory_bytes > 0) ?
+                        (100.0 * static_cast<double>(used_memory_bytes) / total_memory_bytes) : 0.0;
+            memory_usage_percent = static_cast<int32_t>(memory_usage);
+        } else {
+            QUILL_LOG_WARNING(logger, "No memory stats available!");
+        }
+    } catch (std::exception& e) {
+        QUILL_LOG_ERROR(logger, "Error getting memory stats: {}", e.what());
+    }
+    return memory_usage_percent;
+}
+
+int32_t GetCpuStats(quill::Logger *logger) {
+    int32_t cpu_usage_percent = 0;
+    size_t cpu_entries1;
+    QUILL_LOG_INFO(logger, "Getting CPU Stat 1");
+    sg_cpu_stats *cpu_stats = sg_get_cpu_stats(&cpu_entries1);
+    if (!cpu_stats) {
+        QUILL_LOG_ERROR(logger, "Error getting CPU stats: {}", strerror(errno));
+        return cpu_usage_percent;
+    }
+    double total_cpu1 = cpu_stats->user + cpu_stats->nice;
+    double cpu_idle1 = cpu_stats->idle;
+
+    // Sleep for 1s to get the average CPU usage
+    sleep(1);
+
+    size_t cpu_entries2;
+    QUILL_LOG_INFO(logger, "Getting CPU Stat 2");
+    cpu_stats = sg_get_cpu_stats(&cpu_entries2);
+    if (!cpu_stats) {
+        QUILL_LOG_ERROR(logger, "Error getting CPU stats: {}", strerror(errno));
+        return cpu_usage_percent;
+    }
+    double total_cpu2 = cpu_stats->user + cpu_stats->nice;
+    double cpu_idle2 = cpu_stats->idle;
+
+    try {
+        if (cpu_entries1 > 0 && cpu_entries2 > 0) {
+            double total_cpu_diff = total_cpu2 - total_cpu1;
+            double cpu_idle_diff = cpu_idle2 - cpu_idle1;
+            QUILL_LOG_INFO(logger, "Total total/idle diff {}/{}", total_cpu_diff, cpu_idle_diff);
+            double cpu_usage = ((total_cpu_diff + total_cpu_diff) > 0) ?
+                                (100.0 * total_cpu_diff / (total_cpu_diff + cpu_idle_diff)) : 0.0;
+            cpu_usage_percent = static_cast<int32_t>(cpu_usage);
+        } else {
+            QUILL_LOG_WARNING(logger, "No memory stats available!");
+        }
+    } catch (std::exception& e) {
+        QUILL_LOG_ERROR(logger, "Error getting memory stats: {}", e.what());
+    }
+    return cpu_usage_percent;
+}
+
+std::vector<int32_t> GetComputerStatus(quill::Logger *logger) {
+    // Define the scaling factor for load averages if not readily available
+    // Usually it's (1 << SI_LOAD_SHIFT), and SI_LOAD_SHIFT is typically 16
+    constexpr double LOAD_SCALE = 65536.0; // 2^16
+    constexpr unsigned long long GB_divisor = 1024 * 1024 * 1024;
+    std::vector<int32_t> status_vec(4, 0);
+
+    try {
+        struct statfs data_disk_info{};
+        if (statfs("/data", &data_disk_info) == 0) {
+            const auto free_space = static_cast<unsigned long>(data_disk_info.f_bavail * data_disk_info.f_frsize);
+            status_vec.at(0) = free_space / GB_divisor;
+        } else {
+            QUILL_LOG_ERROR(logger, "Failed to get data disk space with error {}", strerror(errno));
+        }
+        struct statfs main_disk_info{};
+        if (statfs("/", &main_disk_info) == 0) {
+            const auto free_space = static_cast<unsigned long>(main_disk_info.f_bavail * main_disk_info.f_frsize);
+            status_vec.at(1) = free_space / GB_divisor;
+        } else {
+            QUILL_LOG_ERROR(logger, "Failed to get main disk space with error {}", strerror(errno));
+        }
+
+       // Initialize libstatgrab
+        if (!sg_init(0)) {
+            // The 1s load average across 12 CPUs
+            status_vec.at(2) = GetCpuStats(logger);
+            // RAM usage
+            status_vec.at(3) = GetMemoryStats(logger);
+            sg_shutdown();
+        } else {
+            QUILL_LOG_ERROR(logger, "Failed to Init libstatgrab with error code {}", strerror(errno));
+        }
+    } catch (const std::exception& e) {
+        QUILL_LOG_ERROR(logger, "Failed to get disk space with exception: {}", e.what());
+    }
+    return status_vec;
+}
+
 void RunController(std::unique_ptr<controller::Controller> &controller_ptr, asio::io_context &io_context, quill::Logger *logger) {
 
     try {
@@ -145,12 +256,29 @@ void RunController(std::unique_ptr<controller::Controller> &controller_ptr, asio
         controller_ptr.reset();
     }
 }
+void KillThread(std::thread &thread, quill::Logger *logger) {
+    // WARNING: This is very dangerous way to deal with threads, only using as a very
+    // last resort.
+    if (thread.joinable()) {
+        QUILL_LOG_CRITICAL(logger, "Thread not terminating, forcing a SIGTERM.");
+        pthread_kill(thread.native_handle(), SIGTERM);
+    }
+    if (thread.joinable()) {
+        QUILL_LOG_CRITICAL(logger, "Thread not terminating AFTER a SIGTERM, forcing a SIGKILL.");
+        pthread_kill(thread.native_handle(), SIGKILL);
+    }
+}
 
 void JoinThread(std::thread &thread, quill::Logger *logger) {
+    // FIXME add way to force thread to end if it is still running
+    // We do not want things to hang here if the Readout goes bad
     QUILL_LOG_INFO(logger, "Joining thread...");
     if (thread.joinable()) {
         try {
             thread.join();
+            // my_thread.join_for(timeout);
+            // auto end_time = std::chrono::steady_clock::now();
+            // auto elapsed_time = end_time - start_time;
             QUILL_LOG_INFO(logger, "Thread joined.");
         } catch (const std::system_error& e) {
             QUILL_LOG_ERROR(logger, "Error joining thread: {}", e.what());
@@ -173,6 +301,11 @@ void DAQHandler(std::unique_ptr<TCPConnection> &client_ptr, asio::io_context &io
         LOG_INFO(logger, "Received command [{}] num_args: [{}] \n", cmd.command, cmd.arguments.size());
 
         switch (cmd.command) {
+            case 0: {
+                std::vector<int32_t> status = GetComputerStatus(logger);
+                client_ptr->WriteSendBuffer(0x0, status);
+                break;
+            }
             case 1: { // start readout DAQ
                 if (!ctrl_thread.joinable()) {
                     io_context.restart();

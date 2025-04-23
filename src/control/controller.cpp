@@ -230,8 +230,7 @@ namespace controller {
     // Handle user commands
     bool Controller::HandleCommand(const Command& command) {
         LOG_INFO(logger_, " \n Sending command: [{}] \n", command.command);
-        // metrics_->ControllerState(command.command);
-        // metrics_->LoadMetrics();
+
         if (command.command == CommandCodes::kConfigure && current_state_ == State::kIdle) {
             LOG_INFO(logger_, " \n State [Idle] \n");
             if (!is_configured_) {
