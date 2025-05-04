@@ -135,25 +135,37 @@ namespace pcie_int {
 
     void PCIeInterface::ReadReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t *data) {
         hDev = GetDeviceHandle(dev_handle);
+        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        std::unique_lock<std::mutex> lock(handle_mutex);
         uint32_t read_status = WDC_ReadAddr32(hDev, addr_space, adr_offset, data);
+        lock.unlock(); // make sure the mutex is unlocked to allow other users
         if (WD_STATUS_SUCCESS != read_status) std::cerr << "ReadReg32() failed" << std::endl;
     }
 
     bool PCIeInterface::WriteReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t data) {
         hDev = GetDeviceHandle(dev_handle);
+        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        std::unique_lock<std::mutex> lock(handle_mutex);
         uint32_t write_status = WDC_WriteAddr32(hDev, addr_space, adr_offset, data);
+        lock.unlock(); // make sure the mutex is unlocked to allow other users
         return write_status == WD_STATUS_SUCCESS;
     }
 
     void PCIeInterface::ReadReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, unsigned long long *data) {
         hDev = GetDeviceHandle(dev_handle);
+        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        std::unique_lock<std::mutex> lock(handle_mutex);
         uint32_t read_status = WDC_ReadAddr64(hDev, addr_space, adr_offset, data);
+        lock.unlock(); // make sure the mutex is unlocked to allow other users
         if (WD_STATUS_SUCCESS != read_status) std::cerr << "ReadReg64() failed" << std::endl;
     }
 
     bool PCIeInterface::WriteReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint64_t data) {
         hDev = GetDeviceHandle(dev_handle);
+        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        std::unique_lock<std::mutex> lock(handle_mutex);
         uint32_t write_status = WDC_WriteAddr64(hDev, addr_space, adr_offset, data);
+        lock.unlock(); // make sure the mutex is unlocked to allow other users
         return write_status == WD_STATUS_SUCCESS;
     }
 
@@ -213,6 +225,9 @@ namespace pcie_int {
     uint32_t PCIeInterface::PCIeSendBuffer(uint32_t dev, uint32_t mode, uint32_t nword, uint32_t *buff_send) {
         /* imode =0 single word transfer, imode =1 DMA */
         hDev = GetDeviceHandle(dev);
+
+        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        std::unique_lock<std::mutex> lock(handle_mutex);
 
         static DWORD dwAddrSpace;
         static DWORD dwOffset;
@@ -314,6 +329,7 @@ namespace pcie_int {
             }
             WDC_DMASyncIo(buffer_info_struct_send_->dma_buff);
         }
+        lock.unlock(); // make sure the mutex is unlocked to allow other users
         return i;
     }
 
@@ -321,6 +337,8 @@ namespace pcie_int {
         /* imode =0 single word transfer, imode =1 DMA */
 
         hDev = GetDeviceHandle(dev);
+        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        std::unique_lock<std::mutex> lock(handle_mutex);
 
         static DWORD dwAddrSpace;
         static DWORD dwOffset;
@@ -358,7 +376,7 @@ namespace pcie_int {
                 std::cout << std::dec;
                 printf(" status word before read = %I64u, %I64u \n", (u64Data >> 32), (u64Data & 0xffff));
             }
-
+            lock.unlock(); // make sure the mutex is unlocked to allow other users
             return 0;
         }
         if ((istart == 2) | (istart == 3))
@@ -387,6 +405,7 @@ namespace pcie_int {
                     std::cout << "status word after read = " << (u64Data >> 32) << ", " << (u64Data & 0xffff) << std::endl;
                     std::cout << std::dec;
                 }
+                lock.unlock(); // make sure the mutex is unlocked to allow other users
                 return 0;
             }
             if (mode == 1)
@@ -437,6 +456,7 @@ namespace pcie_int {
                 if (icomp == 0)
                 {
                     std::cout <<"DMA timeout" << std::endl;
+                    lock.unlock(); // make sure the mutex is unlocked to allow other users
                     return 1;
                 }
                 WDC_DMASyncIo(buffer_info_struct_recv_->dma_buff);
@@ -446,6 +466,7 @@ namespace pcie_int {
                 }
             }
         }
+        lock.unlock(); // make sure the mutex is unlocked to allow other users
         return 0;
     }
 
@@ -464,8 +485,11 @@ namespace pcie_int {
             dwStatus = WDC_DMAContigBufLock(dev_handle_2, pbuf_rec, dwOptions_rec, dwDMABufSize,
                                             &buffer_info_struct2->dma_buff);
         } else if (dev_handle == 3) {
+            // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+            std::unique_lock<std::mutex> lock(handle_mutex);
             dwStatus = WDC_DMAContigBufLock(dev_handle_1, pbuf_rec, dwOptions_rec, dwDMABufSize,
                                             &buffer_info_struct_trig->dma_buff);
+            lock.unlock();
         } else {
             std::cerr << "Unknown dev handle!" << std::endl;
             return false;

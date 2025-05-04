@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <array>
 #include <memory>
+#include <mutex>
 
 
 namespace pcie_int {
@@ -77,6 +78,7 @@ private:
     PCIeDeviceHandle GetDeviceHandle(uint32_t dev_handle);
 
     // The pointer to the device in memory
+    std::mutex handle_mutex;
     PCIeDeviceHandle dev_handle_1;
     PCIeDeviceHandle dev_handle_2;
     PCIeDeviceHandle hDev;
