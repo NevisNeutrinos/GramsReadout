@@ -97,6 +97,7 @@
         Controller& operator=(const Controller&) = delete;
 
         // State machine functions
+        void TestRead(const std::vector<int32_t>& args);
         bool Configure(const std::vector<int32_t>& args);
         bool StartRun();
         bool StopRun();

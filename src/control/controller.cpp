@@ -167,7 +167,7 @@ namespace controller {
         LOG_INFO(logger_, "Starting Run! \n");
         try {
             data_handler_->SetRun(true);
-            data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get());
+            data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get(), buffers_.get());
         } catch (std::exception& ex) {
             LOG_ERROR(logger_, "Exception occurred starting DataHandler: {}", ex.what());
             data_handler_->SetRun(false);
@@ -179,6 +179,25 @@ namespace controller {
         }
 
         return true;
+    }
+
+    void Controller::TestRead(const std::vector<int32_t>& args) {
+
+        const uint32_t imod_fem = args.at(0);
+        const uint32_t ichip = args.at(1);
+        const uint32_t command = args.at(2);
+        const uint32_t nword = args.at(3);
+
+        int iprint = 1;
+        pcie_interface_->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers_->precv); // init the receiver
+
+        buffers_->buf_send[0] = (imod_fem << 11) + (ichip << 8) + command + (0x0 << 16); // read out status
+        pcie_interface_->PCIeSendBuffer(1, 1, 1, buffers_->psend);
+
+        buffers_->precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
+        pcie_interface_->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers_->precv);
+        LOG_INFO(logger_, "\n Received TPC FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} \n",
+                            imod_fem, imod_fem, pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
     }
 
     bool Controller::StopRun() {
@@ -256,6 +275,13 @@ namespace controller {
             Reset();
             is_configured_ = false;
             current_state_ = State::kIdle;
+            return true;
+        }
+
+        if (command.command == 0x10) {
+            LOG_INFO(logger_, " \n State [TestRead] \n");
+            TestRead(command.arguments);
+            // don't change from the previous state
             return true;
         }
 
