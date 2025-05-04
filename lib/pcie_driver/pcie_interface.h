@@ -85,13 +85,14 @@ private:
     // since we cast it from number of bytes into a 32b buffer. In other
     // words the number set here must be a multiple of 4, if it's not a
     // compile error will be thrown.
-    static constexpr uint32_t CONFIGDMABUFFSIZE = 14000; // in bytes
+    static constexpr uint32_t CONFIGDMABUFFSIZE = 100000; // in bytes
 
     static_assert((CONFIGDMABUFFSIZE % sizeof(uint32_t)) == 0,
         "CONFIGDMABUFFSIZE must be a multiple of 4!");
 
     std::unique_ptr<DmaBuffStruct> buffer_info_struct_send_;
     std::unique_ptr<DmaBuffStruct> buffer_info_struct_recv_;
+    // FIXME delete in class destructor
     uint32_t *buffer_send_ = nullptr;
     uint32_t *buffer_recv_ = nullptr;
     void *pbuf_send_;

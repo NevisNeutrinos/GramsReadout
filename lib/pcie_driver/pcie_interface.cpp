@@ -224,7 +224,7 @@ namespace pcie_int {
 
         if (mode == 1) {
             for (i = 0; i < nword; i++) {
-                *(buffer_send_ + i) = *buff_send++;
+                *(buffer_send_ + i) = *(buff_send + i);
             }
         }
         if (mode == 0)
@@ -243,7 +243,7 @@ namespace pcie_int {
             {
                 dwAddrSpace = 0;
                 dwOffset = cs_dma_add_low_reg; //0x0
-                u32Data = *buff_send++;
+                u32Data = *(buff_send + j);
                 WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
             }
             for (i = 0; i < 20000; i++)
@@ -374,8 +374,8 @@ namespace pcie_int {
                     dwOffset = cs_dma_add_low_reg; //0x0
                     u64Data = 0xbad;
                     WDC_ReadAddr64(hDev, dwAddrSpace, dwOffset, &u64Data);
-                    *buff_rec++ = (u64Data & 0xffffffff);
-                    *buff_rec++ = u64Data >> 32;
+                    *(buff_rec + j) = (u64Data & 0xffffffff);
+                    *(buff_rec + j + 1) = u64Data >> 32;
                 }
                 if (ipr_status == 1)
                 {
