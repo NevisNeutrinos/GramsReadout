@@ -37,7 +37,7 @@ namespace light_fem {
         static int iframe_length = config["readout_windows"]["frame_length"].get<int>();
 
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
-        static int mode = trig_src == "ext" ? 0 : 3;
+        static int mode = (trig_src == "ext") || (trig_src == "software") ? 0 : 3;
 
         std::string fw_file = config["light_fem"]["fpga_bitfile"].get<std::string>();
 

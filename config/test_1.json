@@ -35,7 +35,8 @@
   },
   "trigger" : {
     "trigger_source" : "ext",
-    "software_trigger_rate_hz" : 10
+    "software_trigger_rate_hz" : 10,
+    "prescale" : [0,0,0,0,0,0,0,0,0]
   },
   "readout_windows" : {
     "timesize": 255,

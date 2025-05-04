@@ -25,13 +25,13 @@ public:
     ~DataHandler();
 
     bool Configure(json &config);
-    void CollectData(pcie_int::PCIeInterface *pcie_interface);
+    void CollectData(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers);
     std::vector<uint32_t> GetStatus();
     bool Reset(pcie_int::PCIeInterface *pcie_interface);
     void SetRun(bool set_running) { is_running_.store(set_running); }
 
 private:
-    // trig_ctrl::TriggerControl trigger_{};
+    trig_ctrl::TriggerControl trigger_{};
     // The metrics class
     // data_monitor::DataMonitor &metrics_;
     std::shared_ptr<data_monitor::DataMonitor> metrics_;
@@ -40,6 +40,7 @@ private:
 
     void DataWrite();
     void ReadoutDMARead(pcie_int::PCIeInterface *pcie_interface);
+    void ReadoutViaController(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers);
     void TestReadoutDMARead(pcie_int::PCIeInterface *pcie_interface);
     void TriggerDMARead(pcie_int::PCIeInterface *pcie_interface);
     bool WaitForDma(pcie_int::PCIeInterface *pcie_interface, uint32_t *data, uint32_t dev_num);
@@ -95,6 +96,7 @@ private:
 
     int ext_trig_;
     int software_trig_;
+    int software_trigger_rate_{};
     int trigger_module_;
     size_t num_events_;
     size_t num_dma_loops_ = 1;

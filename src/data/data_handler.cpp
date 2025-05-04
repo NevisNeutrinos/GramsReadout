@@ -59,6 +59,7 @@ namespace data_handler {
     bool DataHandler::Configure(json &config) {
 
         trigger_module_ = config["crate"]["trig_slot"].get<int>();
+        software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
         num_events_ = config["data_handler"]["num_events"].get<size_t>();
         metrics_->DmaSize(DMABUFFSIZE);
         const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
@@ -104,12 +105,14 @@ namespace data_handler {
         return true;
     }
 
-    void DataHandler::CollectData(pcie_int::PCIeInterface *pcie_interface) {
+    void DataHandler::CollectData(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers) {
 
         auto write_thread = std::thread(&DataHandler::DataWrite, this);
-        auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
-        // TODO thread to send software triggers
-        // auto trigger_thread = std::thread(&trig_ctrl::TriggerControl::SendSoftwareTrigger, trigger_, pcie_interface);
+        // auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
+        auto read_thread = std::thread(&DataHandler::ReadoutViaController, this, pcie_interface, buffers);
+
+        auto trigger_thread = std::thread(&trig_ctrl::TriggerControl::SendSoftwareTrigger, &trigger_,
+            pcie_interface, software_trigger_rate_, trigger_module_);
 
         // FIXME Combines both Data and Trigger DMA readout, works for a little then hangs
         // auto read_thread = std::thread(&DataHandler::TestReadoutDMARead, this, pcie_interface);
@@ -117,9 +120,6 @@ namespace data_handler {
         // separate threads with separate DMAs
         //auto trigger_thread = std::thread(&DataHandler::TriggerDMARead, this, pcie_interface);
         LOG_INFO(logger_, "Started read and write threads... \n");
-
-        // trigger_thread.join();
-        // LOG_INFO(logger_, "trigger thread joined... \n");
 
         // Shut down the write thread first so we're not trying to access buffer ptrs
         // after they have been deleted in the read thread
@@ -129,6 +129,10 @@ namespace data_handler {
         read_thread.join();
         LOG_INFO(logger_, "read thread joined... \n");
 
+        // The read/write threads will block until a run stop is set. Then we stop the trigger.
+        trigger_.SetRun(false);
+        trigger_thread.join();
+        LOG_INFO(logger_, "trigger thread joined... \n");
         //trigger_thread.join();
         //LOG_INFO(logger_, "trigger thread joined... \n");
     }
@@ -294,7 +298,7 @@ namespace data_handler {
                 if (idebug) LOG_INFO(logger_, "DMA set up done, byte count = {} \n", DMABUFFSIZE);
 
                 // send trigger
-                if (iv == 0) trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, itrig_c, itrig_ext, 11);
+                if (iv == 0) trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, software_trig_, itrig_ext, trigger_module_);
 
                 if (!WaitForDma(pcie_interface, &data, kDev2)) {
                     LOG_WARNING(logger_, " loop [{}] DMA is not finished, aborting...  \n", iv);
@@ -338,7 +342,7 @@ namespace data_handler {
         } // end loop over events
 
         LOG_INFO(logger_, "Stopping triggers..\n");
-        trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, 11);
+        trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
 
         // If event count triggered the end of run, set stop write flag so write thread completes
         LOG_INFO(logger_, "Stopping run and freeing pointer \n");
@@ -431,7 +435,7 @@ namespace data_handler {
                 if (idebug) LOG_INFO(logger_, "DMA set up done, byte count = {} \n", nwrite_byte);
 
                 // send trigger
-                if (iv == 0) trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, itrig_c, itrig_ext, 11);
+                if (iv == 0) trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, itrig_c, itrig_ext, trigger_module_);
 
                 if (!WaitForDma(pcie_interface, &data, dev_num)) {
                     LOG_WARNING(logger_, " loop [{}] DMA is not finished, aborting...  \n", iv);
@@ -478,7 +482,7 @@ namespace data_handler {
         } // end loop over events
 
         LOG_INFO(logger_, "Stopping triggers..\n");
-        trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, 11);
+        trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
 
         // If event count triggered the end of run, set stop write flag so write thread completes
         LOG_INFO(logger_, "Stopping run and freeing pointer \n");
@@ -496,6 +500,219 @@ namespace data_handler {
 
         LOG_INFO(logger_, "Ran {} DMA loops \n", dma_loops);
      }
+
+    void DataHandler::ReadoutViaController(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers) {
+
+        // std::array<uint32_t, 100000> buf_send;
+        // std::array<uint32_t, 100000> read_array{};
+        std::array<uint32_t, DATABUFFSIZE> word_arr{};
+        // uint32_t *psend{};
+        // uint32_t *precv{};
+        // psend = buf_send.data();
+        // precv = read_array.data();
+
+        buffers->psend = buffers->buf_send.data();
+
+        size_t num_controller_triggers = 1;
+        int nword = 0;
+        uint32_t fem_number = 13;
+        bool print = true;
+
+        //kaleko 013013
+        //set calibration delay.  number has to be smaller than frame size
+        //the trigger will be fired that fixed delay after the frame sync
+        //set up calibration delay to 0x10
+        buffers->buf_send[0] = (trigger_module_ << 11) + (hw_consts::mb_trig_calib_delay) + ((0x10) << 16);
+        //change 0x10 to 0x11, 0x12, 0x13 SHOULD shift the pulse.  currently broken.  ask chi
+        pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers->psend);
+
+        uint32_t ichip=3;
+        buffers->buf_send[0] = (fem_number << 11) + (ichip << 8) + 10 + (0x1 << 16);    // enable a test n // test point mode
+        pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers->psend);
+
+        //Set trigger run
+        buffers->buf_send[0] = (trigger_module_ << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); //set up run
+        pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers->psend);
+
+        printf("Just set up the trigger run ...\n");
+        usleep(5000); //wait for 5 ms
+
+        while(is_running_.load() && event_count_.load() < num_events_) {
+            for (size_t t = 0; t < num_controller_triggers; t++) {//jcrespo: multiple triggers
+                //kaleko 013013 changing mb_trig_pctrig to mb_trig_calib
+                buffers->buf_send[0] = (trigger_module_ << 11) + hw_consts::mb_trig_calib + ((0x0) << 16);
+                pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers->psend);
+                usleep(10000);
+            } //jcrespo: end of multiple triggers
+
+            // FIXME set module number again to enable the FEB module read back
+            // set user-defined module number to appear in output data header
+            uint32_t ichip=3;
+            buffers->buf_send[0] = (fem_number << 11) + (ichip << 8) + hw_consts::mb_feb_mod_number + (fem_number << 16);
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers->psend);
+
+            usleep(5000); // wait for 5 ms
+
+            for (size_t t = 0; t < num_controller_triggers; t++) {
+                nword = 5;
+                pcie_interface->PCIeRecvBuffer(kDev1, 0, 1, nword, 1, buffers->precv); // init the receiver
+
+                // read a header // enable read for neutrino header buffer through slow readout
+                ichip=3;
+                buffers->buf_send[0] = (fem_number << 11) + (ichip << 8) + hw_consts::mb_feb_a_rdhed ;//+ (0x1 << 16);
+                pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers->psend);
+
+                // py = &read_array;
+                // read out 2 32 bits words
+                for (size_t i = 0; i < 5; i++) pcie_int::PcieBuffers::read_array[i] = 0;
+                buffers->precv = pcie_int::PcieBuffers::read_array.data();
+                pcie_interface->PCIeRecvBuffer(kDev1, 0, 2, nword, 1, buffers->precv);
+                if (print) printf("receive data word = %x, %x, %x, %x, %x, %x\n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1], pcie_int::PcieBuffers::read_array[2], pcie_int::PcieBuffers::read_array[3], pcie_int::PcieBuffers::read_array[4], pcie_int::PcieBuffers::read_array[5]);
+                // For some reason the first read is garbage so read once before
+                // if (t < 5) continue;
+
+                if (print) printf("receive data word = %x, %x, %x, %x, %x, %x\n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1], pcie_int::PcieBuffers::read_array[2], pcie_int::PcieBuffers::read_array[3], pcie_int::PcieBuffers::read_array[4], pcie_int::PcieBuffers::read_array[5]);
+                if (print) {
+                    printf(" header word %x \n",(pcie_int::PcieBuffers::read_array[0] & 0xFFFF));
+                    uint32_t k = (pcie_int::PcieBuffers::read_array[0] >> 16) & 0xFFF;
+                    printf(" module adress %d, id number %d\n", (k & 0x1f), ((k>>5) & 0x7f));
+                    printf(" number of data word to read %d\n", (((pcie_int::PcieBuffers::read_array[1]>>16) & 0xfff)+((pcie_int::PcieBuffers::read_array[1] &0xfff) <<12)));
+                    printf(" event number %d\n", (((pcie_int::PcieBuffers::read_array[2]>>16) & 0xfff)+((pcie_int::PcieBuffers::read_array[2] &0xfff) <<12)));
+                    printf(" frame number %d\n", (((pcie_int::PcieBuffers::read_array[3]>>16) & 0xfff)+((pcie_int::PcieBuffers::read_array[3] &0xfff) <<12)));
+                    printf(" checksum %x\n", (((pcie_int::PcieBuffers::read_array[4]>>16) & 0xfff)+((pcie_int::PcieBuffers::read_array[4] &0xfff) <<12)));
+                }
+
+                // Save header words
+                std::memcpy(word_arr.data(), pcie_int::PcieBuffers::read_array.data(), 6*sizeof(pcie_int::PcieBuffers::read_array[0]));
+                data_queue_.write(word_arr);
+                if (data_queue_.isFull()) {
+                    LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
+                }
+                // int nwrite_1 = write(outBinFile, read_array, 6*sizeof(read_array[0]));
+                // printf("\n\n\n\n\t %d header bytes written to %s \n\n\n\n", nwrite_1, outBinFileName);
+
+                uint32_t nread = ((pcie_int::PcieBuffers::read_array[1] >> 16) & 0xFFF) + ((pcie_int::PcieBuffers::read_array[1] & 0xFFF) << 12);
+
+                nword = (nread + 1) / 2;                    // short words
+                // i = pcie_rec(hDev,0,1,nword,iprint,py);     // init the receiver
+                pcie_interface->PCIeRecvBuffer(kDev1, 0, 1, nword, 1, buffers->precv); // init the receiver
+
+                // Read neutrino data through controller (slow control path)
+                buffers->buf_send[0] = (fem_number << 11) + (hw_consts::mb_feb_pass_add << 8) + hw_consts::mb_feb_a_rdbuf + (0x0 << 16);
+                pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers->psend);
+
+                // jcrespo verbose test: read all the words? To do: adjust timesize too
+                // nword = 64*1024/2;
+
+                // jcrespo: code reviewed and commented till here (Sep 13, 2016)
+
+                // py = &read_array;
+                // i = pcie_rec(hDev,0,2,nword,iprint,py);     // read out 2 32 bits words
+                buffers->precv = pcie_int::PcieBuffers::read_array.data();
+                pcie_interface->PCIeRecvBuffer(kDev1, 0, 2, nword, 1, buffers->precv);
+
+                // if(iprint == 1) {
+                //     for (i=0; i< nword; i++) {
+                //         if((i%8) ==0) printf("%4d",i);
+                //         printf(" %8x",read_array[i]);
+                //         if(((i+1)%8) ==0 ) printf("\n");
+                //     }
+                // }
+
+                // ik=0;
+
+                //char outBinFileName[256];
+                //sprintf(outBinFileName, "%s_output.dat", outDate);
+                //FILE* outBinFile = creat(outBinFileName,0755);
+                // int nwrite_2 = write(outBinFile, read_array, nword*sizeof(read_array[0]));
+                // printf("\n\n\n\n\t %d bytes written to %s \n\n\n\n", nwrite_2, outBinFileName);
+
+                // Save the rest of the event words
+                std::memcpy(word_arr.data(), pcie_int::PcieBuffers::read_array.data(), nword*sizeof(pcie_int::PcieBuffers::read_array[0]));
+                data_queue_.write(word_arr);
+                if (data_queue_.isFull()) {
+                    LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
+                }
+
+                // Sort words
+                // for (i=0; i< nword; i++) {
+                //   read_array_s[ik] = read_array[i] &0xffff;
+                //   read_array_s[ik+1] = ((read_array[i]>>16) & 0xffff);
+                //   ik=ik+2;
+                // }
+
+                //
+                //      printout formatted word
+                //
+                // if(iprint ==1) {
+                //   iset = 0;
+                //   for(i=0; i< 2*nword; i++) {
+                //     if((read_array_s[i] & 0xf000) == 0x4000) {
+                //       iset=1;
+                //       ncount=0;
+                //       printf(" channel %d\n",(read_array_s[i] & 0xfff));
+                //     }
+                //     else if ((read_array_s[i] & 0xf000) == 0x5000) printf(" channel end %d\n",(read_array_s[i] &0xfff));
+                //     else if (iset ==1) {
+                //       printf(" %4x",read_array_s[i]);
+                //       ncount = ncount+1;
+                //       if((ncount%8) == 0) printf("\n");
+                //     }
+                //     else {
+                //       printf("%x",read_array_s[i]);
+                //       ncount = ncount+1;
+                //       if((ncount%8) == 0) printf("\n");
+                //     }
+                //   }
+                // }
+
+                // jcrespo verbose test
+                // icheck = 1;
+
+                // if(icheck ==1 ){
+                //   if((2*nword) == (64*timesize*3)){
+                //     for (i=0; i<64; i++){
+                //       k=i*(timesize*3);
+                //       ij= i*256;
+                //       if(read_array_s[k] != (0x4000+i))
+                //         printf(" first word error, event %d data received %x, data expected %x\n", is, read_array_s[k], (0x4000+i));
+                //       for (ik=0; ik< ((3*timesize)-2); ik++) {
+                //         if(read_array_s[k+1+ik] != send_array[ij+ik])
+                //           printf(" data word error, event %d ch = %d, received %x, expected %x\n",is,i,read_array_s[k+1+ik], send_array[ij+ik]);
+                //       }
+                //       k=(i+1)*(timesize*3)-1;
+                //       if(read_array_s[k] != (0x5000+i))
+                //         printf(" last word error, event %d data received %x, data expected %x\n", is, read_array_s[k], (0x5000+i));
+                //     }
+                //   }
+                //   else {
+                //     printf(" event %d number word receive = %d, expected=  %d \n", is, (2*nword), (64*timesize*3));
+                //   }
+                // }
+
+            } // trig loop
+            //
+            // if(icheck ==1) {
+            //     k = is%1000;
+            //     if(k ==0) printf("event %d\n",is);
+            // }
+            LOG_INFO(logger_, "Read trigger... \n");
+            usleep(100000); // wait for 100 ms -> ~10Hz
+        } // event while loop
+
+        LOG_INFO(logger_, "Setting run off.. \n");
+        uint32_t imod_place = 0;
+        ichip = 1;
+        buffers->buf_send[0] = (imod_place << 11) + (ichip << 8) + (hw_consts::mb_cntrl_set_run_off) + (0x0 << 16); //enable offline run off
+        pcie_interface->PCIeSendBuffer(kDev1, 1, 1, buffers->psend);
+
+        // If event count triggered the end of run, set stop write flag so write thread completes
+        LOG_INFO(logger_, "Stopping run and freeing pointer \n");
+        stop_write_.store(true);
+
+        // close(outBinFile);
+
+    }
 
         void DataHandler::TriggerDMARead(pcie_int::PCIeInterface *pcie_interface) {
 
@@ -555,7 +772,7 @@ namespace data_handler {
             if (idebug) LOG_INFO(logger_, "DMA set up done, byte count = {} \n", nwrite_byte);
 
             // send trigger // FIXME is this needed??
-            // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, itrig_c, itrig_ext, 11);
+            // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, itrig_c, itrig_ext, trigger_module_);
 
             if (!WaitForDma(pcie_interface, &data, kDev1)) {
                 LOG_WARNING(logger_, "DMA is not finished, aborting...  \n");
@@ -609,7 +826,7 @@ namespace data_handler {
         } // end loop over events
 
         LOG_INFO(logger_, "Stopping triggers..\n");
-        trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, 11);
+        trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
 
         // If event count triggered the end of run, set stop write flag so write thread completes
         // LOG_INFO(logger_, "Stopping run and freeing pointer \n");

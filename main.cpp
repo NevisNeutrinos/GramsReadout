@@ -6,7 +6,6 @@
 #include "quill/Frontend.h"
 #include "quill/LogMacros.h"
 #include "quill/Logger.h"
-#include "quill/sinks/ConsoleSink.h"
 #include "quill/sinks/FileSink.h"
 
 
@@ -53,6 +52,7 @@ void Run(controller::Controller& ctrl) {
         }
 
         cmd.command = static_cast<uint16_t>(input);
+        cmd.arguments = {1, 1};
         if (ctrl.HandleCommand(cmd)) {
             std::cout << "State changed to: " << ctrl.GetStateName() << "\n";
             LOG_INFO(logger, "State changed to {}! \n", std::string_view{ctrl.GetStateName()});
@@ -77,7 +77,8 @@ int main() {
 
     bool run = true;
     std::cout << "Starting controller..." << std::endl;
-    controller::Controller controller(io_context, "127.0.0.1", 12345, true, run);
+    controller::Controller controller(io_context, "10.44.1.148", 1730, true, run);
+    // controller::Controller controller(io_context, "127.0.0.1", 12345, true, run);
     std::thread io_thread([&]() { io_context.run(); });
 
     if (!controller.Init()) {

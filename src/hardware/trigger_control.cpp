@@ -32,6 +32,8 @@ namespace trig_ctrl {
         static int mask1 = trig_src == "ext" ? 0x0 : 0x8;
         static int mask8 = trig_src == "ext" ? 0x2 : 0x0;
 
+        prescale_vec_ = config["trigger"]["prescale"].get<std::vector<uint32_t>>();
+
         LOG_INFO(logger_, "Trigger source [{}]", trig_src);
 
         /* FROM TPC PART*/
@@ -76,6 +78,15 @@ namespace trig_ctrl {
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
+        // Set prescale for triggers 0-8
+        imod=trigger_module_;
+        uint32_t trigger_prescale = hw_consts::mb_trig_prescale0;
+        for (const uint32_t prescale : prescale_vec_) {
+            buffers.buf_send[0] = (imod << 11) + trigger_prescale + (prescale << 16);
+            pcie_interface->PCIeSendBuffer(1, 1, 1, buffers.psend);
+            trigger_prescale += 1;
+        }
+
         if(light_trig_) {  // Begin PMT Trigger setup
             imod = trigger_module_;
             buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask1)+((mask1&0xf)<<16); //set mask1[3] on.
@@ -84,8 +95,9 @@ namespace trig_ctrl {
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
             //        fprintf(outinfo,"trig_mask1 = 0x%x\n",mask1);
 
-            imod=trigger_module_;
-            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale1)+(0x0<<16); //set prescale1 0
+
+            imod = trigger_module_;
+            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale1)+(0x0<<16); //set prescale1 0
             //        fprintf(outinfo,"trig_prescale1 = 0x%x\n",0x0);
             i = 1;
             k = 1;
@@ -98,27 +110,28 @@ namespace trig_ctrl {
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-            imod=trigger_module_;
-            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale8)+(0x0<<16); //set prescale8 0
-            //        fprintf(outinfo,"trig_prescale8 = 0x%x\n",0x0);
-            i = 1;
-            k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            // imod=trigger_module_;
+            // buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale8)+(0x0<<16); //set prescale8 0
+            // //        fprintf(outinfo,"trig_prescale8 = 0x%x\n",0x0);
+            // i = 1;
+            // k = 1;
+            // i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
             //End PMT Trigger setup
         } else {
             //begin EXT Trigger setup as of 11/26/2024
             imod = trigger_module_;
-            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x2 << 16); // set mask1[3] on.
+            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x4A << 16); // set mask1[3] on.
+            //FIXME buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x2 << 16); // set mask1[3] on.
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
-            imod = trigger_module_;
-            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale8) + (0x0 << 16); // set prescale1 0
-            i = 1;
-            k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            // imod = trigger_module_;
+            // buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale8) + (0x0 << 16); // set prescale1 0
+            // i = 1;
+            // k = 1;
+            // i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
             //End EXT Trigger setup as of 11/26/2024
         }
         return true;
@@ -138,21 +151,29 @@ namespace trig_ctrl {
 
     void TriggerControl::SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext, int trigger_module) {
         static int imod, ichip;
-        static int imod_trig   = 11;
+        // static int imod_trig   = 11;
         std::array<uint32_t, 2> buf_send{0,0};
         uint32_t *psend{};
 
         psend = buf_send.data();
 
         if (itrig_c == 1) {
-            imod = imod_trig; /* trigger module */
-            buf_send[0] = (imod << 11) + hw_consts::mb_trig_pctrig + ((0x0) << 16);
+            imod = trigger_module;
+            buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
-            usleep(5000); // 3x frame size
+
+            std::cout << "Waiting for Trigger..." << std::endl;
+            usleep(100000); //~10Hz
+            std::cout << "Triggering" << std::endl;
+            imod = trigger_module; /* trigger module */
+            // buf_send[0] = (imod << 11) + hw_consts::mb_trig_pctrig + ((0x0) << 16);
+            buf_send[0] = (imod << 11) + hw_consts::mb_trig_calib + ((0x0) << 16);
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
+            usleep(650); // 3x frame size
         }
         else if (itrig_ext == 1) {
             // only need to restart the run if we use the test data or 1st run
-            imod = imod_trig;
+            imod = trigger_module;
             buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
         }
@@ -167,7 +188,7 @@ namespace trig_ctrl {
 
     void TriggerControl::SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext, int trigger_module) {
         static int imod;
-        static int imod_trig   = 11;
+        // static int imod_trig   = 11;
         std::array<uint32_t, 2> buf_send{0,0};
         uint32_t *psend{};
 
@@ -176,27 +197,35 @@ namespace trig_ctrl {
         if (itrig_c == 1) {
             //******************************************************
             // stop run
-            imod = imod_trig;
+            imod = trigger_module;
             buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up run off
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
         } else if ((itrig_ext == 1)) {
             //  set trigger module run off
-            imod = imod_trig;
+            imod = trigger_module;
             buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x0) << 16); // set up run off
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
         }
     }
 
-    void TriggerControl::SendSoftwareTrigger(pcie_int::PCIeInterface *pcie_interface) {
+    void TriggerControl::SendSoftwareTrigger(pcie_int::PCIeInterface *pcie_interface, const int software_trigger_rate,
+                                             const int trigger_module) {
         std::array<uint32_t, 2> buf_send{0,0};
         uint32_t *psend{};
         psend = buf_send.data();
+        is_running_.store(false);
 
-        auto sleep_for = std::chrono::microseconds(software_trigger_rate_ * 1000000);
-        buf_send[0] = (trigger_module_ << 11) + (hw_consts::mb_trig_pctrig) + ((0x0) << 16);
+        const size_t sleep_time = (1. / static_cast<double>(software_trigger_rate)) * 1000000;
+
+        const auto sleep_length = std::chrono::microseconds(sleep_time);
+        // FIXME I think calib trig is correct but maybe PC trig?
+        buf_send[0] = (trigger_module << 11) + (hw_consts::mb_trig_pctrig) + ((0x0) << 16);
+        // buf_send[0] = (trigger_module << 11) + (hw_consts::mb_trig_calib) + ((0x0) << 16);
 
         while (is_running_.load()) {
-            std::this_thread::sleep_for(sleep_for);
+            std::this_thread::sleep_for(sleep_length);
+            //LOG_INFO(logger_, "Sending software trigger, length={}", sleep_length.count());
+            // std::cout << "Sending software trigger, sleep length=" << sleep_length.count() << "us" << std::endl;
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
         }
     }

@@ -18,18 +18,19 @@ public:
 
     bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers& buffers) override;
     std::vector<uint32_t> GetStatus() override;
-    // void SetRun(bool set_running) { is_running_.store(set_running); }
+    void SetRun(const bool set_running) { is_running_.store(set_running); }
     bool Reset(pcie_int::PCIeInterface *pcie_interface) override;
 
 
     static void SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext, int trigger_module);
     static void SendStopTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext, int trigger_module);
-    void SendSoftwareTrigger(pcie_int::PCIeInterface *pcie_interface);
+    void SendSoftwareTrigger(pcie_int::PCIeInterface *pcie_interface, int software_trigger_rate, int trigger_module);
 
 private:
 
     quill::Logger* logger_;
     std::atomic_bool is_running_ = false;
+    std::vector<uint32_t> prescale_vec_;
     int software_trigger_rate_{};
     int trigger_module_;
     int ext_trig_;
