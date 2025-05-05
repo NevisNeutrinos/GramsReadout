@@ -30,6 +30,7 @@ include_directories(/usr/include)
 include_directories(networking
                     src/control
                     src/hardware
+                    src/status
                     lib/monitoring
                     lib/pcie_driver
                     lib/folly
@@ -38,6 +39,7 @@ include_directories(networking
 file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp)
 file(GLOB_RECURSE DATA_HANDLER_SRC src/data/*.cpp)
 file(GLOB_RECURSE HARDWARE_SRC src/hardware/*.cpp)
+file(GLOB_RECURSE STATUS_SRC src/status/*.cpp)
 file(GLOB NETWORK_SRC networking/tcp*.cpp)
 
 # Create a static library containing DataMonitor
@@ -50,6 +52,7 @@ add_executable(GramsReadout main.cpp
         ${CONTROL_SRC}
         ${DATA_HANDLER_SRC}
         ${HARDWARE_SRC}
+        ${STATUS_SRC}
         ${NETWORK_SRC})
 
 target_compile_definitions(GramsReadout PUBLIC
@@ -65,6 +68,7 @@ add_library(gramsreadout STATIC src/control/controller.cpp
                                     ${CONTROL_SRC}
                                     ${DATA_HANDLER_SRC}
                                     ${HARDWARE_SRC}
+                                    ${STATUS_SRC}
                                     ${NETWORK_SRC})
 
 target_compile_definitions(gramsreadout PUBLIC

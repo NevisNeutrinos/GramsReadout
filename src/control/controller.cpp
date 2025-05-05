@@ -51,6 +51,7 @@ namespace controller {
         light_fem_ = std::make_unique<light_fem::LightFem>();
         charge_fem_ = std::make_unique<charge_fem::ChargeFem>();
         trigger_ctrl_ = std::make_unique<trig_ctrl::TriggerControl>();
+        status_ = std::make_unique<status::Status>();
         pcie_interface_ = std::make_unique<pcie_int::PCIeInterface>();
         buffers_ = std::make_unique<pcie_int::PcieBuffers>();
 
@@ -67,6 +68,7 @@ namespace controller {
         light_fem_.reset();
         charge_fem_.reset();
         trigger_ctrl_.reset();
+        status_.reset();
         data_handler_.reset();
         pcie_ctrl_.reset();
         pcie_interface_.reset();
@@ -162,12 +164,69 @@ namespace controller {
         return true;
     }
 
+    void Controller::ReadStatus(const std::vector<int32_t>& args) {
+        bool print_status = false;
+        if (!args.empty()) print_status = args.at(0) == 1;
+
+        const std::vector<int> boards = {
+            config_["crate"]["xmit_slot"].get<int>(),
+            config_["crate"]["charge_fem_slot"].get<int>(),
+            config_["crate"]["charge_fem_slot"].get<int>() + 1,
+            config_["crate"]["last_charge_slot"].get<int>(),
+            config_["crate"]["light_fem_slot"].get<int>()
+        };
+        std::vector<int32_t> status_vec;
+        for (const int board : boards) {
+            auto res = status_->GetBoardStatus(board, pcie_interface_.get());
+            status_vec.push_back(res);
+            if (print_status) LOG_INFO(logger_, "Status: board [{}] 0x{:X} \n", board, res);
+        }
+        if (!print_status) {
+            // Construct and send a status packet
+            Command cmd(static_cast<uint16_t>(CommandCodes::kStatusPacket), status_vec.size());
+            cmd.arguments = std::move(status_vec);
+            tcp_connection_.WriteSendBuffer(cmd);
+        }
+    }
+
+    void Controller::StatusControl() {
+        bool print_status = true;
+        const std::vector<int> boards = {
+            config_["crate"]["xmit_slot"].get<int>(),
+            config_["crate"]["charge_fem_slot"].get<int>(),
+            config_["crate"]["charge_fem_slot"].get<int>() + 1,
+            config_["crate"]["last_charge_slot"].get<int>(),
+            config_["crate"]["light_fem_slot"].get<int>()
+        };
+
+        while (run_status_) {
+            std::this_thread::sleep_for(std::chrono::seconds(2));
+            int32_t status_res = 0;
+            bool is_fem = false;
+            for (size_t b = 0; b < boards.size(); b++) {
+                bool res = status_->GetMinimalStatus(boards.at(b), pcie_interface_.get(), is_fem);
+                status_res += (res << b);
+                is_fem = true;
+            }
+            if (!print_status) {
+                // Construct and send a status packet
+                Command cmd(static_cast<uint16_t>(CommandCodes::kStatusPacket), 1);
+                cmd.arguments.at(0) = status_res;
+                tcp_connection_.WriteSendBuffer(cmd);
+            } else {
+                LOG_INFO(logger_, "Status bitword = 0b{:b} \n", status_res);
+            }
+        }
+    }
+
     bool Controller::StartRun() {
 
         LOG_INFO(logger_, "Starting Run! \n");
         try {
             data_handler_->SetRun(true);
             data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get(), buffers_.get());
+            run_status_.store(true);
+            status_thread_ = std::thread(&Controller::StatusControl, this);
         } catch (std::exception& ex) {
             LOG_ERROR(logger_, "Exception occurred starting DataHandler: {}", ex.what());
             data_handler_->SetRun(false);
@@ -177,7 +236,6 @@ namespace controller {
             data_handler_->SetRun(false);
             return false;
         }
-
         return true;
     }
 
@@ -201,10 +259,12 @@ namespace controller {
     }
 
     bool Controller::StopRun() {
+        run_status_.store(false);
+        if (status_thread_.joinable()) status_thread_.join();
+
         data_handler_->SetRun(false);
-        if (data_thread_.joinable()) {
-            data_thread_.join();
-        }
+        if (data_thread_.joinable()) data_thread_.join();
+
         LOG_INFO(logger_, "Collection thread stopped successfully...\n");
         return true;
     }
@@ -275,6 +335,13 @@ namespace controller {
             Reset();
             is_configured_ = false;
             current_state_ = State::kIdle;
+            return true;
+        }
+
+        if (command.command == CommandCodes::kStatusPacket) {
+            LOG_INFO(logger_, " \n State [ReadStatus] \n");
+            ReadStatus(command.arguments);
+            // don't change from the previous state
             return true;
         }
 

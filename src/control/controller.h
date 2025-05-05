@@ -16,6 +16,7 @@
 #include "charge_fem.h"
 #include "trigger_control.h"
 #include "xmit_control.h"
+#include "../status/status.h"
 #include "data_monitor.h"
 
 
@@ -32,17 +33,19 @@
     // These are the codes which will be received/sent
     // from/to the HUB computer.
     enum class CommandCodes : uint16_t {
-        kReset = 0,
-        kConfigure = 1,
-        kStartRun = 2,
-        kStopRun = 3,
-        kGetStatus = 4,
-        kPrepareRestart = 5,
-        kRestart = 6,
-        kPrepareShutdown = 7,
-        kShutdown = 8,
-        kCmdSuccess = 1000,
-        kCmdFailure = 2000,
+        kReset = 0x0,
+        kConfigure = 0x1,
+        kStartRun = 0x2,
+        kStopRun = 0x3,
+        kGetStatus = 0x4,
+        kPrepareRestart = 0x5,
+        kRestart = 0x6,
+        kPrepareShutdown = 0x7,
+        kShutdown = 0x8,
+        kReadStatus = 0x9,
+        kStatusPacket = 0x27,
+        kCmdSuccess = 0x1000,
+        kCmdFailure = 0x2000,
         kInvalid = UINT16_MAX
     };
 
@@ -103,6 +106,8 @@
         bool StopRun();
         bool GetStatus();
         bool Reset();
+        void StatusControl();
+        void ReadStatus(const std::vector<int32_t>& args);
 
         void ReceiveCommand();
         void SendAckCommand(bool success);
@@ -113,6 +118,7 @@
 
         TCPConnection tcp_connection_;
         std::thread data_thread_;
+        std::thread status_thread_;
 
         // data_monitor::DataMonitor &metrics_;
         // std::shared_ptr<data_monitor::DataMonitor> metrics_;
@@ -125,8 +131,10 @@
         std::unique_ptr<data_handler::DataHandler> data_handler_;
         std::unique_ptr<pcie_int::PCIeInterface> pcie_interface_;
         std::unique_ptr<pcie_int::PcieBuffers> buffers_;
+        std::unique_ptr<status::Status> status_;
 
         std::atomic_bool is_running_;
+        std::atomic_bool run_status_;
 
         quill::Logger* logger_;
         State current_state_;
