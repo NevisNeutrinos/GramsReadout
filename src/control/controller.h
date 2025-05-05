@@ -119,6 +119,7 @@
         TCPConnection tcp_connection_;
         std::thread data_thread_;
         std::thread status_thread_;
+        std::vector<int> board_slots_{};
 
         // data_monitor::DataMonitor &metrics_;
         // std::shared_ptr<data_monitor::DataMonitor> metrics_;

@@ -8,6 +8,66 @@
 
 namespace status {
 
+    std::vector<int32_t> Status::GetDataHandlerStatus() {
+
+        std::vector<int32_t> status_res;
+        size_t tmp_size = 0;
+        size_t mask_32b = 0xFFFFFFFF;
+
+        tmp_size = num_events_.load();
+        status_res.push_back((tmp_size >> 32) & mask_32b);
+        status_res.push_back(tmp_size & mask_32b);
+
+        tmp_size = event_diff_.load();
+        status_res.push_back((tmp_size >> 32) & mask_32b);
+        status_res.push_back(tmp_size & mask_32b);
+
+        tmp_size = num_files_.load();
+        status_res.push_back((tmp_size >> 32) & mask_32b);
+        status_res.push_back(tmp_size & mask_32b);
+
+        tmp_size = num_dma_loops_.load();
+        status_res.push_back((tmp_size >> 32) & mask_32b);
+        status_res.push_back(tmp_size & mask_32b);
+
+        tmp_size = adc_words_per_event_.load();
+        status_res.push_back((tmp_size >> 32) & mask_32b);
+        status_res.push_back(tmp_size & mask_32b);
+
+        tmp_size = bytes_received_.load();
+        status_res.push_back((tmp_size >> 32) & mask_32b);
+        status_res.push_back(tmp_size & mask_32b);
+
+        tmp_size = words_per_event_.load();
+        status_res.push_back((tmp_size >> 32) & mask_32b);
+        status_res.push_back(tmp_size & mask_32b);
+
+        return status_res;
+    }
+
+    std::vector<int32_t> Status::ReadStatus(const std::vector<int>& boards, pcie_int::PCIeInterface *pcie_interface, bool minimal_status) {
+
+        // This contains the data collection stats and status
+        auto status_vec = GetDataHandlerStatus();
+
+        if (minimal_status) {
+             int32_t status_res = 0;
+             bool is_fem = false;
+             for (size_t b = 0; b < boards.size(); b++) {
+                 bool res = GetMinimalStatus(boards.at(b), pcie_interface, is_fem);
+                 status_res += (res << b);
+                 is_fem = true;
+             }
+            status_vec.push_back(status_res);
+        } else {
+            for (const int board : boards) {
+                auto res = GetBoardStatus(board, pcie_interface);
+                status_vec.push_back(res);
+            }
+        }
+        return status_vec;
+    }
+
     bool Status::GetMinimalStatus(uint32_t board_number, pcie_int::PCIeInterface *pcie_interface, bool is_fem) {
 
         // FEM & XMIT status all the same form: module_num + chip=3 + cmd=20
