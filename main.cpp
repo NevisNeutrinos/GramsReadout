@@ -33,6 +33,7 @@ void PrintState(const std::string& state) {
     std::cout << "  [1] Configure\n";
     std::cout << "  [2] Start\n";
     std::cout << "  [3] Stop\n";
+    std::cout << "  [39] Status\n";
     std::cout << "  [-1] Exit\n";
     std::cout << "Enter choice: ";
 }
@@ -77,7 +78,7 @@ int main() {
 
     bool run = true;
     std::cout << "Starting controller..." << std::endl;
-    controller::Controller controller(io_context, "10.44.1.148", 1730, true, run);
+    controller::Controller controller(io_context, "127.0.0.1", 12345, true, run);
     // controller::Controller controller(io_context, "127.0.0.1", 12345, true, run);
     std::thread io_thread([&]() { io_context.run(); });
 

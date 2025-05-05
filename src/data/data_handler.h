@@ -29,14 +29,13 @@ public:
     std::vector<uint32_t> GetStatus();
     bool Reset(pcie_int::PCIeInterface *pcie_interface);
     void SetRun(bool set_running) { is_running_.store(set_running); }
+    std::map<std::string, size_t> GetMetrics();
 
 private:
     trig_ctrl::TriggerControl trigger_{};
     // The metrics class
     // data_monitor::DataMonitor &metrics_;
     std::shared_ptr<data_monitor::DataMonitor> metrics_;
-
-
 
     void DataWrite();
     void ReadoutDMARead(pcie_int::PCIeInterface *pcie_interface);
@@ -101,13 +100,19 @@ private:
     size_t num_events_;
     size_t num_dma_loops_ = 1;
     size_t num_recv_bytes_{};
+
+    // Metric counters
     std::atomic<size_t> event_count_ = 0;
+    std::atomic<size_t> dma_loop_count_ = 0;
+    std::atomic<size_t> num_recv_mB_ = 0;
+    std::atomic<size_t> num_event_chunk_words_ = 0;
+    std::atomic<size_t> event_diff_ = 0;
 
     // uint32_t data;
     // static unsigned long long u64Data;
 
     std::string write_file_name_;
-    size_t file_count_;
+    std::atomic<size_t> file_count_;
 
     std::atomic_bool is_running_;
     std::atomic_bool stop_write_;

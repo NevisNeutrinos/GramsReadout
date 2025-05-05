@@ -17,6 +17,7 @@
     "fpga_bitfile" : "/home/sabertooth/GramsReadoutFirmware/xmit/readcontrol_110601_v3_play_header_hist_l1block_9_21_2018.rbf"
   },
   "controller" : {
+    "print_status" : true,
     "log_to_file" : false,
     "log_file_path" : "/home/sabertooth/GramsReadout/build"
   },

@@ -145,6 +145,8 @@ namespace controller {
             return  false;
         }
 
+        print_status_ = config_["controller"]["print_status"].get<bool>();
+        status_->SetPrintStatus(print_status_);
         board_slots_.push_back(config_["crate"]["xmit_slot"].get<int>());
         board_slots_.push_back(config_["crate"]["charge_fem_slot"].get<int>());
         board_slots_.push_back(config_["crate"]["charge_fem_slot"].get<int>() + 1);
@@ -170,12 +172,11 @@ namespace controller {
         return true;
     }
 
-    void Controller::ReadStatus(const std::vector<int32_t>& args) {
-        bool print_status = false;
-        if (!args.empty()) print_status = args.at(0) == 1;
+    void Controller::ReadStatus() {
 
+        status_->SetDataHandlerStatus(data_handler_.get());
         auto status_vec = status_->ReadStatus(board_slots_, pcie_interface_.get(), false);
-        if (!print_status) {
+        if (!print_status_) {
             // Construct and send a status packet
             Command cmd(static_cast<uint16_t>(CommandCodes::kStatusPacket), status_vec.size());
             cmd.arguments = std::move(status_vec);
@@ -186,12 +187,12 @@ namespace controller {
     }
 
     void Controller::StatusControl() {
-        bool print_status = true;
 
         while (run_status_) {
             std::this_thread::sleep_for(std::chrono::seconds(2));
+            status_->SetDataHandlerStatus(data_handler_.get());
             auto status_vec = status_->ReadStatus(board_slots_, pcie_interface_.get(), true);
-            if (!print_status) {
+            if (!print_status_) {
                 // Construct and send a status packet
                 Command cmd(static_cast<uint16_t>(CommandCodes::kStatusPacket), status_vec.size());
                 cmd.arguments = std::move(status_vec);
@@ -323,7 +324,7 @@ namespace controller {
 
         if (command.command == CommandCodes::kStatusPacket) {
             LOG_INFO(logger_, " \n State [ReadStatus] \n");
-            if (is_configured_) ReadStatus(command.arguments);
+            if (is_configured_) ReadStatus();
             else LOG_WARNING(logger_, "Cant read status before configuration!\n");
             // don't change from the previous state
             return true;

@@ -4,6 +4,7 @@
 
 #include "pcie_interface.h"
 #include <iostream>
+
 #include "gramsreadout_lib.h"
 
 namespace pcie_int {
@@ -134,36 +135,40 @@ namespace pcie_int {
     }
 
     void PCIeInterface::ReadReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t *data) {
-        hDev = GetDeviceHandle(dev_handle);
+        EnforceDeadTime();
         // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
         std::unique_lock<std::mutex> lock(handle_mutex);
+        hDev = GetDeviceHandle(dev_handle);
         uint32_t read_status = WDC_ReadAddr32(hDev, addr_space, adr_offset, data);
         lock.unlock(); // make sure the mutex is unlocked to allow other users
         if (WD_STATUS_SUCCESS != read_status) std::cerr << "ReadReg32() failed" << std::endl;
     }
 
     bool PCIeInterface::WriteReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t data) {
-        hDev = GetDeviceHandle(dev_handle);
+        EnforceDeadTime();
         // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
         std::unique_lock<std::mutex> lock(handle_mutex);
+        hDev = GetDeviceHandle(dev_handle);
         uint32_t write_status = WDC_WriteAddr32(hDev, addr_space, adr_offset, data);
         lock.unlock(); // make sure the mutex is unlocked to allow other users
         return write_status == WD_STATUS_SUCCESS;
     }
 
     void PCIeInterface::ReadReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, unsigned long long *data) {
-        hDev = GetDeviceHandle(dev_handle);
+        EnforceDeadTime();
         // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
         std::unique_lock<std::mutex> lock(handle_mutex);
+        hDev = GetDeviceHandle(dev_handle);
         uint32_t read_status = WDC_ReadAddr64(hDev, addr_space, adr_offset, data);
         lock.unlock(); // make sure the mutex is unlocked to allow other users
         if (WD_STATUS_SUCCESS != read_status) std::cerr << "ReadReg64() failed" << std::endl;
     }
 
     bool PCIeInterface::WriteReg64(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint64_t data) {
-        hDev = GetDeviceHandle(dev_handle);
-        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        EnforceDeadTime();
         std::unique_lock<std::mutex> lock(handle_mutex);
+        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        hDev = GetDeviceHandle(dev_handle);
         uint32_t write_status = WDC_WriteAddr64(hDev, addr_space, adr_offset, data);
         lock.unlock(); // make sure the mutex is unlocked to allow other users
         return write_status == WD_STATUS_SUCCESS;
@@ -223,11 +228,12 @@ namespace pcie_int {
     }
 
     uint32_t PCIeInterface::PCIeSendBuffer(uint32_t dev, uint32_t mode, uint32_t nword, uint32_t *buff_send) {
+        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        EnforceDeadTime();
+        std::unique_lock<std::mutex> lock(handle_mutex);
+
         /* imode =0 single word transfer, imode =1 DMA */
         hDev = GetDeviceHandle(dev);
-
-        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
-        std::unique_lock<std::mutex> lock(handle_mutex);
 
         static DWORD dwAddrSpace;
         static DWORD dwOffset;
@@ -335,10 +341,11 @@ namespace pcie_int {
 
     uint32_t PCIeInterface::PCIeRecvBuffer(uint32_t dev, uint32_t mode, uint32_t istart, uint32_t nword, uint32_t ipr_status, uint32_t *buff_rec) {
         /* imode =0 single word transfer, imode =1 DMA */
+        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
+        EnforceDeadTime();
+        std::unique_lock<std::mutex> lock(handle_mutex);
 
         hDev = GetDeviceHandle(dev);
-        // Apply a mutex to make sure we dont get multiple accesses to the underlying hardware
-        std::unique_lock<std::mutex> lock(handle_mutex);
 
         static DWORD dwAddrSpace;
         static DWORD dwOffset;

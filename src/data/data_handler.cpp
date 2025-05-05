@@ -25,6 +25,19 @@ namespace data_handler {
         metrics_.reset();
     }
 
+    std::map<std::string, size_t> DataHandler::GetMetrics() {
+        std::map<std::string, size_t> metrics;
+        metrics["num_events"] = event_count_.load();
+        metrics["num_files"] = file_count_.load();
+        metrics["num_dma_loops"] = dma_loop_count_.load();
+        metrics["mega_bytes_received"] = num_recv_mB_.load();
+        metrics["event_diff"] = event_diff_.load();
+        metrics["event_size_words"] = num_event_chunk_words_.load();
+
+        return metrics;
+    }
+
+
     bool DataHandler::SetRecvBuffer(pcie_int::PCIeInterface *pcie_interface,
         pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2, bool is_data) {
 
@@ -70,7 +83,7 @@ namespace data_handler {
 
         LOG_INFO(logger_, "\t [{}] DMA loops with [{}] 32b words \n", num_dma_loops_, DATABUFFSIZE / 4);
 
-        file_count_ = 0;
+        file_count_.store(0);
         write_file_name_ = "/data/readout_data/pGRAMS_bin_" + std::to_string(subrun) + "_";
         LOG_INFO(logger_, "\n Writing files: {}", write_file_name_);
 
@@ -92,7 +105,7 @@ namespace data_handler {
         close_thread.detach();
 
         file_count_ += 1;
-        std::string name = write_file_name_  + std::to_string(file_count_) + ".dat";
+        std::string name = write_file_name_  + std::to_string(file_count_.load()) + ".dat";
 
         fd_ = open(name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd_ == -1) {
@@ -101,15 +114,15 @@ namespace data_handler {
         }
 
         LOG_INFO(logger_, "Switching to file: {} fd={}\n", name, fd_);
-        metrics_->NumFiles(file_count_);
+        metrics_->NumFiles(file_count_.load());
         return true;
     }
 
     void DataHandler::CollectData(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers) {
 
         auto write_thread = std::thread(&DataHandler::DataWrite, this);
-        // auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
-        auto read_thread = std::thread(&DataHandler::ReadoutViaController, this, pcie_interface, buffers);
+        auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
+        // auto read_thread = std::thread(&DataHandler::ReadoutViaController, this, pcie_interface, buffers);
 
         auto trigger_thread = std::thread(&trig_ctrl::TriggerControl::SendSoftwareTrigger, &trigger_,
             pcie_interface, software_trigger_rate_, trigger_module_);
@@ -140,7 +153,7 @@ namespace data_handler {
     void DataHandler::DataWrite() {
         LOG_INFO(logger_, "Read thread start! \n");
 
-        std::string name = write_file_name_  + std::to_string(file_count_) + ".dat";
+        std::string name = write_file_name_  + std::to_string(file_count_.load()) + ".dat";
         // 0644 user, group and others read/write permissions
         fd_ = open(name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd_ == -1) {
@@ -168,7 +181,9 @@ namespace data_handler {
                 auto now = std::chrono::high_resolution_clock::now();
                 auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start);
                 if (elapsed.count() >= 4) {
-                    metrics_->EventDiff(local_event_count - prev_event_count);
+                    const size_t delta_evts = local_event_count - prev_event_count;
+                    metrics_->EventDiff(delta_evts);
+                    event_diff_.store(delta_evts);
                     prev_event_count = local_event_count;
                     start = now;
                     metrics_->LoadMetrics();
@@ -204,7 +219,9 @@ namespace data_handler {
                         if ((local_event_count > 0) && (local_event_count % 5000 == 0)) {
                             SwitchWriteFile();
                         }
+                        num_recv_mB_.store(num_recv_bytes / 1000000);
                         metrics_->EventSize(num_words);
+                        num_event_chunk_words_.store(num_words);
                         metrics_->BytesReceived(num_recv_bytes);
                         metrics_->NumEvents(local_event_count);
                         event_start = false; num_words = 0; event_words = 0; event_chunk = 0;
@@ -228,7 +245,7 @@ namespace data_handler {
         }
 
         LOG_INFO(logger_, "Closed file after writing {}B to file {} \n", num_recv_bytes, write_file_name_);
-        LOG_INFO(logger_, "Wrote {} events to {} files \n", event_count_.load(), file_count_);
+        LOG_INFO(logger_, "Wrote {} events to {} files \n", event_count_.load(), file_count_.load());
         LOG_INFO(logger_, "Counted [{}] start events & [{}] end events \n", event_start_count, event_end_count);
     }
 
@@ -479,6 +496,7 @@ namespace data_handler {
             } // end dma loop
             dma_loops += 1;
             metrics_->DmaLoops(dma_loops);
+            dma_loop_count_.store(dma_loops);
         } // end loop over events
 
         LOG_INFO(logger_, "Stopping triggers..\n");
@@ -877,7 +895,7 @@ namespace data_handler {
     bool DataHandler::Reset(pcie_int::PCIeInterface *pcie_interface) {
 
         // Reset some counting variables
-        file_count_ = 0;
+        file_count_.store(0);
         event_count_.store(0);
         num_dma_loops_ = 0;
         num_recv_bytes_ = 0;

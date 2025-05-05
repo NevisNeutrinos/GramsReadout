@@ -5,44 +5,42 @@
 #include "status.h"
 #include <array>
 #include <iostream>
+#include <thread>
 
 namespace status {
 
-    std::vector<int32_t> Status::GetDataHandlerStatus() {
+    void Status::SetDataHandlerStatus(data_handler::DataHandler *data_handler) {
 
-        std::vector<int32_t> status_res;
+        auto metrics = data_handler->GetMetrics();
+
+        data_handler_status_vec_.clear();
         size_t tmp_size = 0;
         size_t mask_32b = 0xFFFFFFFF;
 
-        tmp_size = num_events_.load();
-        status_res.push_back((tmp_size >> 32) & mask_32b);
-        status_res.push_back(tmp_size & mask_32b);
+        tmp_size = metrics["num_events"];
+        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
+        data_handler_status_vec_.push_back(tmp_size & mask_32b);
 
-        tmp_size = event_diff_.load();
-        status_res.push_back((tmp_size >> 32) & mask_32b);
-        status_res.push_back(tmp_size & mask_32b);
+        tmp_size = metrics["event_diff"];
+        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
+        data_handler_status_vec_.push_back(tmp_size & mask_32b);
 
-        tmp_size = num_files_.load();
-        status_res.push_back((tmp_size >> 32) & mask_32b);
-        status_res.push_back(tmp_size & mask_32b);
+        tmp_size = metrics["num_dma_loops"];
+        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
+        data_handler_status_vec_.push_back(tmp_size & mask_32b);
 
-        tmp_size = num_dma_loops_.load();
-        status_res.push_back((tmp_size >> 32) & mask_32b);
-        status_res.push_back(tmp_size & mask_32b);
+        tmp_size = metrics["mega_bytes_received"];
+        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
+        data_handler_status_vec_.push_back(tmp_size & mask_32b);
 
-        tmp_size = adc_words_per_event_.load();
-        status_res.push_back((tmp_size >> 32) & mask_32b);
-        status_res.push_back(tmp_size & mask_32b);
+        tmp_size = metrics["event_size_words"];
+        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
+        data_handler_status_vec_.push_back(tmp_size & mask_32b);
 
-        tmp_size = bytes_received_.load();
-        status_res.push_back((tmp_size >> 32) & mask_32b);
-        status_res.push_back(tmp_size & mask_32b);
+        tmp_size = metrics["num_files"];
+        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
+        data_handler_status_vec_.push_back(tmp_size & mask_32b);
 
-        tmp_size = words_per_event_.load();
-        status_res.push_back((tmp_size >> 32) & mask_32b);
-        status_res.push_back(tmp_size & mask_32b);
-
-        return status_res;
     }
 
     std::vector<int32_t> Status::ReadStatus(const std::vector<int>& boards, pcie_int::PCIeInterface *pcie_interface, bool minimal_status) {
@@ -91,22 +89,19 @@ namespace status {
         std::array<uint32_t, 2> read_array;
         uint32_t *psend = send_array.data();
         uint32_t *precv = read_array.data();
-        bool print_status = false;
 
         // init the receiver
         pcie_interface->PCIeRecvBuffer(1, 0, 1, fem_status_num_word_, 0, precv);
         // read out status
         send_array[0] = (board_number << 11) + (fem_status_chip_ << 8) + 20 + (0x0 << 16);
-        pcie_interface->PCIeSendBuffer(1, 1, 1, psend);
+        pcie_interface->PCIeSendBuffer(1, 0, 1, psend);
         pcie_interface->PCIeRecvBuffer(1, 0, 2, fem_status_num_word_, 0, precv);
 
         std::vector<uint32_t> status_vec(fem_status_num_word_, 0);
-        std::cout << std::hex;
         for(size_t i = 0; i < fem_status_num_word_; i++) {
             status_vec.at(i) = read_array.at(i);
-            if (print_status) std::cout << board_number << "- 0x" << read_array.at(i) << std::endl;
+            if (print_status_) std::cout << board_number << "- 0x" << std::hex << read_array.at(i) << std::dec << std::endl;
         }
-        std::cout << std::dec;
         return status_vec;
     }
 

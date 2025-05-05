@@ -7,7 +7,9 @@
 #include <cstdint>
 #include <array>
 #include <memory>
+#include <chrono>
 #include <mutex>
+#include <thread>
 
 
 namespace pcie_int {
@@ -78,10 +80,24 @@ private:
     PCIeDeviceHandle GetDeviceHandle(uint32_t dev_handle);
 
     // The pointer to the device in memory
-    std::mutex handle_mutex;
     PCIeDeviceHandle dev_handle_1;
     PCIeDeviceHandle dev_handle_2;
     PCIeDeviceHandle hDev;
+
+    // When sharing access to a hardware device across multiple threads we have to
+    // worry about two things:
+    // 1. Race condition when two threads try to access the resource
+    // 2. Less obvious race condition when two threads try to access the resource
+    //    not at the same time but nearly the same time.
+    // Condition 1) is solved with a mutex but for 2) we need to enforce a deadtime.
+    // Here we timestamp the most recent access and do not allow another access until
+    // the deadtime has elapsed. The deadtime has to be separately tracked at each mutex use.
+    std::mutex handle_mutex;
+
+    void EnforceDeadTime() const {
+        // Enforce only a minimal dead time between accesses, likely 0.5 - 1us
+        std::this_thread::sleep_for(std::chrono::nanoseconds(0));
+    }
 
     // Warning! Make sure the DMA buffer size is memory aligned to 32b
     // since we cast it from number of bytes into a 32b buffer. In other

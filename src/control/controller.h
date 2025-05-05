@@ -107,7 +107,7 @@
         bool GetStatus();
         bool Reset();
         void StatusControl();
-        void ReadStatus(const std::vector<int32_t>& args);
+        void ReadStatus();
 
         void ReceiveCommand();
         void SendAckCommand(bool success);
@@ -115,6 +115,7 @@
         bool JoinDataThread();
 
         bool is_configured_;
+        bool print_status_;
 
         TCPConnection tcp_connection_;
         std::thread data_thread_;
