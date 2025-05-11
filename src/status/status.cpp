@@ -3,11 +3,14 @@
 //
 
 #include "status.h"
+#include "json.hpp"
 #include <array>
 #include <iostream>
 #include <thread>
 
 namespace status {
+
+using json = nlohmann::json;
 
     void Status::SetDataHandlerStatus(data_handler::DataHandler *data_handler) {
 
@@ -41,6 +44,16 @@ namespace status {
         data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
         data_handler_status_vec_.push_back(tmp_size & mask_32b);
 
+    }
+
+//    std::string Status::JsonHandlerStatus() {
+    std::string Status::JsonHandlerStatus(data_handler::DataHandler *data_handler) {
+      	auto metrics = data_handler->GetMetrics();
+		json json_metrics;
+		for (const auto& pair : metrics) {
+    		json_metrics[pair.first] = pair.second;
+		}
+        return json_metrics.dump();
     }
 
     std::vector<int32_t> Status::ReadStatus(const std::vector<int>& boards, pcie_int::PCIeInterface *pcie_interface, bool minimal_status) {
@@ -78,7 +91,7 @@ namespace status {
 
     int32_t Status::GetBoardStatus(int32_t board_number, pcie_int::PCIeInterface *pcie_interface) {
         auto status = GetFemStatus(board_number, pcie_interface);
-        if (status.size() == 0) return 0;
+        if (status.empty()) return 0;
         // We care about the 16b status word which is the upper 16b of the 32b word
         return (status.at(0) >> 16) & 0xFFFF;
     }

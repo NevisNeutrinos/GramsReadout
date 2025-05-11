@@ -11,6 +11,7 @@ class CounterReceiver:
         #Create a PULL socket to receive messages
         self.socket = self.context.socket(zmq.PULL)
         self.socket.bind(endpoint)  # Bind to the given endpoint
+        # self.socket.connect(endpoint)
 
         self.BROKER = "localhost"  # Change if using a remote broker
         self.PORT = 1883
@@ -19,7 +20,7 @@ class CounterReceiver:
         self.client.connect(self.BROKER, self.PORT, 60)
 
     def receive_map(self):
-        message = self.socket.recv().decode("utf-8")  # Receive and decode JSON string
+        message = self.socket.recv_string()  # #.decode("utf-8")  # Receive and decode JSON string
         # received_map = json.loads(message)  # Convert JSON to Python dictionary
         print("Received map:", message)
         return message
@@ -40,7 +41,7 @@ class CounterReceiver:
 
 if __name__ == "__main__":
     # Create a CounterReceiver instance to listen on the same endpoint
-    receiver = CounterReceiver("tcp://*:5555")
+    receiver = CounterReceiver("tcp://127.0.0.1:1750")
     print("Opened ZMQ and MQTT socket...")
     receiver.receive_and_send_metrics()
 

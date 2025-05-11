@@ -15,7 +15,8 @@ namespace controller {
                            const short port, const bool is_server, const bool is_running) :
         tcp_connection_(io_context, ip_address, port, is_server),
         is_running_(is_running),
-        is_configured_(false) {
+        is_configured_(false),
+        enable_monitoring_(false) {
         // metrics_(data_monitor::DataMonitor::GetInstance()) {
 
         current_state_ = State::kIdle;
@@ -43,6 +44,7 @@ namespace controller {
         LOG_INFO(logger_, "Config dump: {} \n", config_.dump());
 
         const bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
+        enable_monitoring_ = config_["controller"]["enable_monitoring"].get<bool>();
         // metrics_->EnableMonitoring(enable_metrics);
 
         data_handler_ = std::make_unique<data_handler::DataHandler>();
@@ -56,6 +58,10 @@ namespace controller {
         buffers_ = std::make_unique<pcie_int::PcieBuffers>();
 
         LOG_INFO(logger_, "Initialized Controller \n");
+        if (enable_monitoring_) {
+            LOG_INFO(logger_, "Starting Monitoring \n");
+            StartMonitoring();
+        }
     }
 
     Controller::~Controller() {
@@ -74,10 +80,38 @@ namespace controller {
         pcie_interface_.reset();
         buffers_.reset();
 
-        LOG_INFO(logger_, "Destructed all hardware \n");
+        if (enable_monitoring_) {
+            LOG_INFO(logger_, "Starting Monitoring \n");
+            ShutdownMonitoring();
+        }
 
+        LOG_INFO(logger_, "Destructed all hardware \n");
         // End logging session and close file
         // quill::Frontend::remove_logger(logger_);
+    }
+
+    void Controller::ShutdownMonitoring() {
+        std::cout << "Destructing metrics.. " << std::endl;
+        constexpr int linger_value = 0;
+        // Discard any lingering messages so we can close the socket
+        socket_->setsockopt(ZMQ_LINGER, &linger_value, sizeof(linger_value));
+        socket_->close();
+        context_->close();
+        std::cout << "Closed metric socket.. " << std::endl;
+    }
+
+    void Controller::StartMonitoring() {
+        context_ = std::make_unique<zmq::context_t>(1); // Single I/O thread context
+        socket_ = std::make_unique<zmq::socket_t>(*context_, ZMQ_PUSH); // PUSH socket type
+        socket_->connect("tcp://localhost:1750"); // Connect to the given endpoint
+    }
+
+    template<typename T>
+    void Controller::SendMetrics(T &data, const size_t size) {
+        zmq::message_t message(size);
+        memcpy(message.data(), data.data(), size); // Copy counter to message data
+        socket_->send(message, zmq::send_flags::none); // Send the message
+        //std::cout << "Sent metric: " << data << std::endl;
     }
 
     bool Controller::LoadConfig(std::string &config_file) {
@@ -133,7 +167,7 @@ namespace controller {
         }
 
         int32_t subrun_number = args.at(0);
-        config_["data_handler"]["subrun"] = subrun_number;
+        // config_["data_handler"]["subrun"] = subrun_number;
         LOG_INFO(logger_, "Configuring run number {}", subrun_number);
 
         // Load requested config file
@@ -143,6 +177,16 @@ namespace controller {
         if (!LoadConfig(config_file)) {
             std::cerr << "Config load failed! \n";
             return  false;
+        }
+
+        // Specify the output file name to save the config file to for reference
+        std::string filename = "run_" + std::to_string(config_["data_handler"]["subrun"].get<int>()) + ".json";
+        // Open a file stream for writing
+        std::ofstream outputFile(filename);
+        if (outputFile.is_open()) {
+            // Dump the JSON object to the file with indentation for readability
+            outputFile << std::setw(4) << config_ << std::endl;
+            outputFile.close();
         }
 
         print_status_ = config_["controller"]["print_status"].get<bool>();
@@ -197,6 +241,11 @@ namespace controller {
                 Command cmd(static_cast<uint16_t>(CommandCodes::kStatusPacket), status_vec.size());
                 cmd.arguments = std::move(status_vec);
                 tcp_connection_.WriteSendBuffer(cmd);
+                // Get the same metrics but in json string form
+                if (enable_monitoring_) {
+                    auto msg = status_->JsonHandlerStatus(data_handler_.get());
+                    SendMetrics(msg, msg.size());
+                }
             } else {
                 for (auto stat : status_vec)  LOG_INFO(logger_, "Data Handler Status: {} \n", stat);
             }

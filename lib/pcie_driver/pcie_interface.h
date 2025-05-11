@@ -89,13 +89,13 @@ private:
     // 1. Race condition when two threads try to access the resource
     // 2. Less obvious race condition when two threads try to access the resource
     //    not at the same time but nearly the same time.
-    // Condition 1) is solved with a mutex but for 2) we need to enforce a deadtime.
-    // Here we timestamp the most recent access and do not allow another access until
-    // the deadtime has elapsed. The deadtime has to be separately tracked at each mutex use.
+    // Condition 1) is solved with a mutex but for 2) we need to enforce a dead time.
+    // Here we enforce a small dead time between accesses with `EnforceDeadTime()`.
     std::mutex handle_mutex;
 
     void EnforceDeadTime() const {
-        // Enforce only a minimal dead time between accesses, likely 0.5 - 1us
+        // Enforce only a small dead time between accesses, 0ns is likely 0.5 - 1us but
+        // the real sleep time depends on OS scheduler and machine.
         std::this_thread::sleep_for(std::chrono::nanoseconds(0));
     }
 

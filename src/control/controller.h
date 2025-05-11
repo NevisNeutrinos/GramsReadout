@@ -8,6 +8,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <zmq.hpp>
 #include "quill/Logger.h"
 #include "json.hpp"
 #include "../../networking/tcp_connection.h"
@@ -116,11 +117,19 @@
 
         bool is_configured_;
         bool print_status_;
+        bool enable_monitoring_;
 
         TCPConnection tcp_connection_;
         std::thread data_thread_;
         std::thread status_thread_;
         std::vector<int> board_slots_{};
+
+        std::unique_ptr<zmq::context_t> context_;
+        std::unique_ptr<zmq::socket_t> socket_;
+        void StartMonitoring();
+        void ShutdownMonitoring();
+        template<typename T>
+        void SendMetrics(T &data, const size_t size);
 
         // data_monitor::DataMonitor &metrics_;
         // std::shared_ptr<data_monitor::DataMonitor> metrics_;

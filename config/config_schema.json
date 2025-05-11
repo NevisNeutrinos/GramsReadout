@@ -38,10 +38,11 @@
       "type": "object",
       "properties": {
         "print_status" : { "type" : "boolean" },
+        "enable_monitoring" : { "type" : "boolean" },
         "log_to_file" : { "type" : "boolean" },
         "log_file_path" : { "type" : "string" }
       },
-      "required": ["print_status", "log_to_file", "log_file_path"]
+      "required": ["print_status", "enable_monitoring", "log_to_file", "log_file_path"]
     },
     "charge_fem" : {
       "type": "object",
@@ -69,9 +70,10 @@
       "properties": {
         "trigger_source" : { "type" : "string", "enum": ["ext", "light", "software"], "description" : "External or light based triggers." },
         "software_trigger_rate_hz" : { "type" : "integer" },
+        "dead_time" : { "type" : "integer" },
         "prescale" : { "type" : "array", "items" : { "type" : "integer" }, "minItems" : 9, "maxItems" : 9
       },
-      "required": ["trigger_source" , "software_trigger_rate_hz", "prescale"]
+      "required": ["trigger_source" , "software_trigger_rate_hz", "dead_time", "prescale"]
     },
     "readout_windows" : {
       "type": "object",

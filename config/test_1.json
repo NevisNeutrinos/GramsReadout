@@ -9,15 +9,16 @@
     "shaper_slot": 17
   },
   "data_handler" : {
-    "num_events" : 60000000,
-    "subrun" : 10,
+    "num_events" : 1000,
+    "subrun" : 402,
     "enable_metrics" : true
   },
   "xmit" : {
     "fpga_bitfile" : "/home/sabertooth/GramsReadoutFirmware/xmit/readcontrol_110601_v3_play_header_hist_l1block_9_21_2018.rbf"
   },
   "controller" : {
-    "print_status" : true,
+    "print_status" : false,
+    "enable_monitoring" : true,
     "log_to_file" : false,
     "log_file_path" : "/home/sabertooth/GramsReadout/build"
   },
@@ -25,18 +26,19 @@
     "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/fem/module1x_140820_deb_fixbase_nf_8_31_2018.rbf"
   },
   "light_fem" : {
-    "summed_adc_thresh" : 40,
+    "summed_adc_thresh" : 500,
     "multiplicity" : 1,
-    "channel_thresh0" : 40,
-    "channel_thresh1" : 40,
-    "channel_thresh3" : 40,
-    "sipm_words" : 20,
+    "channel_thresh0" : 200,
+    "channel_thresh1" : 600,
+    "channel_thresh3" : 300,
+    "sipm_words" : 30,
     "sipm_deadtime" : 240,
     "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/pmt_fem/module1x_pmt_64MHz_new_head_07162013.rbf"
   },
   "trigger" : {
-    "trigger_source" : "ext",
+    "trigger_source" : "light",
     "software_trigger_rate_hz" : 10,
+    "dead_time" : 50,
     "prescale" : [0,0,0,0,0,0,0,0,0]
   },
   "readout_windows" : {

@@ -23,6 +23,7 @@ public:
     int32_t GetBoardStatus(int32_t board_number, pcie_int::PCIeInterface *pcie_interface);
     std::vector<int32_t> ReadStatus(const std::vector<int>& boards, pcie_int::PCIeInterface *pcie_interface, bool minimal_status);
     void SetDataHandlerStatus(data_handler::DataHandler *data_handler);
+    std::string JsonHandlerStatus(data_handler::DataHandler *data_handler);
     std::vector<int32_t> GetDataHandlerStatus() { return data_handler_status_vec_; }
     void SetPrintStatus(const bool print) { print_status_ = print; }
 
