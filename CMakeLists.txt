@@ -95,6 +95,7 @@ target_link_libraries(daq_orchestrator PRIVATE
         statgrab)
 
 # Define the installation location for the daemon
+message("Installing DAQ Orchestrator")
 install(TARGETS daq_orchestrator DESTINATION /usr/local/bin)
 
 #######################

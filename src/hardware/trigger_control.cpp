@@ -23,6 +23,7 @@ namespace trig_ctrl {
         software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
         trigger_module_ = config["crate"]["trig_slot"].get<int>();
         static int iframe_length = config["readout_windows"]["frame_length"].get<int>();
+        const int tpc_dead_time = config["trigger"]["dead_time"].get<int>();
 
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         //this is either 0x1 (PMT beam) 0x4 (PMT cosmic) or 0x8 (PMT all)
@@ -51,8 +52,8 @@ namespace trig_ctrl {
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
         imod = trigger_module_;
-        // set for 32
-        buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_deadtime_size) + ((32 & 0xff) << 16); // set trigger module deadtime size
+        // set for 32; set trigger module deadtime size
+        buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_deadtime_size) + ((tpc_dead_time & 0x7fff) << 16);
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);

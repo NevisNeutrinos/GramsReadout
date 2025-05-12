@@ -21,7 +21,7 @@ namespace controller {
 
         current_state_ = State::kIdle;
 
-        std::string config_file("../config/test_1.json");
+        std::string config_file("/home/sabertooth/GramsReadout/config/test_1.json");
         if (!LoadConfig(config_file)) {
             std::cerr << "Config load failed! \n";
         }
@@ -171,7 +171,7 @@ namespace controller {
         LOG_INFO(logger_, "Configuring run number {}", subrun_number);
 
         // Load requested config file
-        std::string config_file("../config/test_");
+        std::string config_file("/home/sabertooth/GramsReadout/config/test_");
         config_file += std::to_string(args.at(1)) + ".json";
         LOG_INFO(logger_, "Loading config {}", config_file);
         if (!LoadConfig(config_file)) {
