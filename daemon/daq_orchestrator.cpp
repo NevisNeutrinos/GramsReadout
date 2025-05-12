@@ -233,7 +233,7 @@ void RunController(std::unique_ptr<controller::Controller> &controller_ptr, asio
     try {
         QUILL_LOG_INFO(logger, "Starting controller initialization...");
         controller_ptr = std::make_unique<controller::Controller>(
-            io_context, kControllerIp, kControllerPort, false, g_running);
+            io_context, kControllerIp, kControllerPort, false, true);
         if (!controller_ptr->Init()) {
             QUILL_LOG_CRITICAL(logger, "Failed to initialize controller. Service will shut down.");
         } else {
@@ -323,7 +323,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &client_ptr, asio::io_context &io
                     io_context.stop();
                     JoinThread(ctrl_thread, logger);
                     JoinThread(io_thread, logger);
-                    controller_ptr.reset();
+                    controller_ptr.reset(nullptr);
                 } else {
                     LOG_WARNING(logger, "Readout controller not running!");
                 }
@@ -386,7 +386,7 @@ int main(int argc, char* argv[]) {
 
         LOG_INFO(logger, "Starting control connection \n");
         client_ptr = std::make_unique<TCPConnection>(io1, "127.0.0.1", kDaemonPort, false);
-        daq_thread = std::thread([&]() { DAQHandler(client_ptr, io1, logger); });
+        daq_thread = std::thread([&]() { DAQHandler(client_ptr, io2, logger); });
 
     } catch (const std::exception& e) {
         QUILL_LOG_CRITICAL(logger, "Exception during initialization phase: {}", e.what());

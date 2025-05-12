@@ -18,7 +18,12 @@ manually started by running,
 sudo systemctl start daq_orchestrator
 ```
 
-and the status checked where you should see a similar output with the service
+and the status checked with, 
+```bash
+sudo systemctl status daq_orchestrator
+```
+
+where you should see a similar output with the service
 listed as `active (runnning)` and the tail of the logger output.
 ```bash
 sabertooth@sabertooth-01:~$ sudo systemctl status daq_orchestrator
