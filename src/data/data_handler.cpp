@@ -123,6 +123,7 @@ namespace data_handler {
         auto write_thread = std::thread(&DataHandler::DataWrite, this);
         auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
         // auto read_thread = std::thread(&DataHandler::ReadoutViaController, this, pcie_interface, buffers);
+        // auto trig_pps = std::thread(&DataHandler::PollTriggerPPS, this, pcie_interface);
 
         auto trigger_thread = std::thread(&trig_ctrl::TriggerControl::SendSoftwareTrigger, &trigger_,
             pcie_interface, software_trigger_rate_, trigger_module_);
@@ -133,6 +134,9 @@ namespace data_handler {
         // separate threads with separate DMAs
         //auto trigger_thread = std::thread(&DataHandler::TriggerDMARead, this, pcie_interface);
         LOG_INFO(logger_, "Started read and write threads... \n");
+
+        // Shut down PPS polling thread
+        // trig_pps.join();
 
         // Shut down the write thread first so we're not trying to access buffer ptrs
         // after they have been deleted in the read thread
@@ -884,6 +888,30 @@ namespace data_handler {
             if (!is_running_.load()) break;
         }
         return false;
+    }
+
+    void DataHandler::PollTriggerPPS(pcie_int::PCIeInterface *pcie_interface) {
+        std::array<uint32_t, 2> send_array{};
+        std::array<uint32_t, 2> read_array{};
+        uint32_t *psend = send_array.data();
+        uint32_t *precv = read_array.data();
+
+        size_t num_status_words = 1;
+        uint32_t chip_num = 3;
+
+        while (is_running_.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            // init the receiver
+            pcie_interface->PCIeRecvBuffer(1, 0, 1, num_status_words, 0, precv);
+            // read out status
+            send_array[0] = (trigger_module_ << 11) + (chip_num << 8) + 20 + (0x0 << 16);
+            pcie_interface->PCIeSendBuffer(1, 0, 1, psend);
+            pcie_interface->PCIeRecvBuffer(1, 0, 2, num_status_words, 0, precv);
+
+            for(size_t i = 0; i < num_status_words; i++) {
+                std::cout << "PPS: 0x" << std::hex << read_array.at(i) << std::dec << std::endl;
+            }
+        }
     }
 
     std::vector<uint32_t> DataHandler::GetStatus() {

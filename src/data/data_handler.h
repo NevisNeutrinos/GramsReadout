@@ -47,8 +47,8 @@ private:
     uint32_t DmaLoop(pcie_int::PCIeInterface *pcie_interface, uint32_t dma_num, size_t loop, unsigned long long *u64Data, bool is_first_loop);
     bool SetRecvBuffer(pcie_int::PCIeInterface *pcie_interface,
         pcie_int::DMABufferHandle *pbuf_rec1, pcie_int::DMABufferHandle *pbuf_rec2, bool is_data);
-
     bool SwitchWriteFile();
+    void PollTriggerPPS(pcie_int::PCIeInterface *pcie_interface);
 
     static bool isEventStart(const uint32_t word) { return (word & 0xFFFFFFFF) == 0xFFFFFFFF; }
     static bool isEventEnd(const uint32_t word) { return (word & 0xFFFFFFFF) == 0xE0000000; }
