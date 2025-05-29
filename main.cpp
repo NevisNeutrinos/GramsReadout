@@ -75,18 +75,26 @@ int main() {
     quill::Backend::start(backend_options);
 
     asio::io_context io_context;
+    asio::io_context status_io_context;
 
     bool run = true;
+    std::string ip_addr = "192.168.1.100";
+    // std::string ip_addr = "127.0.0.1";
     std::cout << "Starting controller..." << std::endl;
-    controller::Controller controller(io_context, "127.0.0.1", 12345, true, run);
+    controller::Controller controller(io_context, status_io_context, ip_addr, 50003, 50002, false, run);
     // controller::Controller controller(io_context, "127.0.0.1", 12345, true, run);
+    std::cout << "Starting Command IO thread..." << std::endl;
     std::thread io_thread([&]() { io_context.run(); });
+    std::cout << "Starting Status IO thread..." << std::endl;
+    std::thread status_io_thread([&]() { status_io_context.run(); });
 
     if (!controller.Init()) {
         std::cerr << "Failed to initialize controller. Shutting down...\n";
         controller.SetRunning(false);
         io_context.stop();
+        status_io_context.stop();
         io_thread.join();
+        status_io_thread.join();
         return 1;
     }
     std::thread ctrl_thread([&]() { controller.Run(); });
@@ -96,8 +104,10 @@ int main() {
     std::cout << "Controller Run stopped!\n";
 
     io_context.stop();
+    status_io_context.stop();
     ctrl_thread.join();
     io_thread.join();
+    status_io_thread.join();
 
     return 0;
 }
