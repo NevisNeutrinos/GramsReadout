@@ -34,9 +34,14 @@
 // Best practice: Load these from a config file or environment variables
 // For simplicity, using constants here. Consider systemd Environment= directive.
 
-const char* kControllerIp = "127.0.0.1";
-const uint16_t kControllerPort = 1738; //1735;
-const uint16_t kDaemonPort = 1740; //1745;
+const char* kControllerIp = "192.168.1.100";  // Readout software IP
+// const char* kControllerIp = "127.0.0.1";  // Readout software IP
+const uint16_t kControllerCommandPort = 50003; // Readout software port, for commands
+const uint16_t kControllerStatusPort = 50002; // Readout software port, for status
+
+const char* kDaemonIp = "127.0.0.1";  // Daemon software IP
+const uint16_t kDaemonCommandPort = 50001; // Daemon software port, for commands
+const uint16_t kDaemonStatusPort = 50000; // Daemon software port, for status
 
 // --- Global Variables ---
 namespace { // Use anonymous namespace for internal linkage
@@ -232,8 +237,9 @@ void RunController(std::unique_ptr<controller::Controller> &controller_ptr, asio
 
     try {
         QUILL_LOG_INFO(logger, "Starting controller initialization...");
+        // FIXME add status io context
         controller_ptr = std::make_unique<controller::Controller>(
-            io_context, kControllerIp, kControllerPort, false, true);
+            io_context, io_context, kControllerIp, kControllerCommandPort, kControllerStatusPort, false, true);
         if (!controller_ptr->Init()) {
             QUILL_LOG_CRITICAL(logger, "Failed to initialize controller. Service will shut down.");
         } else {
@@ -288,7 +294,8 @@ void JoinThread(std::thread &thread, quill::Logger *logger) {
     }
 }
 
-void DAQHandler(std::unique_ptr<TCPConnection> &client_ptr, asio::io_context &io_context, quill::Logger *logger) {
+void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_ptr<TCPConnection> &status_client_ptr,
+                asio::io_context &io_context, quill::Logger *logger) {
 
     // Readout DAQ Controller
     std::unique_ptr<controller::Controller> controller_ptr;
@@ -297,13 +304,13 @@ void DAQHandler(std::unique_ptr<TCPConnection> &client_ptr, asio::io_context &io
     asio::executor_work_guard<asio::io_context::executor_type> work_guard(io_context.get_executor());
 
     while (g_running.load()) {
-        Command cmd = client_ptr->ReadRecvBuffer();
+        Command cmd = command_client_ptr->ReadRecvBuffer();
         LOG_INFO(logger, "Received command [{}] num_args: [{}] \n", cmd.command, cmd.arguments.size());
 
         switch (cmd.command) {
             case 0: {
                 std::vector<int32_t> status = GetComputerStatus(logger);
-                client_ptr->WriteSendBuffer(0x0, status);
+                status_client_ptr->WriteSendBuffer(0x0, status);
                 break;
             }
             case 1: { // start readout DAQ
@@ -329,6 +336,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &client_ptr, asio::io_context &io
                 }
                 break;
             }
+            // TODO add case for booting _all_ DAQ (status msg shows if they are running)
             default: {
                 LOG_WARNING(logger, "Unknown command {}", cmd.command);
                 break;
@@ -354,14 +362,17 @@ int main(int argc, char* argv[]) {
     SetupLogging(); // Configures Quill to log to stdout
     quill::Logger* logger = quill::Frontend::create_or_get_logger("readout_logger");
 
-    QUILL_LOG_INFO(logger, "Controller service starting up...");
-    QUILL_LOG_INFO(logger, "Target Controller IP: {}, Port: {}", kControllerIp, kControllerPort);
+    QUILL_LOG_INFO(logger, "Connection service starting up...");
+    QUILL_LOG_INFO(logger, "Daemon IP: {}, Cmd Port: [{}], Status Port: [{}]", kDaemonIp, kDaemonCommandPort, kDaemonStatusPort);
+    QUILL_LOG_INFO(logger, "Controller IP: {}, Cmd Port: [{}], Status Port: [{}]", kControllerIp,
+                                                                        kControllerCommandPort, kControllerStatusPort);
 
     // 3. Initialize ASIO and Controller
     asio::io_context io1, io2;
     std::thread io_thread;
     std::thread daq_thread;
-    std::unique_ptr<TCPConnection> client_ptr;
+    std::unique_ptr<TCPConnection> command_client_ptr;
+    std::unique_ptr<TCPConnection> status_client_ptr;
 
     try {
         // Start IO context thread first
@@ -385,8 +396,9 @@ int main(int argc, char* argv[]) {
         });
 
         LOG_INFO(logger, "Starting control connection \n");
-        client_ptr = std::make_unique<TCPConnection>(io1, "127.0.0.1", kDaemonPort, false);
-        daq_thread = std::thread([&]() { DAQHandler(client_ptr, io2, logger); });
+        command_client_ptr = std::make_unique<TCPConnection>(io1, kDaemonIp, kDaemonCommandPort, false, true);
+        // status_client_ptr = std::make_unique<TCPConnection>(io1, kDaemonIp, kDaemonStatusPort, false, false);
+        daq_thread = std::thread([&]() { DAQHandler(command_client_ptr, status_client_ptr, io2, logger); });
 
     } catch (const std::exception& e) {
         QUILL_LOG_CRITICAL(logger, "Exception during initialization phase: {}", e.what());
@@ -402,7 +414,9 @@ int main(int argc, char* argv[]) {
         QUILL_LOG_INFO(logger, "Service running. Waiting for termination signal...");
         std::unique_lock<std::mutex> lock(g_shutdown_mutex);
         g_shutdown_cv.wait(lock, [] { return !g_running.load(); });
-        client_ptr->setStopCmdRead(true); // stop the blocking message receiver so the DAQ thread can terminate
+        // stop the blocking message receiver so the DAQ thread can terminate
+        command_client_ptr->setStopCmdRead(true);
+        // status_client_ptr->setStopCmdRead(true);
         // When woken up, g_running is false
         QUILL_LOG_INFO(logger, "Shutdown signal received or error detected. Initiating shutdown sequence.");
     // } else if (!g_successful_init.load()) {
