@@ -123,7 +123,7 @@ namespace data_handler {
         auto write_thread = std::thread(&DataHandler::DataWrite, this);
         auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
         // auto read_thread = std::thread(&DataHandler::ReadoutViaController, this, pcie_interface, buffers);
-        // auto trig_pps = std::thread(&DataHandler::PollTriggerPPS, this, pcie_interface);
+        auto trig_pps = std::thread(&DataHandler::PollTriggerPPS, this, pcie_interface);
 
         auto trigger_thread = std::thread(&trig_ctrl::TriggerControl::SendSoftwareTrigger, &trigger_,
             pcie_interface, software_trigger_rate_, trigger_module_);
@@ -136,7 +136,7 @@ namespace data_handler {
         LOG_INFO(logger_, "Started read and write threads... \n");
 
         // Shut down PPS polling thread
-        // trig_pps.join();
+        trig_pps.join();
 
         // Shut down the write thread first so we're not trying to access buffer ptrs
         // after they have been deleted in the read thread
@@ -896,22 +896,62 @@ namespace data_handler {
         uint32_t *psend = send_array.data();
         uint32_t *precv = read_array.data();
 
-        size_t num_status_words = 1;
+        size_t num_status_words = 2;
         uint32_t chip_num = 3;
 
         while (is_running_.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             // init the receiver
             pcie_interface->PCIeRecvBuffer(1, 0, 1, num_status_words, 0, precv);
-            // read out status
-            send_array[0] = (trigger_module_ << 11) + (chip_num << 8) + 20 + (0x0 << 16);
+            // read out status =32 or read PPS register =35
+            send_array[0] = (trigger_module_ << 11) + (chip_num << 8) + 35 + (0x0 << 16);
             pcie_interface->PCIeSendBuffer(1, 0, 1, psend);
             pcie_interface->PCIeRecvBuffer(1, 0, 2, num_status_words, 0, precv);
+            std::cout << "++++" << std::endl;
+            std::cout << "PPS -- Frame: " << (read_array.at(0) & 0xFFFFFF)
+                      << " Sample: " << (read_array.at(1) & 0xFFF)
+                      << " Div: " << ( ( read_array.at(1) & 0x70000) >> 16 ) << std::endl;
 
-            for(size_t i = 0; i < num_status_words; i++) {
-                std::cout << "PPS: 0x" << std::hex << read_array.at(i) << std::dec << std::endl;
-            }
+            // std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            //
+            // // init the receiver
+            // pcie_interface->PCIeRecvBuffer(1, 0, 1, num_status_words, 0, precv);
+            // send_array[0] = (trigger_module_ << 11) + (0 << 8) + 32 + (0x0 << 16);
+            // pcie_interface->PCIeSendBuffer(1, 0, 1, psend);
+            // pcie_interface->PCIeRecvBuffer(1, 0, 2, num_status_words, 0, precv);
+            //
+            // std::cout << "Status -- Module: " << ((read_array.at(0) >> 11) & 0x1F)
+            //           << " Ctr TPC: " << (read_array.at(1) & 0xFFF)
+            //           << " Ctr Trig: " << ((read_array.at(1) & 0xFFF) * 8) + ((read_array.at(1) >> 16) & 0x7) << std::endl;
         }
+
+    // From TriggerModule.h
+    // enum chip_3 : operation_id_t {
+    //         GPS_TB_FRAME_SAMPLE=35,
+    //       };
+    //     typedef chip_3 GPS;
+    //
+    //     enum device : chip_address_t
+    //     {
+    //         trg = 0,
+    //         gps = 3
+    //     };
+    // Format
+        // strstrm << "\nGPSTimingSystem " <<std::endl;
+        // strstrm << "----------------------------" << std::endl;
+        // strstrm << "frame  " << ( *status_rec.dataBegin() & 0xffffff ) << std::endl;
+        // strstrm << "sample " << ( *(status_rec.dataBegin() + 1) & 0xfff) << std::endl;
+        // strstrm << "div " << ( ( *(status_rec.dataBegin() + 1) & 0x70000) >> 16 ) << std::endl;
+
+        // _status.module = ((*word_iter) >> 11 & 0x1f);
+        //
+        // ++word_iter;
+        // _status.frame_ctr = (*word_iter);
+        //
+        // ++word_iter;
+        // _status.sample_ctr_tpc = ((*word_iter) & 0xfff);
+        // _status.sample_ctr_trigger  = _status.sample_ctr_tpc * 8;
+        // _status.sample_ctr_trigger += (((*word_iter) >> 16) & 0x7);
     }
 
     std::vector<uint32_t> DataHandler::GetStatus() {
