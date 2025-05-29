@@ -47,6 +47,7 @@
         kStatusPacket = 0x27,
         kCmdSuccess = 0x1000,
         kCmdFailure = 0x2000,
+        kHeartBeat = 0xFFFF,
         kInvalid = UINT16_MAX
     };
 
@@ -77,8 +78,8 @@
 
     public:
 
-        Controller(asio::io_context& io_context, const std::string& ip_address,
-                   const short port, const bool is_server, const bool is_running);
+        Controller(asio::io_context& io_context, asio::io_context& status_io_context, const std::string& ip_address,
+                    uint16_t command_port, uint16_t status_port, bool is_server, bool is_running);
         ~Controller();
 
         // Initialize class
@@ -119,7 +120,9 @@
         bool print_status_;
         bool enable_monitoring_;
 
-        TCPConnection tcp_connection_;
+        // TCPConnection tcp_connection_;
+        TCPConnection command_client_;
+        TCPConnection status_client_;
         std::thread data_thread_;
         std::thread status_thread_;
         std::vector<int> board_slots_{};

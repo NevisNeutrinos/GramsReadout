@@ -11,9 +11,10 @@
 
 namespace controller {
 
-    Controller::Controller(asio::io_context& io_context, const std::string& ip_address,
-                           const short port, const bool is_server, const bool is_running) :
-        tcp_connection_(io_context, ip_address, port, is_server),
+    Controller::Controller(asio::io_context& io_context, asio::io_context& status_io_context, const std::string& ip_address,
+        const uint16_t command_port, const uint16_t status_port, const bool is_server, const bool is_running) :
+        command_client_(io_context, ip_address, command_port, is_server, true),
+        status_client_(status_io_context, ip_address, status_port, is_server, false),
         is_running_(is_running),
         is_configured_(false),
         enable_monitoring_(false) {
@@ -67,6 +68,8 @@ namespace controller {
     Controller::~Controller() {
         LOG_INFO(logger_, "Destructing Controller \n");
         // data_monitor::DataMonitor::ResetInstance();
+        run_status_.store(false);
+        if (status_thread_.joinable()) status_thread_.join();
 
         // Manually release the memory to make sure it's released
         // in the correct order.
@@ -213,6 +216,8 @@ namespace controller {
         data_handler_->Configure(config_);
         LOG_INFO(logger_, "Configured Hardware! \n");
         is_configured_ = true;
+        run_status_.store(true);
+        status_thread_ = std::thread(&Controller::StatusControl, this);
         return true;
     }
 
@@ -224,7 +229,7 @@ namespace controller {
             // Construct and send a status packet
             Command cmd(static_cast<uint16_t>(CommandCodes::kStatusPacket), status_vec.size());
             cmd.arguments = std::move(status_vec);
-            tcp_connection_.WriteSendBuffer(cmd);
+            status_client_.WriteSendBuffer(cmd);
         } else {
             for (auto stat : status_vec)  LOG_INFO(logger_, "Data Handler Status: {} \n", stat);
         }
@@ -235,12 +240,12 @@ namespace controller {
         while (run_status_) {
             std::this_thread::sleep_for(std::chrono::seconds(2));
             status_->SetDataHandlerStatus(data_handler_.get());
-            auto status_vec = status_->ReadStatus(board_slots_, pcie_interface_.get(), true);
+            auto status_vec = status_->ReadStatus(board_slots_, pcie_interface_.get(), false);
             if (!print_status_) {
                 // Construct and send a status packet
                 Command cmd(static_cast<uint16_t>(CommandCodes::kStatusPacket), status_vec.size());
                 cmd.arguments = std::move(status_vec);
-                tcp_connection_.WriteSendBuffer(cmd);
+                status_client_.WriteSendBuffer(cmd);
                 // Get the same metrics but in json string form
                 if (enable_monitoring_) {
                     auto msg = status_->JsonHandlerStatus(data_handler_.get());
@@ -258,8 +263,8 @@ namespace controller {
         try {
             data_handler_->SetRun(true);
             data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get(), buffers_.get());
-            run_status_.store(true);
-            status_thread_ = std::thread(&Controller::StatusControl, this);
+            // run_status_.store(true);
+            // status_thread_ = std::thread(&Controller::StatusControl, this);
         } catch (std::exception& ex) {
             LOG_ERROR(logger_, "Exception occurred starting DataHandler: {}", ex.what());
             data_handler_->SetRun(false);
@@ -313,7 +318,8 @@ namespace controller {
 
     void Controller::SetRunning(bool run) {
         is_running_ = run;
-        tcp_connection_.setStopCmdRead(!run);
+        command_client_.setStopCmdRead(!run);
+        status_client_.setStopCmdRead(!run);
     }
 
     void Controller::Run() {
@@ -325,9 +331,12 @@ namespace controller {
 
     void Controller::ReceiveCommand() {
         while (is_running_) {
-            Command cmd = tcp_connection_.ReadRecvBuffer();
+            Command cmd = command_client_.ReadRecvBuffer();
+            std::cout << "Received command: " << cmd.command << std::endl;
+            // command_client_.WriteSendBuffer(cmd); //ack
             bool response = HandleCommand(cmd);
-            SendAckCommand(response);
+            if (cmd.command == CommandCodes::kHeartBeat) continue;
+            // SendAckCommand(response);
             LOG_INFO(logger_, " \n Current state: [{}] \n", GetStateName());
         }
     }
@@ -336,7 +345,7 @@ namespace controller {
         auto acknowledge = success ? CommandCodes::kCmdSuccess : CommandCodes::kCmdFailure;
         Command cmd(static_cast<uint16_t>(acknowledge), 1);
         cmd.arguments.at(0) = static_cast<int>(current_state_);
-        tcp_connection_.WriteSendBuffer(cmd);
+        command_client_.WriteSendBuffer(cmd);
     }
 
     // Handle user commands
