@@ -19,12 +19,9 @@ namespace light_fem {
         static uint32_t i, k, iprint, ik, is;
         static int nword;
 
-        static int idelay0, idelay1, threshold0, threshold1, pmt_words;
-        static int cos_mult, cos_thres, en_top, en_upper, en_lower, hg, lg;
-        static int threshold3;
-        static int lg_ch, hg_ch, trig_ch, bg_ch, beam_mult, beam_thres, pmt_precount;
-        static int pmt_mich_window, bg, bge, tre, beam_size, pmt_width;
-        static int pmt_deadtime;
+        static int hg, lg;
+        static int lg_ch, hg_ch, trig_ch, bg_ch;
+        static int bg, bge, tre;
         static int a_id, iframe;
 
         iprint = 0;
@@ -41,18 +38,46 @@ namespace light_fem {
 
         std::string fw_file = config["light_fem"]["fpga_bitfile"].get<std::string>();
 
-
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ LIGHT FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
         iframe = iframe_length;
         imod_fem = imod_pmt;
 
-        pmt_mich_window = 0; // disable by hand
-        pmt_words = config["light_fem"]["sipm_words"].get<int>();
-        pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<int>();
-        threshold0 = config["light_fem"]["channel_thresh0"].get<int>();
-        threshold1 = config["light_fem"]["channel_thresh1"].get<int>();
-        threshold3 = config["light_fem"]["channel_thresh3"].get<int>();
+        static int pmt_words = config["light_fem"]["sipm_words"].get<int>();
+        static int pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<int>();
+        static int threshold0 = config["light_fem"]["channel_thresh0"].get<int>();
+        static int threshold2 = config["light_fem"]["channel_thresh2"].get<int>();
+        static int threshold1 = config["light_fem"]["channel_thresh1"].get<int>();
+        static int threshold3 = config["light_fem"]["channel_thresh3"].get<int>();
+
+        /////////////////////////////////////////////////
+
+        static int pmt_gate_size = config["light_fem"]["pmt_gate_size"].get<int>();
+        static int pmt_beam_size = config["light_fem"]["pmt_beam_size"].get<int>();
+
+        static int cos_thres = config["light_fem"]["cosmic_summed_adc_thresh"].get<int>();
+        static int cos_mult = config["light_fem"]["cosmic_multiplicity"].get<int>();
+
+        static int pmt_beam_delay = config["light_fem"]["pmt_beam_delay"].get<int>();
+        static int pmt_delay_0 = config["light_fem"]["pmt_delay_0"].get<int>();
+        static int pmt_delay_1 = config["light_fem"]["pmt_delay_1"].get<int>();
+        static int pmt_precount = config["light_fem"]["pmt_precount"].get<int>();
+        static int pmt_width = config["light_fem"]["pmt_width"].get<int>();
+
+        static int pmt_window = config["light_fem"]["pmt_window"].get<int>();
+
+        static int michel_thres = config["light_fem"]["michel_summed_adc_thresh"].get<int>();
+        static int michel_mult = config["light_fem"]["michel_multiplicity"].get<int>();
+
+        static int beam_thres = config["light_fem"]["beam_summed_adc_thresh"].get<int>();
+        static int beam_mult = config["light_fem"]["beam_multiplicity"].get<int>();
+
+        uint32_t en_top = 0x0; //config["light_fem"]["pmt_enable_top"].get<uint32_t>();
+        uint32_t en_upper = 0x0; //config["light_fem"]["pmt_enable_middle"].get<uint32_t>();
+        uint32_t en_lower = 0xFFFF; //config["light_fem"]["pmt_enable_lower"].get<uint32_t>();
+        uint32_t pmt_blocksize = 0xFFFF; //config["light_fem"]["pmt_blocksize"].get<uint32_t>();
+
+        /////////////////////////////////////////////////
 
         // printf("\nIs there a BNB gate physically input to the FEM?\t");
         //  scanf("%d",&bg);
@@ -89,86 +114,38 @@ namespace light_fem {
         LOG_INFO(logger_, "Discriminator thresholds assume 20 ADC/pe for HG, 2 ADC/pe for LG.\n");
         LOG_INFO(logger_, "\nThreshold for discr 0 = {} ADC counts\n", threshold0);
 
-        /*if (hg == 1)
-        {
-            printf("\nEnter threshold for discr 3 (ADC) for HG (default=20):\t");
-            scanf("%d", &threshold3hg);
-            printf("\nEnter threshold for discr 1 (ADC) for HG (default=4):\t");
-            scanf("%d", &threshold1hg);
-            printf("Enter number of readout words for HG (default=20):\t");
-            scanf("%d", &pmt_wordshg);
-            printf("Enter PMT deadtime (64MHz samples) for HG (default=256; minimum recommended is %d):\t", pmt_wordshg + 4);
-            scanf("%d", &pmt_deadtimehg);
-        }
-        if (lg == 1)
-        {
-            printf("\nEnter threshold for discr 3 (ADC) for LG (default=2):\t");
-            scanf("%d", &threshold3lg);
-            printf("\nEnter threshold for discr 1 (ADC) for LG (default=8):\t");
-            scanf("%d", &threshold1lg);
-            printf("Enter number of readout words for LG (default=20):\t");
-            scanf("%d", &pmt_wordslg);
-            printf("\nEnter PMT deadtime (64MHz samples) for LG (default=24; minimum recommended is %d):\t", pmt_wordslg + 4);
-            scanf("%d", &pmt_deadtimelg);
-        }*/
-        // for all other channels
-        // pmt_words = 20;
-        // pmt_deadtime = 240;
-        // threshold1 = 40; // original =40 JLS
-        // threshold3 = 4095; // original =40 JLS
-        //cos_thresh = 80;
-        //threshold1 = 40;   //EXT Trigger setup as of 11/26/2024
-        //threshold3 = 4095; //EXT Trigger setup as of 11/26/2024
 
+        // if ((mode == 3) || (mode == 5) || (mode == 7))
+        // {
+        //     printf("\nTriggering on SiPMs:");
+        //     cos_thres = config["light_fem"]["cosmic_summed_adc_thresh"].get<int>();
+        //     cos_mult = config["light_fem"]["cosmic_multiplicity"].get<int>();
+        //     // printf("\nEnter SiPM trigger summed-ADC threshold:\t");
+        //     // scanf("%d", &cos_thres);
+        //     // printf("Enter multiplicity:\t");
+        //     // scanf("%d", &cos_mult);
+        // }
+        // else
+        // { // doesn't matter
+        //     cos_thres = 100;
+        //     cos_mult = 100;
+        // }
+        // if ((mode == 4) || (mode == 5) || (mode == 7))
+        // {
+        //     printf("\nTriggering on PMT Beam Trigger:");
+        //     printf("\nEnter beam trigger threshold (ADC); default is 40 (HG):\t");
+        //     scanf("%d", &beam_thres);
+        //     printf("Enter beam multiplicity; default is 1:\t");
+        //     scanf("%d", &beam_mult);
+        // }
+        // else
+        // { // doesn't matter
+        //     beam_thres = 100;
+        //     beam_mult = 100;
+        // }
+        // pmt_precount = 2; // default
+        // pmt_width = 500;    // default
 
-
-        if ((mode == 3) || (mode == 5) || (mode == 7))
-        {
-            printf("\nTriggering on SiPMs:");
-            cos_thres = config["light_fem"]["summed_adc_thresh"].get<int>();
-            cos_mult = config["light_fem"]["multiplicity"].get<int>();
-            // printf("\nEnter SiPM trigger summed-ADC threshold:\t");
-            // scanf("%d", &cos_thres);
-            // printf("Enter multiplicity:\t");
-            // scanf("%d", &cos_mult);
-        }
-        else
-        { // doesn't matter
-            cos_thres = 100;
-            cos_mult = 100;
-        }
-        if ((mode == 4) || (mode == 5) || (mode == 7))
-        {
-            printf("\nTriggering on PMT Beam Trigger:");
-            printf("\nEnter beam trigger threshold (ADC); default is 40 (HG):\t");
-            scanf("%d", &beam_thres);
-            printf("Enter beam multiplicity; default is 1:\t");
-            scanf("%d", &beam_mult);
-        }
-        else
-        { // doesn't matter
-            beam_thres = 100;
-            beam_mult = 100;
-        }
-        pmt_precount = 2; // default
-        pmt_width = 500;    // default
-        // fprintf(outinfo, "RUN MODE = %d\n", mode);
-        // fprintf(outinfo, "pmt_deadtime HG,LG = %d,%d\n", pmt_deadtimehg, pmt_deadtimelg);
-        // fprintf(outinfo, "pmt_deadtime BG,TRIG channels = %d\n", pmt_deadtime);
-        // fprintf(outinfo, "pmt_width = %d\n", pmt_width);
-        // fprintf(outinfo, "pmt_mich_window = %d\n", pmt_mich_window);
-        // fprintf(outinfo, "threshold0 = %d\n", threshold0);
-        // fprintf(outinfo, "threshold3 HG,LG = %d,%d\n", threshold3hg, threshold3lg);
-        // fprintf(outinfo, "threshold1 HG,LG = %d,%d\n", threshold1hg, threshold1lg);
-        // fprintf(outinfo, "threshold3 BG,TRIG channels = %d\n", threshold3);
-        // fprintf(outinfo, "threshold1 BG,TRIG channels = %d\n", threshold1);
-        // fprintf(outinfo, "cos_mult = %d\n", cos_mult);
-        // fprintf(outinfo, "cos_thres = %d\n", cos_thres);
-        // fprintf(outinfo, "beam_mult = %d\n", beam_mult);
-        // fprintf(outinfo, "beam_thres = %d\n", beam_thres);
-        // fprintf(outinfo, "pmt_precount = %d\n", pmt_precount);
-        // fprintf(outinfo, "pmt_words HG,LG = %d,%d\n", pmt_wordshg, pmt_wordslg);
-        // fprintf(outinfo, "pmt_words BG,TRIG channels = %d\n", pmt_words);
         // turn on the Stratix III power supply
         buffers.psend = buffers.buf_send.data(); //&buf_send[0];
         buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
@@ -244,20 +221,20 @@ namespace light_fem {
 
             imod = imod_fem;
             ichip = 3;
-            idelay0 = 4;
-            if (ik == 0)
+            // idelay0 = 4;
+            // if (ik == 0)
                 // fprintf(outinfo, "\nidelay0 = %d\n", idelay0);
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_delay0 + (idelay0 << 16); // set delay0
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_delay0 + (pmt_delay_0 << 16); // set delay0
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
             // set PMT delay1 to 12 (default)
             imod = imod_fem;
             ichip = 3;
-            idelay1 = 12;
-            if (ik == 0)
+            // idelay1 = 12;
+            // if (ik == 0)
                 // fprintf(outinfo, "idelay1 = %d\n", idelay1);
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_delay1 + (idelay1 << 16); // set delay 1
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_delay1 + (pmt_delay_1 << 16); // set delay 1
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -281,7 +258,7 @@ namespace light_fem {
             //    if (ik==hg_ch) buffers.buf_send[0]=(imod<<11)+(ichip<<8)+mb_feb_pmt_thresh3+(threshold3hg<<16);
             //    else if (ik==lg_ch) buffers.buf_send[0]=(imod<<11)+(ichip<<8)+mb_feb_pmt_thresh3+(threshold3lg<<16);
             //    else
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_thresh3 + (threshold3 << 16); // set threshold 1
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_thresh3 + (threshold3 << 16); // set threshold 3
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -292,6 +269,13 @@ namespace light_fem {
             //    else if (ik==lg_ch) buffers.buf_send[0]=(imod<<11)+(ichip<<8)+mb_feb_pmt_thresh1+(threshold1lg<<16);
             //    else
             buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_thresh1 + (threshold1 << 16); // set threshold 1
+            i = 1;
+            k = 1;
+            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            // set PMT Disc 2 threshold
+            imod = imod_fem;
+            ichip = 3;
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_thresh2 + (threshold2 << 16); // set threshold 2
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -319,7 +303,7 @@ namespace light_fem {
             // set PMT Michel window
             imod = imod_fem;
             ichip = 3;
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_window + (pmt_mich_window << 16); // set pmt Michel window
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_window + (pmt_window << 16); // set pmt Michel window
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -346,6 +330,20 @@ namespace light_fem {
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+        // set Michel trigger multiplicity
+        imod = imod_fem;
+        ichip = 3;
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_mich_mul + (michel_mult << 16); // set Michel trigger mul
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+        // set Michel trigger threshold
+        imod = imod_fem;
+        ichip = 3;
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_mich_thres + (michel_thres << 16); // set Michel trigger mul
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
         // set PMT beam trigger multiplicity
         imod = imod_fem;
         ichip = 3;
@@ -361,11 +359,12 @@ namespace light_fem {
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
         LOG_INFO(logger_, "Enable/Disable channels..");
+        LOG_INFO(logger_, "\n Chanel Enable Mask Top=0x{:X}, Upper=0x{:X}, Lower=0x{:X},", en_top, en_upper, en_lower);
         // disable the top channels
         imod = imod_fem;
         ichip = 3;
         //en_top=0xffff;
-        en_top = 0x0; // turn these off, channel 32-47 -JLS
+        // en_top = 0x0; // turn these off, channel 32-47 -JLS
         // fprintf(outinfo, "en_top = 0x%x\n", en_top);
         buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_en_top + (en_top << 16); // enable/disable channel
         i = 1;
@@ -374,7 +373,7 @@ namespace light_fem {
         // disable the upper channels
         imod = imod_fem;
         ichip = 3;
-        en_upper = 0xffff;
+        // en_upper = 0xffff;
         //en_upper = 0x0; // turn off middle channel, ch 16-31
         // fprintf(outinfo, "en_upper = 0x%x\n", en_upper);
         buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_en_upper + (en_upper << 16); // enable/disable channel
@@ -384,31 +383,32 @@ namespace light_fem {
         // enable lower channel(s) as indicated above
         imod = imod_fem;
         ichip = 3;
-        en_lower = 0x0;
-        if (bg == 1)
-        {
-            if (bge == 1)
-            {
-                en_lower = en_lower + pow(2, bg_ch);
-            } // beam trigger readout
-        }
-        if (tre == 1)
-        {
-            en_lower = en_lower + pow(2, trig_ch);
-        } // ext trigger readout
-        if (hg == 1)
-        {
-            en_lower = en_lower + pow(2, hg_ch);
-        }
-        //  if (lg==1) {en_lower = en_lower+4;} //up to 08/15
-        if (lg == 1)
-        {
-            en_lower = en_lower + pow(2, lg_ch);
-        }
-        // 0xff00 channels not used in PAB shaper
-        en_lower = 0xffff;
+        // en_lower = 0x0;
+        // if (bg == 1)
+        // {
+        //     if (bge == 1)
+        //     {
+        //         en_lower = en_lower + pow(2, bg_ch);
+        //     } // beam trigger readout
+        // }
+        // if (tre == 1)
+        // {
+        //     en_lower = en_lower + pow(2, trig_ch);
+        // } // ext trigger readout
+        // if (hg == 1)
+        // {
+        //     en_lower = en_lower + pow(2, hg_ch);
+        // }
+        // //  if (lg==1) {en_lower = en_lower+4;} //up to 08/15
+        // if (lg == 1)
+        // {
+        //     en_lower = en_lower + pow(2, lg_ch);
+        // }
+        // // 0xff00 channels not used in PAB shaper
+        // en_lower = 0xffff;
         //en_lower = 0x0; // turn off -JLS ch 0-15
         // fprintf(outinfo, "en_lower = 0x%x\n", en_lower);
+
         buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_en_lower + (en_lower << 16); // enable/disable channel
         i = 1;
         k = 1;
@@ -416,7 +416,7 @@ namespace light_fem {
         // set maximum block size
         imod = imod_fem;
         ichip = 3;
-        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_blocksize + (0xffff << 16); // set max block size
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_blocksize + (pmt_blocksize << 16); // set max block size
         // fprintf(outinfo, "pmt_blocksize = 0x%x\n", 0xffff);
         i = 1;
         k = 1;
@@ -424,15 +424,15 @@ namespace light_fem {
 
         imod = imod_fem;
         ichip = 3;
-        if (bg == 0)
-            beam_size = 0x0; // this will actually output a few samples, doesn't completely disable it; that's why the request to unplug beam gate input from shaper, above
-        else
-        {
-            LOG_INFO(logger_, "\nEnter beam size (1500 is nominal):\t");
-            scanf("%d", &beam_size);
-        }
+        // if (bg == 0)
+        //     beam_size = 0x0; // this will actually output a few samples, doesn't completely disable it; that's why the request to unplug beam gate input from shaper, above
+        // else
+        // {
+        //     LOG_INFO(logger_, "\nEnter beam size (1500 is nominal):\t");
+        //     scanf("%d", &beam_size);
+        // }
         // fprintf(outinfo, "gate_readout_size = %d\n", beam_size);
-        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_gate_size + (beam_size << 16); // set gate size = 1500
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_gate_size + (pmt_gate_size << 16); // set gate size = 1500
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -440,7 +440,7 @@ namespace light_fem {
         imod = imod_fem;
         ichip = 3; // this inhibits the cosmic (discr 1) before the beam gate (64MHz clock)
         // 0x18=24 samples (should see no overlap)
-        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_beam_delay + (0x18 << 16); // set gate size
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_beam_delay + (pmt_beam_delay << 16); // set gate size
         // fprintf(outinfo, "beam_delay = %d\n", 0x18);
         i = 1;
         k = 1;
@@ -449,8 +449,8 @@ namespace light_fem {
         // set beam size window
         imod = imod_fem;
         ichip = 3;
-        beam_size = 0x66;                                                                     // This is the gate size (1.6us in 64MHz corresponds to 102.5 time ticks; use 102=0x66)
-        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_beam_size + (beam_size << 16); // set gate size
+        // beam_size = 0x66;                                                                     // This is the gate size (1.6us in 64MHz corresponds to 102.5 time ticks; use 102=0x66)
+        buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_beam_size + (pmt_beam_size << 16); // set gate size
         // fprintf(outinfo, "beam_size = %d\n", beam_size);
         i = 1;
         k = 1;
