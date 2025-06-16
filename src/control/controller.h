@@ -114,11 +114,13 @@
         void ReceiveCommand();
         void SendAckCommand(bool success);
         bool LoadConfig(std::string &config_file);
+        bool PersistRunId();
         bool JoinDataThread();
 
         bool is_configured_;
         bool print_status_;
         bool enable_monitoring_;
+        uint32_t run_id_;
 
         // TCPConnection tcp_connection_;
         TCPConnection command_client_;

@@ -117,6 +117,36 @@ namespace controller {
         //std::cout << "Sent metric: " << data << std::endl;
     }
 
+    bool Controller::PersistRunId() {
+        bool read_write_success = false;
+        std::fstream run_id_file_in("/data/run_id.txt", std::ios::in);
+        if (run_id_file_in.is_open()) {
+            run_id_file_in >> run_id_;
+            if (run_id_file_in.fail()) {
+                LOG_WARNING(logger_, "Error reading Run ID from file.");
+                run_id_ = 0;
+            } else {
+                LOG_INFO(logger_, "Previous Run ID [{}]", run_id_);
+                run_id_++;
+            }
+            run_id_file_in.close(); // Close after reading
+
+            std::ofstream run_id_file_out("/data/run_id.txt", std::ios::out); // Open for writing (truncates if exists)
+            if (run_id_file_out.is_open()) {
+                run_id_file_out << run_id_ << std::endl;
+                LOG_INFO(logger_, "Current Run ID [{}]", run_id_);
+                run_id_file_out.close();
+                read_write_success = true;
+            } else {
+                LOG_WARNING(logger_, "Error opening Run ID file for writing.");
+            }
+        } else {
+            LOG_WARNING(logger_, "Error opening Run ID file for reading.");
+        }
+        run_id_ = 0;
+        return read_write_success;
+    }
+
     bool Controller::LoadConfig(std::string &config_file) {
         std::ifstream f;
         try {
@@ -164,14 +194,16 @@ namespace controller {
 
     bool Controller::Configure(const std::vector<int32_t>& args) {
 
+        PersistRunId();
+
         if (args.size() != 2) {
             LOG_ERROR(logger_, "Wrong number of arguments! {}", args.size());
             return false;
         }
 
-        int32_t subrun_number = args.at(0);
-        // config_["data_handler"]["subrun"] = subrun_number;
-        LOG_INFO(logger_, "Configuring run number {}", subrun_number);
+        // int32_t subrun_number = args.at(0);
+        config_["data_handler"]["subrun"] = run_id_;
+        LOG_INFO(logger_, "Configuring run number {}", run_id_);
 
         // Load requested config file
         std::string config_file("/home/sabertooth/GramsReadout/config/test_");
