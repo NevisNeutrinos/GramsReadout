@@ -9,8 +9,8 @@
     "shaper_slot": 17
   },
   "data_handler" : {
-    "num_events" : 1000,
-    "subrun" : 402,
+    "num_events" : 5000,
+    "subrun" : 0,
     "enable_metrics" : true
   },
   "xmit" : {
@@ -18,7 +18,7 @@
   },
   "controller" : {
     "print_status" : false,
-    "enable_monitoring" : true,
+    "enable_monitoring" : false,
     "log_to_file" : false,
     "log_file_path" : "/home/sabertooth/GramsReadout/build"
   },
@@ -26,19 +26,36 @@
     "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/fem/module1x_140820_deb_fixbase_nf_8_31_2018.rbf"
   },
   "light_fem" : {
-    "summed_adc_thresh" : 500,
-    "multiplicity" : 1,
-    "channel_thresh0" : 200,
-    "channel_thresh1" : 600,
-    "channel_thresh3" : 300,
-    "sipm_words" : 30,
+    "cosmic_summed_adc_thresh" : 500,
+    "cosmic_multiplicity" : 100,
+    "pmt_beam_delay" : 1,
+    "pmt_delay_0" : 4,
+    "pmt_delay_1" : 12,
+    "pmt_precount" : 2,
+    "pmt_width" : 7,
+    "pmt_window" : 0,
+    "michel_multiplicity" : 100,
+    "michel_summed_adc_thresh" : 500,
+    "beam_multiplicity" : 100,
+    "beam_summed_adc_thresh" : 500,
+    "pmt_enable_top" : 0,
+    "pmt_enable_middle" : 0,
+    "pmt_enable_lower" : 65535,
+    "pmt_blocksize" : 65535,
+    "channel_thresh0" : 10,
+    "channel_thresh1" : 250,
+    "channel_thresh2" : 4095,
+    "channel_thresh3" : 4095,
+    "pmt_gate_size" : 750,
+    "pmt_beam_size" : 202,
+    "sipm_words" : 100,
     "sipm_deadtime" : 240,
     "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/pmt_fem/module1x_pmt_64MHz_new_head_07162013.rbf"
   },
   "trigger" : {
-    "trigger_source" : "light",
+    "trigger_source" : "ext",
     "software_trigger_rate_hz" : 10,
-    "dead_time" : 50,
+    "dead_time" : 25,
     "prescale" : [0,0,0,0,0,0,0,0,0]
   },
   "readout_windows" : {

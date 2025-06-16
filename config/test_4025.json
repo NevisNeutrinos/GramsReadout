@@ -1,0 +1,75 @@
+{
+    "charge_fem": {
+        "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/fem/module1x_140820_deb_fixbase_nf_8_31_2018.rbf"
+    },
+    "controller": {
+        "enable_monitoring": false,
+        "log_file_path": "/home/sabertooth/GramsReadout/build",
+        "log_to_file": false,
+        "print_status": false
+    },
+    "crate": {
+        "charge_fem_slot": 13,
+        "last_charge_slot": 15,
+        "last_light_slot": 16,
+        "light_fem_slot": 16,
+        "shaper_slot": 17,
+        "trig_slot": 11,
+        "xmit_slot": 12
+    },
+    "data_handler": {
+        "enable_metrics": true,
+        "num_events": 2000,
+        "subrun": 4025
+    },
+    "light_fem": {
+        "beam_multiplicity": 100,
+        "beam_summed_adc_thresh": 100,
+        "channel_thresh0": 50,
+        "channel_thresh1": 300,
+        "channel_thresh2": 4095,
+        "channel_thresh3": 4095,
+        "cosmic_multiplicity": 100,
+        "cosmic_summed_adc_thresh": 500,
+        "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/pmt_fem/module1x_pmt_64MHz_new_head_12192013_allch.rbf",
+        "michel_multiplicity": 0,
+        "michel_summed_adc_thresh": 0,
+        "pmt_beam_delay": 1,
+        "pmt_beam_size": 102,
+        "pmt_blocksize": 65535,
+        "pmt_delay_0": 4,
+        "pmt_delay_1": 12,
+        "pmt_enable_lower": 65535,
+        "pmt_enable_middle": 0,
+        "pmt_enable_top": 0,
+        "pmt_gate_size": 0,
+        "pmt_precount": 10,
+        "pmt_width": 7,
+        "pmt_window": 0,
+        "sipm_deadtime": 55,
+        "sipm_words": 50
+    },
+    "readout_windows": {
+        "frame_length": 2047,
+        "timesize": 255
+    },
+    "trigger": {
+        "dead_time": 25,
+        "prescale": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        ],
+        "software_trigger_rate_hz": 10,
+        "trigger_source": "ext"
+    },
+    "xmit": {
+        "fpga_bitfile": "/home/sabertooth/GramsReadoutFirmware/xmit/readcontrol_110601_v3_play_header_hist_l1block_9_21_2018.rbf"
+    }
+}
