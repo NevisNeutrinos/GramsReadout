@@ -85,7 +85,7 @@ namespace trig_ctrl {
         for (const uint32_t prescale : prescale_vec_) {
             buffers.buf_send[0] = (imod << 11) + trigger_prescale + (prescale << 16);
             pcie_interface->PCIeSendBuffer(1, 1, 1, buffers.psend);
-            trigger_prescale += 1;
+            //trigger_prescale += 1;
         }
 
         if(light_trig_) {  // Begin PMT Trigger setup
@@ -160,17 +160,20 @@ namespace trig_ctrl {
 
         if (itrig_c == 1) {
             imod = trigger_module;
-            buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
-            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
+            // buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
+            // pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
 
             std::cout << "Waiting for Trigger..." << std::endl;
-            usleep(100000); //~10Hz
+            // usleep(500000); //~2Hz
+            buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
+            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
             std::cout << "Triggering" << std::endl;
             imod = trigger_module; /* trigger module */
-            // buf_send[0] = (imod << 11) + hw_consts::mb_trig_pctrig + ((0x0) << 16);
-            buf_send[0] = (imod << 11) + hw_consts::mb_trig_calib + ((0x0) << 16);
+            buf_send[0] = (imod << 11) + hw_consts::mb_trig_pctrig + ((0x0) << 16);
+            // buf_send[0] = (imod << 11) + hw_consts::mb_trig_calib + ((0x0) << 16);
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
-            usleep(650); // 3x frame size
+            // usleep(650); // 3x frame size
+            usleep(100000); //~10Hz
         }
         else if (itrig_ext == 1) {
             // only need to restart the run if we use the test data or 1st run
@@ -214,17 +217,18 @@ namespace trig_ctrl {
         std::array<uint32_t, 2> buf_send{0,0};
         uint32_t *psend{};
         psend = buf_send.data();
-        is_running_.store(false);
+        // is_running_.store(false);
 
         const size_t sleep_time = (1. / static_cast<double>(software_trigger_rate)) * 1000000;
 
         const auto sleep_length = std::chrono::microseconds(sleep_time);
-        // FIXME I think calib trig is correct but maybe PC trig?
+        // FIXME I think calib trig is correct but maybe PC trig? --> PC Trig
         buf_send[0] = (trigger_module << 11) + (hw_consts::mb_trig_pctrig) + ((0x0) << 16);
         // buf_send[0] = (trigger_module << 11) + (hw_consts::mb_trig_calib) + ((0x0) << 16);
 
         while (is_running_.load()) {
-            std::this_thread::sleep_for(sleep_length);
+            // std::this_thread::sleep_for(sleep_length);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             //LOG_INFO(logger_, "Sending software trigger, length={}", sleep_length.count());
             // std::cout << "Sending software trigger, sleep length=" << sleep_length.count() << "us" << std::endl;
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);

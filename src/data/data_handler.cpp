@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <iostream>
+#include <fstream>
 #include <cstdio>
 #include <cstring>
 #include <chrono>
@@ -75,7 +76,8 @@ namespace data_handler {
         software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
         num_events_ = config["data_handler"]["num_events"].get<size_t>();
         metrics_->DmaSize(DMABUFFSIZE);
-        const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
+        // const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
+        run_number_ = config["data_handler"]["subrun"].get<size_t>();
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         ext_trig_ = trig_src == "ext" ? 1 : 0;
         software_trig_ = trig_src == "software" ? 1 : 0;
@@ -84,7 +86,8 @@ namespace data_handler {
         LOG_INFO(logger_, "\t [{}] DMA loops with [{}] 32b words \n", num_dma_loops_, DATABUFFSIZE / 4);
 
         file_count_.store(0);
-        write_file_name_ = "/data/readout_data/pGRAMS_bin_" + std::to_string(subrun) + "_";
+        write_file_name_ = "/home/pgrams/data/readout_data/pGRAMS_bin_" + std::to_string(run_number_) + "_";
+        pps_sample_period_ = config["data_handler"]["pps_sample_period"].get<int>();
         LOG_INFO(logger_, "\n Writing files: {}", write_file_name_);
 
         return true;
@@ -124,9 +127,10 @@ namespace data_handler {
         auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
         // auto read_thread = std::thread(&DataHandler::ReadoutViaController, this, pcie_interface, buffers);
         auto trig_pps = std::thread(&DataHandler::PollTriggerPPS, this, pcie_interface);
+        auto trigger_thread = std::thread(&DataHandler::TriggerDMARead, this, pcie_interface);
 
-        auto trigger_thread = std::thread(&trig_ctrl::TriggerControl::SendSoftwareTrigger, &trigger_,
-            pcie_interface, software_trigger_rate_, trigger_module_);
+        // auto trigger_thread = std::thread(&trig_ctrl::TriggerControl::SendSoftwareTrigger, &trigger_,
+        //     pcie_interface, software_trigger_rate_, trigger_module_);
 
         // FIXME Combines both Data and Trigger DMA readout, works for a little then hangs
         // auto read_thread = std::thread(&DataHandler::TestReadoutDMARead, this, pcie_interface);
@@ -736,130 +740,214 @@ namespace data_handler {
 
     }
 
-        void DataHandler::TriggerDMARead(pcie_int::PCIeInterface *pcie_interface) {
+     // Start very simple, just read and print data
+    void DataHandler::TriggerDMARead(pcie_int::PCIeInterface *pcie_interface) {
+        bool debug = false;
+        unsigned long long trig_data_ctr;
+        trig_data_ctr_ = 0xFFFFFF;
 
-        bool idebug = true;
-        bool is_first_event = true;
-        static uint32_t nwrite_byte;
-        static uint32_t is;
-        static int itrig_c = 0;
-        static int itrig_ext = 1;
+        LOG_INFO(logger_, "Opening Trigger data file");
+        std::ofstream trigger_file;
+        std::string trigger_file_name = "trigger_data_run" + std::to_string(run_number_) + ".csv" ;
+        trigger_file.open(trigger_file_name);
+        if (!trigger_file.is_open()) {
+         LOG_WARNING(logger_, "Trigger file failed to open, only printing!");
+        }
 
-        uint32_t data;
-        static unsigned long long u64Data;
-        static uint32_t *buffp_rec32;
-        static std::array<uint32_t, 8> word_arr{};
-        size_t dma_loops = 0;
-        size_t num_buffer_full = 0;
-        static uint32_t dma_num = 3;
+        // 1. Start with initializing 2nd fiber on the PCIe card
+        pcie_interface->WriteReg32(kDev1,  hw_consts::cs_bar, hw_consts::tx_mode_reg, 0xf0000008);
+        pcie_interface->WriteReg32(kDev1,  hw_consts::cs_bar, hw_consts::r2_cs_reg, hw_consts::cs_init);
+        // Loading in the amount of data to expect, will decrement by 16B for every read, should last for ~1M events
+        pcie_interface->WriteReg32(kDev1,  hw_consts::cs_bar, hw_consts::r2_cs_reg, hw_consts::cs_start+0xffffff);
 
-        pcie_int::DMABufferHandle  pbuf_rec1_trig;
+        LOG_INFO(logger_, "Starting Trigger Read \n");
 
-         /*TPC DMA*/
-        SetRecvBuffer(pcie_interface, &pbuf_rec1_trig, nullptr, false);
-        buffp_rec32 = static_cast<uint32_t *>(pbuf_rec1_trig);
-        usleep(500000);
+        // while(is_running_.load()) {
+        while(true) {
+         std::this_thread::sleep_for(std::chrono::milliseconds(2));
+         pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &trig_data_ctr);
+         trig_data_ctr = (trig_data_ctr>>32) & 0xffffff;
+         if( (trig_data_ctr_ - trig_data_ctr) < 16 ) {
+             if (!is_running_.load()) break;
+             continue;
+             }
 
-        while(is_running_.load()) {
-            if (dma_loops % 500 == 0) LOG_INFO(logger_, "=======> Trigger DMA Loop [{}] \n", dma_loops);
+         if(trig_data_ctr < 1) {
+             LOG_ERROR(logger_, "Got 0 trigger data! \n");
+             }
 
-            // sync CPU cache
-            pcie_interface->DmaSyncCpu(dma_num);
+         unsigned long long trig_data0;
+         unsigned long long trig_data1;
+         pcie_interface->ReadReg64(kDev1, hw_consts::t2_tr_bar, 0x0, &trig_data0);
+         trig_data1 = trig_data0;
+         pcie_interface->ReadReg64(kDev1, hw_consts::t2_tr_bar, 0x0, &trig_data1);
 
-            nwrite_byte = 8;
+         uint64_t _trig_ctr = (trig_data0 >> 40);
 
-            /** initialize and start the receivers ***/
-            if (is_first_event) {
-                pcie_interface->WriteReg32(kDev1,  hw_consts::cs_bar, hw_consts::r2_cs_reg, hw_consts::cs_init);
-            }
-            data = hw_consts::cs_start + nwrite_byte; /* 32 bits mode == 4 bytes per word *2 fibers **/
-            pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::r2_cs_reg, data);
+         uint64_t _trig_frame = ( ( ( (trig_data0 >> 32) & 0xff ) << 16 ) + ( (trig_data0 >> 16) & 0xffff ) );
+         uint64_t _trig_sample = ( (trig_data0 >> 4) & 0xfff );
+         uint64_t _trig_sample_remain_16MHz = ( (trig_data0 >> 1) & 0x7 );
+         uint64_t _trig_sample_remain_64MHz = ( (trig_data1 >> 15) & 0x3 );
 
-            is_first_event = false;
+         if (debug) {
+             std::ostringstream msg;
+             msg << "\033[1;33;40m[ NEW TRIGGER ]\033[00m\n"
+             << " "
+             << " TrigBytes: " << trig_data_ctr
+             << " Trig: "   << _trig_ctr
+             << " Frame: "  << _trig_frame
+             << " Sample: " << _trig_sample
+             << " Remine (16MHz): " << _trig_sample_remain_16MHz
+             << " Remine (64MHz): " << _trig_sample_remain_64MHz
+             << "\n"
+             << " "
+             << " Bits: \033[1;35;40m";
+             if((trig_data1>>8) & 0x1) msg << " PC";
+             if((trig_data1>>9) & 0x1) msg << " EXT";
+             if((trig_data1>>12) & 0x1) msg << " Gate1";
+             if((trig_data1>>11) & 0x1) msg << " Gate2";
+             if((trig_data1>>10) & 0x1) msg << " Active";
+             if((trig_data1>>13) & 0x1) msg << " Veto";
+             if((trig_data1>>14) & 0x1) msg << " Calib";
+             msg << "\033[00m\n";
+             std::cout << msg.str() << std::endl;
+             }
 
-            /** set up DMA for both transceiver together **/
-            data = pcie_interface->GetBufferPageAddrLower(dma_num);
-            pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_add_low_reg, data);
+         trigger_file << _trig_ctr << ", " << _trig_frame << ", " << _trig_sample << ", "
+                      << _trig_sample_remain_16MHz << ", " << _trig_sample_remain_64MHz << ", "
+                      << trig_data_ctr << std::endl;
 
-            data = pcie_interface->GetBufferPageAddrUpper(dma_num);
-            pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_add_high_reg, data);
 
-            pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_by_cnt, nwrite_byte);
+         trig_data_ctr_ -= 16;
+        }
+        trigger_file.close();
+        LOG_INFO(logger_, "Ended Trigger Read {} \n", trig_data_ctr_);
+    }
 
-            /* write this will start DMA */
-            is = pcie_interface->GetBufferPageAddrUpper(dma_num);
-            data = is == 0 ? hw_consts::dma_tr12 + hw_consts::dma_3dw_rec : hw_consts::dma_tr12 + hw_consts::dma_4dw_rec;
-
-            pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_cntrl, data);
-            if (idebug) LOG_INFO(logger_, "DMA set up done, byte count = {} \n", nwrite_byte);
-
-            // send trigger // FIXME is this needed??
-            // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, itrig_c, itrig_ext, trigger_module_);
-
-            if (!WaitForDma(pcie_interface, &data, kDev1)) {
-                LOG_WARNING(logger_, "DMA is not finished, aborting...  \n");
-                pcie_interface->ReadReg64(kDev1,  hw_consts::cs_bar, hw_consts::cs_dma_by_cnt, &u64Data);
-                pcie_interface->DmaSyncIo(dma_num);
-                static size_t num_read = (nwrite_byte - (u64Data & 0xffff));
-
-                LOG_INFO(logger_, "Received {} bytes, writing to file.. \n", num_read);
-
-                std::memcpy(word_arr.data(), buffp_rec32, num_read);
-                trigger_queue_.write(word_arr);
-                if (trigger_queue_.isFull()) {
-                    num_buffer_full++;
-                    LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
-                }
-                // ClearDmaOnAbort(pcie_interface, &u64Data, kDev1);
-                // pcie_interface->ReadReg64(dev_num, hw_consts::cs_bar, hw_consts::t1_cs_reg, u64Data);
-                // LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (*u64Data >> 32), (*u64Data & 0xffff));
-
-                u64Data = 0;
-                pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
-                LOG_INFO(logger_, " Status word for channel 2 after read = 0x{:X}, 0x{:X}", (u64Data >> 32), (u64Data & 0xffff));
-
-                /* write this will abort previous DMA */
-                pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_msi_abort, hw_consts::dma_abort);
-
-                /* clear DMA register after the abort */
-                pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_msi_abort, 0);
-
-                // If DMA did not finish, abort loop!
-                break;
-            }
-            // sync DMA I/O cache
-            pcie_interface->DmaSyncIo(dma_num);
-
-            if (idebug) {
-                u64Data = 0;
-                pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
-                LOG_INFO(logger_, " Status word for channel 2 after read = 0x{:X}, 0x{:X}", (u64Data >> 32), (u64Data & 0xffff));
-            }
-            std::memcpy(word_arr.data(), buffp_rec32, 8);
-            std::cout << std::hex;
-            if (dma_loops % 50 == 0) for (const auto &el : word_arr ) std::cout << el << "  \n";
-            std::cout << std::dec;
-            trigger_queue_.write(word_arr);
-            if (trigger_queue_.isFull()) {
-                num_buffer_full++;
-                LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
-            }
-            dma_loops++;
-        } // end loop over events
-
-        LOG_INFO(logger_, "Stopping triggers..\n");
-        trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
-
-        // If event count triggered the end of run, set stop write flag so write thread completes
-        // LOG_INFO(logger_, "Stopping run and freeing pointer \n");
-        // stop_write_.store(true);
-
-        if (num_buffer_full > 0) LOG_WARNING(logger_, "Buffer full: [{}]\n", num_buffer_full);
-
-        LOG_INFO(logger_, "Flushing trigger data buffer \n");
-        while (!trigger_queue_.isEmpty()) trigger_queue_.popFront();
-
-     }
+     //    void DataHandler::TriggerDMARead(pcie_int::PCIeInterface *pcie_interface) {
+     //
+     //    bool idebug = true;
+     //    bool is_first_event = true;
+     //    static uint32_t nwrite_byte;
+     //    static uint32_t is;
+     //    static int itrig_c = 0;
+     //    static int itrig_ext = 1;
+     //
+     //    uint32_t data;
+     //    static unsigned long long u64Data;
+     //    static uint32_t *buffp_rec32;
+     //    static std::array<uint32_t, 8> word_arr{};
+     //    size_t dma_loops = 0;
+     //    size_t num_buffer_full = 0;
+     //    static uint32_t dma_num = 3;
+     //
+     //    pcie_int::DMABufferHandle  pbuf_rec1_trig;
+     //
+     //     /*TPC DMA*/
+     //    SetRecvBuffer(pcie_interface, &pbuf_rec1_trig, nullptr, false);
+     //    buffp_rec32 = static_cast<uint32_t *>(pbuf_rec1_trig);
+     //    usleep(500000);
+     //
+     //    while(is_running_.load()) {
+     //        if (dma_loops % 500 == 0) LOG_INFO(logger_, "=======> Trigger DMA Loop [{}] \n", dma_loops);
+     //
+     //        // sync CPU cache
+     //        pcie_interface->DmaSyncCpu(dma_num);
+     //
+     //        nwrite_byte = 8;
+     //
+     //        /** initialize and start the receivers ***/
+     //        if (is_first_event) {
+     //            pcie_interface->WriteReg32(kDev1,  hw_consts::cs_bar, hw_consts::r2_cs_reg, hw_consts::cs_init);
+     //        }
+     //        data = hw_consts::cs_start + nwrite_byte; /* 32 bits mode == 4 bytes per word *2 fibers **/
+     //        pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::r2_cs_reg, data);
+     //
+     //        is_first_event = false;
+     //
+     //        /** set up DMA for both transceiver together **/
+     //        data = pcie_interface->GetBufferPageAddrLower(dma_num);
+     //        pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_add_low_reg, data);
+     //
+     //        data = pcie_interface->GetBufferPageAddrUpper(dma_num);
+     //        pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_add_high_reg, data);
+     //
+     //        pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_by_cnt, nwrite_byte);
+     //
+     //        /* write this will start DMA */
+     //        is = pcie_interface->GetBufferPageAddrUpper(dma_num);
+     //        data = is == 0 ? hw_consts::dma_tr12 + hw_consts::dma_3dw_rec : hw_consts::dma_tr12 + hw_consts::dma_4dw_rec;
+     //
+     //        pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_cntrl, data);
+     //        if (idebug) LOG_INFO(logger_, "DMA set up done, byte count = {} \n", nwrite_byte);
+     //
+     //        // send trigger // FIXME is this needed??
+     //        // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, itrig_c, itrig_ext, trigger_module_);
+     //
+     //        if (!WaitForDma(pcie_interface, &data, kDev1)) {
+     //            LOG_WARNING(logger_, "DMA is not finished, aborting...  \n");
+     //            pcie_interface->ReadReg64(kDev1,  hw_consts::cs_bar, hw_consts::cs_dma_by_cnt, &u64Data);
+     //            pcie_interface->DmaSyncIo(dma_num);
+     //            static size_t num_read = (nwrite_byte - (u64Data & 0xffff));
+     //
+     //            LOG_INFO(logger_, "Received {} bytes, writing to file.. \n", num_read);
+     //
+     //            std::memcpy(word_arr.data(), buffp_rec32, num_read);
+     //            trigger_queue_.write(word_arr);
+     //            if (trigger_queue_.isFull()) {
+     //                num_buffer_full++;
+     //                LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
+     //            }
+     //            // ClearDmaOnAbort(pcie_interface, &u64Data, kDev1);
+     //            // pcie_interface->ReadReg64(dev_num, hw_consts::cs_bar, hw_consts::t1_cs_reg, u64Data);
+     //            // LOG_INFO(logger_, " Status word for channel 1 after read = {}, {}", (*u64Data >> 32), (*u64Data & 0xffff));
+     //
+     //            u64Data = 0;
+     //            pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
+     //            LOG_INFO(logger_, " Status word for channel 2 after read = 0x{:X}, 0x{:X}", (u64Data >> 32), (u64Data & 0xffff));
+     //
+     //            /* write this will abort previous DMA */
+     //            pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_msi_abort, hw_consts::dma_abort);
+     //
+     //            /* clear DMA register after the abort */
+     //            pcie_interface->WriteReg32(kDev1, hw_consts::cs_bar, hw_consts::cs_dma_msi_abort, 0);
+     //
+     //            // If DMA did not finish, abort loop!
+     //            break;
+     //        }
+     //        // sync DMA I/O cache
+     //        pcie_interface->DmaSyncIo(dma_num);
+     //
+     //        if (idebug) {
+     //            u64Data = 0;
+     //            pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
+     //            LOG_INFO(logger_, " Status word for channel 2 after read = 0x{:X}, 0x{:X}", (u64Data >> 32), (u64Data & 0xffff));
+     //        }
+     //        std::memcpy(word_arr.data(), buffp_rec32, 8);
+     //        std::cout << std::hex;
+     //        if (dma_loops % 50 == 0) for (const auto &el : word_arr ) std::cout << el << "  \n";
+     //        std::cout << std::dec;
+     //        trigger_queue_.write(word_arr);
+     //        if (trigger_queue_.isFull()) {
+     //            num_buffer_full++;
+     //            LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
+     //        }
+     //        dma_loops++;
+     //    } // end loop over events
+     //
+     //    LOG_INFO(logger_, "Stopping triggers..\n");
+     //    trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
+     //
+     //    // If event count triggered the end of run, set stop write flag so write thread completes
+     //    // LOG_INFO(logger_, "Stopping run and freeing pointer \n");
+     //    // stop_write_.store(true);
+     //
+     //    if (num_buffer_full > 0) LOG_WARNING(logger_, "Buffer full: [{}]\n", num_buffer_full);
+     //
+     //    LOG_INFO(logger_, "Flushing trigger data buffer \n");
+     //    while (!trigger_queue_.isEmpty()) trigger_queue_.popFront();
+     //
+     // }
 
     void DataHandler::ClearDmaOnAbort(pcie_int::PCIeInterface *pcie_interface, unsigned long long *u64Data, uint32_t dev_num) {
         pcie_interface->ReadReg64(dev_num, hw_consts::cs_bar, hw_consts::t1_cs_reg, u64Data);
@@ -899,18 +987,40 @@ namespace data_handler {
         size_t num_status_words = 2;
         uint32_t chip_num = 3;
 
+        LOG_INFO(logger_, "Opening PPS data file");
+        std::ofstream pps_file;
+        std::string pps_file_name = "pps_data_run" + std::to_string(run_number_) + ".csv" ;
+        pps_file.open(pps_file_name);
+        if (!pps_file.is_open()) {
+            LOG_WARNING(logger_, "PPS file failed to open, only printing!");
+        }
+
         while (is_running_.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            std::this_thread::sleep_for(std::chrono::milliseconds(pps_sample_period_));
             // init the receiver
             pcie_interface->PCIeRecvBuffer(1, 0, 1, num_status_words, 0, precv);
             // read out status =32 or read PPS register =35
             send_array[0] = (trigger_module_ << 11) + (chip_num << 8) + 35 + (0x0 << 16);
             pcie_interface->PCIeSendBuffer(1, 0, 1, psend);
             pcie_interface->PCIeRecvBuffer(1, 0, 2, num_status_words, 0, precv);
+
+            uint32_t pps_frame = read_array.at(0) & 0xFFFFFF;
+            uint32_t pps_sample = read_array.at(1) & 0xFFF;
+            uint32_t pps_div = ( ( read_array.at(1) & 0x70000) >> 16 );
             std::cout << "++++" << std::endl;
-            std::cout << "PPS -- Frame: " << (read_array.at(0) & 0xFFFFFF)
-                      << " Sample: " << (read_array.at(1) & 0xFFF)
-                      << " Div: " << ( ( read_array.at(1) & 0x70000) >> 16 ) << std::endl;
+            std::cout << "PPS -- Frame: " << pps_frame << " Sample: " << pps_sample << " Div: " << pps_div << std::endl;
+
+            if (pps_frame > 0) {
+                // Get the current time point from the system clock
+                auto now = std::chrono::system_clock::now();
+                long long seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+                pps_file << seconds << ", " << pps_frame << ", " << pps_sample << ", " << pps_div << std::endl;
+            }
+
+            // std::cout << "PPS -- Frame: " << (read_array.at(0) & 0xFFFFFF)
+            //           << " Sample: " << (read_array.at(1) & 0xFFF)
+            //           << " Div: " << ( ( read_array.at(1) & 0x70000) >> 16 ) << std::endl;
 
             // std::this_thread::sleep_for(std::chrono::milliseconds(100));
             //
@@ -924,6 +1034,9 @@ namespace data_handler {
             //           << " Ctr TPC: " << (read_array.at(1) & 0xFFF)
             //           << " Ctr Trig: " << ((read_array.at(1) & 0xFFF) * 8) + ((read_array.at(1) >> 16) & 0x7) << std::endl;
         }
+
+    pps_file.close();
+    LOG_INFO(logger_, "Closed PPS data file");
 
     // From TriggerModule.h
     // enum chip_3 : operation_id_t {

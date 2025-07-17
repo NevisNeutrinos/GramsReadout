@@ -80,7 +80,7 @@ private:
     * EVENTBUFFSIZE: This is the event buffer in the write thread. It is used to chunk the events so the
     * writes are larger and therefore more efficient (see `EVENTCHUNK` above).
     */
-    constexpr static size_t EVENTSIZE = 231000; // in bytes
+    constexpr static size_t EVENTSIZE = 100000; // in bytes
     constexpr static size_t DMABUFFSIZE = static_cast<size_t>(1.3 * EVENTSIZE);
     constexpr static size_t DATABUFFSIZE = (DMABUFFSIZE / sizeof(uint32_t)) + 2 * sizeof(uint32_t);
     constexpr static size_t EVENTBUFFSIZE = DATABUFFSIZE * EVENTCHUNK;
@@ -100,6 +100,9 @@ private:
     size_t num_events_;
     size_t num_dma_loops_ = 1;
     size_t num_recv_bytes_{};
+    int pps_sample_period_;
+    size_t run_number_;
+    unsigned long long trig_data_ctr_;
 
     // Metric counters
     std::atomic<size_t> event_count_ = 0;
