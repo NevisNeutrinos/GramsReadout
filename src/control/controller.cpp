@@ -22,7 +22,7 @@ namespace controller {
 
         current_state_ = State::kIdle;
 
-        std::string config_file("/home/sabertooth/GramsReadout/config/test_1.json");
+        std::string config_file("/home/pgrams/GramsReadout/config/test_1.json");
         if (!LoadConfig(config_file)) {
             std::cerr << "Config load failed! \n";
         }
@@ -119,7 +119,7 @@ namespace controller {
 
     bool Controller::PersistRunId() {
         bool read_write_success = false;
-        std::fstream run_id_file_in("/data/run_id.txt", std::ios::in);
+        std::fstream run_id_file_in("/home/pgrams/data/run_id.txt", std::ios::in);
         if (run_id_file_in.is_open()) {
             run_id_file_in >> run_id_;
             if (run_id_file_in.fail()) {
@@ -131,19 +131,20 @@ namespace controller {
             }
             run_id_file_in.close(); // Close after reading
 
-            std::ofstream run_id_file_out("/data/run_id.txt", std::ios::out); // Open for writing (truncates if exists)
+            std::ofstream run_id_file_out("/home/pgrams/data/run_id.txt", std::ios::out); // Open for writing (truncates if exists)
             if (run_id_file_out.is_open()) {
                 run_id_file_out << run_id_ << std::endl;
                 LOG_INFO(logger_, "Current Run ID [{}]", run_id_);
                 run_id_file_out.close();
                 read_write_success = true;
             } else {
+                run_id_ = 0;
                 LOG_WARNING(logger_, "Error opening Run ID file for writing.");
             }
         } else {
+            run_id_ = 0;
             LOG_WARNING(logger_, "Error opening Run ID file for reading.");
         }
-        run_id_ = 0;
         return read_write_success;
     }
 
@@ -201,12 +202,8 @@ namespace controller {
             return false;
         }
 
-        // int32_t subrun_number = args.at(0);
-        config_["data_handler"]["subrun"] = run_id_;
-        LOG_INFO(logger_, "Configuring run number {}", run_id_);
-
         // Load requested config file
-        std::string config_file("/home/sabertooth/GramsReadout/config/test_");
+        std::string config_file("/home/pgrams/GramsReadout/config/test_");
         config_file += std::to_string(args.at(1)) + ".json";
         LOG_INFO(logger_, "Loading config {}", config_file);
         if (!LoadConfig(config_file)) {
@@ -215,7 +212,7 @@ namespace controller {
         }
 
         // Specify the output file name to save the config file to for reference
-        std::string filename = "run_" + std::to_string(config_["data_handler"]["subrun"].get<int>()) + ".json";
+        std::string filename = "run_" + std::to_string(run_id_) + ".json";
         // Open a file stream for writing
         std::ofstream outputFile(filename);
         if (outputFile.is_open()) {
@@ -223,6 +220,10 @@ namespace controller {
             outputFile << std::setw(4) << config_ << std::endl;
             outputFile.close();
         }
+
+        // int32_t subrun_number = args.at(0);
+        config_["data_handler"]["subrun"] = run_id_;
+        LOG_INFO(logger_, "Configuring run number {}", run_id_);
 
         print_status_ = config_["controller"]["print_status"].get<bool>();
         status_->SetPrintStatus(print_status_);
@@ -233,7 +234,7 @@ namespace controller {
         board_slots_.push_back(config_["crate"]["light_fem_slot"].get<int>());
 
         // Connect to the PCIe bus handle
-        int device_id_0 = 5, device_id_1 = 4;
+        int device_id_0 = 4, device_id_1 = 6;
         if (!pcie_interface_->InitPCIeDevices(device_id_0, device_id_1)) {
             LOG_ERROR(logger_, "PCIe device initialization failed!");
             return false;
