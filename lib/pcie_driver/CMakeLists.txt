@@ -5,10 +5,21 @@ cmake_minimum_required(VERSION 3.10)
 project(pcie_lib LANGUAGES C)
 
 # Check if WD_BASEDIR is valid
-if(NOT EXISTS "$ENV{WD_BASEDIR}/include/windrvr.h")
+if (NOT DEFINED ENV{WD_BASEDIR})
+    message(FATAL_ERROR "You must set WD_BASEDIR to point to a Windriver installation!")
+elseif (NOT EXISTS "$ENV{WD_BASEDIR}/include/windrvr.h")
     message(FATAL_ERROR "Please set the WD_BASEDIR variable to point to the location of your WinDriver installation directory.")
+else ()
+    message("WD_BASEDIR set to: $ENV{WD_BASEDIR}")
 endif()
-message("WD_BASEDIR: $ENV{WD_BASEDIR}")
+
+# Check to make sure the Windriver kernel module name is defined
+if (DEFINED ENV{WD_KERNEL_MODULE_NAME})
+    set(SET_WD_KERNEL_MODULE_NAME $ENV{WD_KERNEL_MODULE_NAME})
+    message(STATUS "Set Windriver kernel module name to: ${SET_WD_KERNEL_MODULE_NAME}")
+else ()
+    message(FATAL_ERROR "Windriver kernel module name not set! Please set WD_KERNEL_MODULE_NAME")
+endif ()
 
 # Debugging settings
 option(DEBUG "Enable debugging code" OFF)
@@ -68,6 +79,11 @@ set(SRCS
 
 # Create a library target
 add_library(pcie_lib STATIC ${SRCS})
+
+# Set the Windriver kernel module name
+target_compile_definitions(pcie_lib
+        PUBLIC
+        KP_GRAMSREADOUT_DRIVER_NAME="${SET_WD_KERNEL_MODULE_NAME}")
 
 # Set compilation flags for the library
 target_compile_options(pcie_lib PRIVATE ${CFLAGS})

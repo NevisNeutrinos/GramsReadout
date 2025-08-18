@@ -25,7 +25,7 @@ extern "C" {
   General definitions
  *************************************************************/
 /* Kernel PlugIn driver name (should be no more than 8 characters) */
-#define KP_GRAMSREADOUT_DRIVER_NAME "KP_GRAMSREADOUT"
+// #define KP_GRAMSREADOUT_DRIVER_NAME "KP_PGRAMS"
 
 
 /* Default vendor and device IDs (0 == all) */
