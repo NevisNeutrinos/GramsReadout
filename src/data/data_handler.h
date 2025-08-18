@@ -27,7 +27,7 @@ public:
     bool Configure(json &config);
     void CollectData(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers);
     std::vector<uint32_t> GetStatus();
-    bool Reset(pcie_int::PCIeInterface *pcie_interface);
+    bool Reset(pcie_int::PCIeInterface *pcie_interface, size_t run_number);
     void SetRun(bool set_running) { is_running_.store(set_running); }
     std::map<std::string, size_t> GetMetrics();
 
@@ -117,6 +117,7 @@ private:
     // uint32_t data;
     // static unsigned long long u64Data;
 
+    std::string data_basedir_;
     std::string write_file_name_;
     std::atomic<size_t> file_count_;
 

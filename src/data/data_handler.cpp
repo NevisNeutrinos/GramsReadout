@@ -85,8 +85,9 @@ namespace data_handler {
 
         LOG_INFO(logger_, "\t [{}] DMA loops with [{}] 32b words \n", num_dma_loops_, DATABUFFSIZE / 4);
 
+        data_basedir_ = config["data_handler"]["data_basedir"].get<std::string>();
         file_count_.store(0);
-        write_file_name_ = "/home/pgrams/data/readout_data/pGRAMS_bin_" + std::to_string(run_number_) + "_";
+        write_file_name_ = data_basedir_ + "/readout_data/pGRAMS_bin_" + std::to_string(run_number_) + "_";
         pps_sample_period_ = config["data_handler"]["pps_sample_period"].get<int>();
         LOG_INFO(logger_, "\n Writing files: {}", write_file_name_);
 
@@ -267,6 +268,13 @@ namespace data_handler {
         static uint32_t is;
         static int itrig_c = 0;
         static int itrig_ext = 1;
+        if (software_trig_ == 1) {
+            // static int itrig_ext = 0;
+            // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, software_trig_, itrig_ext, trigger_module_);
+            // software_trig_ = 0;
+            // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, 0, 0, trigger_module_);
+        }
+
 
         uint32_t data;
         static unsigned long long u64Data;
@@ -748,7 +756,8 @@ namespace data_handler {
 
         LOG_INFO(logger_, "Opening Trigger data file");
         std::ofstream trigger_file;
-        std::string trigger_file_name = "trigger_data_run" + std::to_string(run_number_) + ".csv" ;
+        // std::string trigger_file_name = "trigger_data_run" + std::to_string(run_number_) + ".csv" ;
+        std::string trigger_file_name = data_basedir_ + "/trigger_data/trigger_data_run" + std::to_string(run_number_) + ".csv";
         trigger_file.open(trigger_file_name);
         if (!trigger_file.is_open()) {
          LOG_WARNING(logger_, "Trigger file failed to open, only printing!");
@@ -1073,7 +1082,7 @@ namespace data_handler {
         return status;
     }
 
-    bool DataHandler::Reset(pcie_int::PCIeInterface *pcie_interface) {
+    bool DataHandler::Reset(pcie_int::PCIeInterface *pcie_interface, size_t run_number) {
 
         // Reset some counting variables
         file_count_.store(0);
@@ -1089,6 +1098,9 @@ namespace data_handler {
 
         // Reset the metrics
         metrics_->ResetMetrics();
+
+        run_number_ = run_number;
+        write_file_name_ = data_basedir_ + "/readout_data/pGRAMS_bin_" + std::to_string(run_number_) + "_";
 
         return true;
     }
