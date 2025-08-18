@@ -134,10 +134,15 @@
         void StartMonitoring();
         void ShutdownMonitoring();
         template<typename T>
-        void SendMetrics(T &data, const size_t size);
+        void SendMetrics(T &data, size_t size);
+        void  GetEnvVariables();
 
         // data_monitor::DataMonitor &metrics_;
         // std::shared_ptr<data_monitor::DataMonitor> metrics_;
+
+        // Environment variables for base directory locations
+        std::string readout_basedir_;
+        std::string data_basedir_;
 
         std::unique_ptr<pcie_control::PcieControl> pcie_ctrl_;
         std::unique_ptr<xmit_control::XmitControl> xmit_ctrl_;

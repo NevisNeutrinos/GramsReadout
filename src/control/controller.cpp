@@ -8,6 +8,7 @@
 #include "quill/sinks/ConsoleSink.h"
 #include "quill/sinks/FileSink.h"
 #include <fstream>
+#include <cstdlib>
 
 namespace controller {
 
@@ -22,15 +23,17 @@ namespace controller {
 
         current_state_ = State::kIdle;
 
-        std::string config_file("/home/pgrams/GramsReadout/config/test_1.json");
+        // The environment variables should tell us where to find the config and data
+        GetEnvVariables();
+        std::string config_file = readout_basedir_ + "/config/test_1.json";
         if (!LoadConfig(config_file)) {
             std::cerr << "Config load failed! \n";
         }
 
         const bool log_to_file = config_["controller"]["log_to_file"].get<bool>();
         if (log_to_file) {
-            const std::string file_path = config_["controller"]["log_file_path"].get<std::string>();
-            const std::string file_name = file_path + "/readout_log.log";
+            //const std::string file_path = config_["controller"]["log_file_path"].get<std::string>();
+            const std::string file_name = data_basedir_ + "/logs/readout_log.log";
             quill::FileSinkConfig cfg;
             cfg.set_open_mode('w');
             cfg.set_filename_append_option(quill::FilenameAppendOption::StartDateTime);
@@ -44,7 +47,7 @@ namespace controller {
         LOG_INFO(logger_, "Opened config file: {} \n", config_file);
         LOG_INFO(logger_, "Config dump: {} \n", config_.dump());
 
-        const bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
+        // const bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
         enable_monitoring_ = config_["controller"]["enable_monitoring"].get<bool>();
         // metrics_->EnableMonitoring(enable_metrics);
 
@@ -93,6 +96,24 @@ namespace controller {
         // quill::Frontend::remove_logger(logger_);
     }
 
+    void Controller::GetEnvVariables() {
+        const char *readout_basedir = std::getenv("TPC_DAQ_BASEDIR");
+        const char *data_basedir = std::getenv("DATA_BASE_DIR");
+
+        if (readout_basedir != nullptr) {
+            readout_basedir_ = readout_basedir;
+        } else {
+            LOG_ERROR(logger_, "Environment variable TPC_DAQ_BASEDIR does not exist\n");
+        }
+        if (data_basedir != nullptr) {
+            data_basedir_ = data_basedir;
+        } else {
+            LOG_ERROR(logger_, "Environment variable DATA_BASE_DIR does not exist\n");
+        }
+        LOG_INFO(logger_, "Readout base directory: {}\n", readout_basedir_);
+        LOG_INFO(logger_, "Data base directory: {}\n", data_basedir_);
+    }
+
     void Controller::ShutdownMonitoring() {
         std::cout << "Destructing metrics.. " << std::endl;
         constexpr int linger_value = 0;
@@ -119,7 +140,9 @@ namespace controller {
 
     bool Controller::PersistRunId() {
         bool read_write_success = false;
-        std::fstream run_id_file_in("/home/pgrams/data/run_id.txt", std::ios::in);
+        std::string run_id_file = data_basedir_ + "/run_id.txt";
+
+        std::fstream run_id_file_in(run_id_file, std::ios::in);
         if (run_id_file_in.is_open()) {
             run_id_file_in >> run_id_;
             if (run_id_file_in.fail()) {
@@ -131,7 +154,7 @@ namespace controller {
             }
             run_id_file_in.close(); // Close after reading
 
-            std::ofstream run_id_file_out("/home/pgrams/data/run_id.txt", std::ios::out); // Open for writing (truncates if exists)
+            std::ofstream run_id_file_out(run_id_file, std::ios::out); // Open for writing (truncates if exists)
             if (run_id_file_out.is_open()) {
                 run_id_file_out << run_id_ << std::endl;
                 LOG_INFO(logger_, "Current Run ID [{}]", run_id_);
@@ -203,8 +226,7 @@ namespace controller {
         }
 
         // Load requested config file
-        std::string config_file("/home/pgrams/GramsReadout/config/test_");
-        config_file += std::to_string(args.at(1)) + ".json";
+        std::string config_file = readout_basedir_ + "/config/test_" + std::to_string(args.at(1)) + ".json";
         LOG_INFO(logger_, "Loading config {}", config_file);
         if (!LoadConfig(config_file)) {
             std::cerr << "Config load failed! \n";
@@ -212,7 +234,7 @@ namespace controller {
         }
 
         // Specify the output file name to save the config file to for reference
-        std::string filename = "run_" + std::to_string(run_id_) + ".json";
+        std::string filename = data_basedir_ + "/config_logs/run_" + std::to_string(run_id_) + ".json";
         // Open a file stream for writing
         std::ofstream outputFile(filename);
         if (outputFile.is_open()) {
@@ -220,6 +242,9 @@ namespace controller {
             outputFile << std::setw(4) << config_ << std::endl;
             outputFile.close();
         }
+
+        // Set the basedir for the data
+        config_["data_handler"]["data_basedir"] = data_basedir_;
 
         // int32_t subrun_number = args.at(0);
         config_["data_handler"]["subrun"] = run_id_;
@@ -345,7 +370,9 @@ namespace controller {
     }
 
     bool Controller::Reset() {
-        data_handler_->Reset(pcie_interface_.get());
+        PersistRunId();
+        config_["data_handler"]["subrun"] = run_id_;
+        data_handler_->Reset(pcie_interface_.get(), run_id_);
         return true;
     }
 
@@ -408,8 +435,9 @@ namespace controller {
         } if (command.command == CommandCodes::kReset && current_state_ == State::kStopped) {
             LOG_INFO(logger_, " \n State [Stopped] \n");
             Reset();
-            is_configured_ = false;
-            current_state_ = State::kIdle;
+            // is_configured_ = false;
+            // current_state_ = State::kIdle;
+            current_state_ = State::kConfigured;
             return true;
         }
 
