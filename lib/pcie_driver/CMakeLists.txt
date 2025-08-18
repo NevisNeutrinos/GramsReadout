@@ -4,13 +4,11 @@
 cmake_minimum_required(VERSION 3.10)
 project(pcie_lib LANGUAGES C)
 
-# TODO: Set WD_BASEDIR to the location of your WinDriver installation directory.
-set(WD_BASEDIR "/home/sabertooth/WinDriver" CACHE PATH "WinDriver installation directory")
-
 # Check if WD_BASEDIR is valid
-if(NOT EXISTS "${WD_BASEDIR}/include/windrvr.h")
+if(NOT EXISTS "$ENV{WD_BASEDIR}/include/windrvr.h")
     message(FATAL_ERROR "Please set the WD_BASEDIR variable to point to the location of your WinDriver installation directory.")
 endif()
+message("WD_BASEDIR: $ENV{WD_BASEDIR}")
 
 # Debugging settings
 option(DEBUG "Enable debugging code" OFF)
@@ -33,9 +31,9 @@ endif()
 message("Compiling for CPU ${TARGET_CPU}")
 
 # Set CFLAGS based on architecture
-include_directories(${WD_BASEDIR})
-include_directories(${WD_BASEDIR}/include)
-include_directories(${WD_BASEDIR}/samples/c/shared)
+include_directories($ENV{WD_BASEDIR})
+include_directories($ENV{WD_BASEDIR}/include)
+include_directories($ENV{WD_BASEDIR}/samples/c/shared)
 
 # The "-Wno-unused-result" flag suppresses compiler warnings for unused values
 # returned from functions. Suppressing warnings is not ideal but since this warning
@@ -60,10 +58,10 @@ list(APPEND CFLAGS ${DEBFLAGS})
 # Source files
 set(SRCS
         gramsreadout_lib.c
-        ${WD_BASEDIR}/samples/c/shared/diag_lib.c
-        ${WD_BASEDIR}/samples/c/shared/wdc_diag_lib.c
-        ${WD_BASEDIR}/samples/c/shared/wds_diag_lib.c
-        ${WD_BASEDIR}/samples/c/shared/pci_menus_common.c
+        $ENV{WD_BASEDIR}/samples/c/shared/diag_lib.c
+        $ENV{WD_BASEDIR}/samples/c/shared/wdc_diag_lib.c
+        $ENV{WD_BASEDIR}/samples/c/shared/wds_diag_lib.c
+        $ENV{WD_BASEDIR}/samples/c/shared/pci_menus_common.c
         pcie_interface.cpp
         pcie_interface.h
 )
@@ -79,7 +77,7 @@ target_link_libraries(pcie_lib PRIVATE ${LFLAGS})
 
 # Set include directories for the library
 target_include_directories(pcie_lib PRIVATE
-        ${WD_BASEDIR}/include
-        ${WD_BASEDIR}
-        ${WD_BASEDIR}/samples/c/shared
+        $ENV{WD_BASEDIR}/include
+        $ENV{WD_BASEDIR}
+        $ENV{WD_BASEDIR}/samples/c/shared
 )

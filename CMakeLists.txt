@@ -11,12 +11,13 @@ add_compile_options(-Wall -Wextra -pedantic)
 # Set the expected WinDriver installation and make sure it exists
 # The WinDriver _must_ exist to communicate with the hardware, hence
 # an error if not found.
-set(WINDRIVER_ROOT $ENV{HOME}/WinDriver)
-if (EXISTS ${WINDRIVER_ROOT})
-    message(STATUS "WinDriver installation directory is: ${WINDRIVER_ROOT}")
-else ()
-    message(FATAL_ERROR "WinDriver installation directory does not exist: ${WINDRIVER_ROOT}")
-endif ()
+#message(STATUS "Checking env variable: $ENV{WD_BASEDIR}")
+#set(WINDRIVER_ROOT /home/pgrams/WD1630LNX86_64)
+#if (EXISTS ${WINDRIVER_ROOT})
+#    message(STATUS "WinDriver installation directory is: ${WINDRIVER_ROOT}")
+#else ()
+#    message(FATAL_ERROR "WinDriver installation directory does not exist: ${WINDRIVER_ROOT}")
+#endif ()
 
 # For Grafana metrics
 find_package(PkgConfig REQUIRED)
