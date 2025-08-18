@@ -15,8 +15,7 @@ endif()
 
 # Check to make sure the Windriver kernel module name is defined
 if (DEFINED ENV{WD_KERNEL_MODULE_NAME})
-    set(SET_WD_KERNEL_MODULE_NAME $ENV{WD_KERNEL_MODULE_NAME})
-    message(STATUS "Set Windriver kernel module name to: ${SET_WD_KERNEL_MODULE_NAME}")
+    message(STATUS "Setting Windriver kernel module name to: $ENV{WD_KERNEL_MODULE_NAME}")
 else ()
     message(FATAL_ERROR "Windriver kernel module name not set! Please set WD_KERNEL_MODULE_NAME")
 endif ()
@@ -83,7 +82,7 @@ add_library(pcie_lib STATIC ${SRCS})
 # Set the Windriver kernel module name
 target_compile_definitions(pcie_lib
         PUBLIC
-        KP_GRAMSREADOUT_DRIVER_NAME="${SET_WD_KERNEL_MODULE_NAME}")
+        KP_GRAMSREADOUT_DRIVER_NAME="$ENV{WD_KERNEL_MODULE_NAME}")
 
 # Set compilation flags for the library
 target_compile_options(pcie_lib PRIVATE ${CFLAGS})

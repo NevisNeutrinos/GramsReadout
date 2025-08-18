@@ -25,6 +25,7 @@ extern "C" {
   General definitions
  *************************************************************/
 /* Kernel PlugIn driver name (should be no more than 8 characters) */
+// Definition moved to CMake file to allow for better portability
 // #define KP_GRAMSREADOUT_DRIVER_NAME "KP_PGRAMS"
 
 
