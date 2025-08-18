@@ -10,7 +10,7 @@ if (NOT DEFINED ENV{WD_BASEDIR})
 elseif (NOT EXISTS "$ENV{WD_BASEDIR}/include/windrvr.h")
     message(FATAL_ERROR "Please set the WD_BASEDIR variable to point to the location of your WinDriver installation directory.")
 else ()
-    message("WD_BASEDIR set to: $ENV{WD_BASEDIR}")
+    message(STATUS "WD_BASEDIR set to: $ENV{WD_BASEDIR}")
 endif()
 
 # Check to make sure the Windriver kernel module name is defined
