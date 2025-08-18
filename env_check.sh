@@ -4,7 +4,8 @@
 # Software Environment Setup Script
 #
 # This script checks for the existence of required environment variables and
-# directories. It takes one argument: the base path for the directories.
+# directories. It uses the DATA_BASE_DIR environment variable as the base path
+# for the directories.
 # It prints a status message for each check:
 # - Green text for success (item exists).
 # - Red text for an error (item does not exist).
@@ -16,15 +17,6 @@ COLOR_GREEN='\033[0;32m'
 COLOR_RED='\033[0;31m'
 COLOR_NC='\033[0m' # No Color
 
-# --- Script Input Validation ---
-# Check if the user provided a base path for the directories.
-if [ -z "$1" ]; then
-    echo -e "${COLOR_RED}✖ Error:${COLOR_NC} No directory path provided."
-    echo "Usage: $0 <path_to_directories>"
-    exit 1
-fi
-
-BASE_PATH="$1"
 
 # --- Helper Function for Printing Status ---
 # This function checks an item and prints a formatted status message.
@@ -41,7 +33,7 @@ check_item() {
         if [ -n "$item_value" ]; then
             printf "${COLOR_GREEN}✔ Success:${COLOR_NC} Environment variable '%s' is set to: %s\n" "$item_name" "$item_value"
         else
-            printf "${COLOR_RED}✖ Error:${COLOR_NC} Environment variable '%s' is not set.\n" "$item_name"
+            printf "${COLOR_RED}✖ Error:${COLOR_NC} Environment variable '%s' is not set. Please set it \n" "$item_name"
         fi
     elif [ "$check_type" == "dir" ]; then
         if [ -d "$item_name" ]; then
@@ -57,14 +49,21 @@ check_item() {
 echo "--- Checking Environment Variables ---"
 check_item "WD_BASEDIR" "var" "$WD_BASEDIR"
 check_item "WD_KERNEL_MODULE_NAME" "var" "$WD_KERNEL_MODULE_NAME"
+check_item "DATA_BASE_DIR" "var" "$DATA_BASE_DIR"
+
+# Exit if the crucial DATA_BASE_DIR is not set
+if [ -z "$DATA_BASE_DIR" ]; then
+    echo -e "${COLOR_RED}✖ Critical Error:${COLOR_NC} DATA_BASE_DIR must be set to check subdirectories. Exiting."
+    exit 1
+fi
 
 echo "" # Add a newline for better readability
 
-echo "--- Checking Directories under '${BASE_PATH}' ---"
-check_item "${BASE_PATH}/readout_data" "dir"
-check_item "${BASE_PATH}/sabertooth_pps" "dir"
-check_item "${BASE_PATH}/trigger_data" "dir"
-check_item "${BASE_PATH}/logs" "dir"
+echo "--- Checking Directories under '${DATA_BASE_DIR}' ---"
+check_item "${DATA_BASE_DIR}/readout_data" "dir"
+check_item "${DATA_BASE_DIR}/sabertooth_pps" "dir"
+check_item "${DATA_BASE_DIR}/trigger_data" "dir"
+check_item "${DATA_BASE_DIR}/logs" "dir"
 
 echo ""
 echo "Environment check complete."
