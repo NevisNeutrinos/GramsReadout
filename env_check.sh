@@ -47,6 +47,7 @@ check_item() {
 # --- Main Script Logic ---
 
 echo "--- Checking Environment Variables ---"
+check_item "TPC_DAQ_BASEDIR" "var" "$TPC_DAQ_BASEDIR"
 check_item "WD_BASEDIR" "var" "$WD_BASEDIR"
 check_item "WD_KERNEL_MODULE_NAME" "var" "$WD_KERNEL_MODULE_NAME"
 check_item "DATA_BASE_DIR" "var" "$DATA_BASE_DIR"
@@ -59,7 +60,7 @@ fi
 
 echo "" # Add a newline for better readability
 
-echo "--- Checking Directories under '${DATA_BASE_DIR}' ---"
+echo "--- Checking Data Directories Exist ---"
 check_item "${DATA_BASE_DIR}/readout_data" "dir"
 check_item "${DATA_BASE_DIR}/sabertooth_pps" "dir"
 check_item "${DATA_BASE_DIR}/trigger_data" "dir"
