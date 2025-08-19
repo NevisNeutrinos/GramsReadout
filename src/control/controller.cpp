@@ -103,15 +103,15 @@ namespace controller {
         if (readout_basedir != nullptr) {
             readout_basedir_ = readout_basedir;
         } else {
-            LOG_ERROR(logger_, "Environment variable TPC_DAQ_BASEDIR does not exist\n");
+            std::cerr << "Environment variable TPC_DAQ_BASEDIR does not exist!" << std::endl;
         }
         if (data_basedir != nullptr) {
             data_basedir_ = data_basedir;
         } else {
-            LOG_ERROR(logger_, "Environment variable DATA_BASE_DIR does not exist\n");
+            std::cerr << "Environment variable DATA_BASE_DIR does not exist!" << std::endl;
         }
-        LOG_INFO(logger_, "Readout base directory: {}\n", readout_basedir_);
-        LOG_INFO(logger_, "Data base directory: {}\n", data_basedir_);
+        std::cout << "Readout base directory: " << readout_basedir_ << std::endl;
+        std::cout << "Data base directory: " << data_basedir_ << std::endl;
     }
 
     void Controller::ShutdownMonitoring() {
