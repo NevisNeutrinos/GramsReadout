@@ -36,7 +36,9 @@ namespace charge_fem {
 
         static int a_id;
         static int timesize = config["readout_windows"]["timesize"].get<int>();
-        std::string fw_file = config["charge_fem"]["fpga_bitfile"].get<std::string>();
+
+        const auto data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
+        std::string fw_file = data_basedir + "/" + config["charge_fem"]["fpga_bitfile"].get<std::string>();
 
         ///////////////////////////  BOOT CHARGE FEM //////////////////////////////////////////
 

@@ -24,7 +24,9 @@ namespace xmit_control {
 
         static int imod_xmit = config["crate"]["xmit_slot"].get<int>();
         static int imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
-        std::string fw_file = config["xmit"]["fpga_bitfile"].get<std::string>();
+
+        const auto data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
+        std::string fw_file = data_basedir + "/" + config["xmit"]["fpga_bitfile"].get<std::string>();
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ XMIT BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 

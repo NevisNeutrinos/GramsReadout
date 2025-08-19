@@ -32,7 +32,6 @@ namespace controller {
 
         const bool log_to_file = config_["controller"]["log_to_file"].get<bool>();
         if (log_to_file) {
-            //const std::string file_path = config_["controller"]["log_file_path"].get<std::string>();
             const std::string file_name = data_basedir_ + "/logs/readout_log.log";
             quill::FileSinkConfig cfg;
             cfg.set_open_mode('w');
@@ -245,6 +244,7 @@ namespace controller {
 
         // Set the basedir for the data
         config_["data_handler"]["data_basedir"] = data_basedir_;
+        config_["hardware"]["readout_basedir"] = readout_basedir_;
 
         // int32_t subrun_number = args.at(0);
         config_["data_handler"]["subrun"] = run_id_;
@@ -259,7 +259,8 @@ namespace controller {
         board_slots_.push_back(config_["crate"]["light_fem_slot"].get<int>());
 
         // Connect to the PCIe bus handle
-        int device_id_0 = 4, device_id_1 = 6;
+        const int device_id_0 = config_["controller"]["device_id_0"].get<int>();
+        const int device_id_1 = config_["controller"]["device_id_1"].get<int>();
         if (!pcie_interface_->InitPCIeDevices(device_id_0, device_id_1)) {
             LOG_ERROR(logger_, "PCIe device initialization failed!");
             return false;

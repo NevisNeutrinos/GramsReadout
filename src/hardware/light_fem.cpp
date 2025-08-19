@@ -36,7 +36,8 @@ namespace light_fem {
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         static int mode = (trig_src == "ext") || (trig_src == "software") ? 0 : 3;
 
-        std::string fw_file = config["light_fem"]["fpga_bitfile"].get<std::string>();
+        const auto data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
+        std::string fw_file = data_basedir + "/" + config["light_fem"]["fpga_bitfile"].get<std::string>();
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ LIGHT FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
