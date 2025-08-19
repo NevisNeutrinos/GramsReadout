@@ -25,12 +25,13 @@ namespace controller {
 
         // The environment variables should tell us where to find the config and data
         GetEnvVariables();
-        std::string config_file = readout_basedir_ + "/config/test_1.json";
-        if (!LoadConfig(config_file)) {
+        std::string config_file = readout_basedir_ + "/tpc_configs/setup_config/setup_params.json";
+        setup_config_ = LoadConfig(config_file);
+        if (setup_config_.is_null()) {
             std::cerr << "Config load failed! \n";
         }
 
-        const bool log_to_file = config_["controller"]["log_to_file"].get<bool>();
+        const bool log_to_file = setup_config_["controller"]["log_to_file"].get<bool>();
         if (log_to_file) {
             const std::string file_name = data_basedir_ + "/logs/readout_log.log";
             quill::FileSinkConfig cfg;
@@ -44,10 +45,10 @@ namespace controller {
         }
 
         LOG_INFO(logger_, "Opened config file: {} \n", config_file);
-        LOG_INFO(logger_, "Config dump: {} \n", config_.dump());
+        LOG_INFO(logger_, "Config dump: {} \n", setup_config_.dump());
 
-        // const bool enable_metrics = config_["data_handler"]["enable_metrics"].get<bool>();
-        enable_monitoring_ = config_["controller"]["enable_monitoring"].get<bool>();
+        // const bool enable_metrics = setup_config_["data_handler"]["enable_metrics"].get<bool>();
+        enable_monitoring_ = setup_config_["controller"]["enable_monitoring"].get<bool>();
         // metrics_->EnableMonitoring(enable_metrics);
 
         data_handler_ = std::make_unique<data_handler::DataHandler>();
@@ -170,44 +171,46 @@ namespace controller {
         return read_write_success;
     }
 
-    bool Controller::LoadConfig(std::string &config_file) {
+    json Controller::LoadConfig(const std::string &config_file) {
+        json config;
         std::ifstream f;
         try {
             f.open(config_file);
         } catch (const std::ifstream::failure& e) {
             if (f.is_open()) f.close();
             std::cerr << "Error opening config file: " << config_file << "IfStream failure: " << e.what() << "\n";
-            return false;
+            return config;
         } catch (const std::exception& e) {
             if (f.is_open()) f.close();
             std::cerr << "Error opening config file: " << config_file << "Exception: " << e.what() << "\n";
-            return false;
+            return config;
         } catch (...) {
             if (f.is_open()) f.close();
-            return false;
+            return config;
         }
 
         if (!f.is_open()) {
             std::cerr << "Could not open config file " << config_file << std::endl;
-            return false;
+            return config;
         }
 
+
         try {
-            config_ = json::parse(f);
+            config = json::parse(f);
         } catch (json::parse_error& ex) {
             std::cerr << "Parse error: " << ex.what() << std::endl;
             std::cerr << "Parse error at byte: " << ex.byte << std::endl;
             if (f.is_open()) f.close();
-            return false;
+            return config;
         } catch (...) {
             std::cerr << "Unknown error occurred while parsing config file!" << std::endl;
             if (f.is_open()) f.close();
-            return false;
+            return config;
         }
 
         std::cout << "Successfully opened config file.." << std::endl;
-        std::cout << config_.dump() << std::endl;
-        return true;
+        std::cout << config.dump() << std::endl;
+        return config;
     }
 
     bool Controller::Init() {
@@ -225,12 +228,15 @@ namespace controller {
         }
 
         // Load requested config file
-        std::string config_file = readout_basedir_ + "/config/test_" + std::to_string(args.at(1)) + ".json";
+        std::string config_file = readout_basedir_ + "/tpc_configs/data_config/test_" + std::to_string(args.at(1)) + ".json";
         LOG_INFO(logger_, "Loading config {}", config_file);
-        if (!LoadConfig(config_file)) {
+        config_ = LoadConfig(config_file);
+        if (config_.is_null()) {
             std::cerr << "Config load failed! \n";
             return  false;
         }
+        // Add the setup config to this so we only have to pass around a single config object
+        config_.update(setup_config_);
 
         // Specify the output file name to save the config file to for reference
         std::string filename = data_basedir_ + "/config_logs/run_" + std::to_string(run_id_) + ".json";

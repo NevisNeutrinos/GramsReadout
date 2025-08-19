@@ -113,7 +113,7 @@
 
         void ReceiveCommand();
         void SendAckCommand(bool success);
-        bool LoadConfig(std::string &config_file);
+        json LoadConfig(const std::string &config_file);
         bool PersistRunId();
         bool JoinDataThread();
 
@@ -160,6 +160,7 @@
         quill::Logger* logger_;
         State current_state_;
 
+        json setup_config_;
         json config_;
 
     };

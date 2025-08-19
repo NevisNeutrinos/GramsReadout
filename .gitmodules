@@ -4,3 +4,6 @@
 [submodule "networking"]
 	path = networking
 	url = https://github.com/NevisNeutrinos/networking.git
+[submodule "tpc_configs"]
+	path = tpc_configs
+	url = https://github.com/NevisNeutrinos/tpc_configs.git
