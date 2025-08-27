@@ -134,7 +134,6 @@ int32_t GetMemoryStats(quill::Logger *logger) {
         QUILL_LOG_ERROR(logger, "Error getting memory stats: {}", strerror(errno));
         return memory_usage_percent;
     }
-
     try {
         if (mem_entries > 0) {
             const size_t total_memory_bytes = mem_stats->total;
@@ -203,7 +202,7 @@ std::vector<int32_t> GetComputerStatus(quill::Logger *logger) {
 
     try {
         struct statfs data_disk_info{};
-        if (statfs("/data", &data_disk_info) == 0) {
+        if (statfs("/home/pgrams/data", &data_disk_info) == 0) {
             const auto free_space = static_cast<unsigned long>(data_disk_info.f_bavail * data_disk_info.f_frsize);
             status_vec.at(0) = free_space / GB_divisor;
         } else {
@@ -233,35 +232,6 @@ std::vector<int32_t> GetComputerStatus(quill::Logger *logger) {
     return status_vec;
 }
 
-void RunController(std::unique_ptr<controller::Controller> &controller_ptr, asio::io_context &io_context, quill::Logger *logger) {
-
-    try {
-        QUILL_LOG_INFO(logger, "Starting controller initialization...");
-        // FIXME add status io context
-        controller_ptr = std::make_unique<controller::Controller>(
-            io_context, io_context, kControllerIp, kControllerCommandPort, kControllerStatusPort, false, true);
-        if (!controller_ptr->Init()) {
-            QUILL_LOG_CRITICAL(logger, "Failed to initialize controller. Service will shut down.");
-        } else {
-            QUILL_LOG_INFO(logger, "Controller initialized successfully.");
-            try {
-                controller_ptr->Run(); // This loop should check g_running internally
-            } catch (const std::exception& e) {
-                QUILL_LOG_CRITICAL(logger, "Exception in Controller::Run(): {}", e.what());
-            } catch (...) {
-                QUILL_LOG_CRITICAL(logger, "Unknown exception in Controller::Run()");
-            }
-        }
-    } catch (const std::exception& e) {
-        QUILL_LOG_CRITICAL(logger, "Exception during Controller initialization phase: {}", e.what());
-    } catch (...) {
-        QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
-    }
-    if (controller_ptr) {
-        QUILL_LOG_INFO(logger, "Resetting controller pointer");
-        controller_ptr.reset();
-    }
-}
 void KillThread(std::thread &thread, quill::Logger *logger) {
     // WARNING: This is very dangerous way to deal with threads, only using as a very
     // last resort.
@@ -294,14 +264,99 @@ void JoinThread(std::thread &thread, quill::Logger *logger) {
     }
 }
 
+template <typename DAQ>
+struct DAQProcess {
+    bool use_io_ctx;
+    std::unique_ptr<DAQ> daq_ptr;
+    std::thread io_ctx_thread;
+    std::thread daq_thread;
+    std::function<void(DAQProcess &daq_process, quill::Logger *logger, asio::io_context &io_context)> run_function;
+};
+
+void TpcRunController(DAQProcess<controller::Controller> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
+
+    try {
+        QUILL_LOG_INFO(logger, "Starting controller initialization...");
+        // FIXME add status io context
+        daq_process.daq_ptr = std::make_unique<controller::Controller>(
+            io_context, io_context, kControllerIp,
+            kControllerCommandPort, kControllerStatusPort, false, true);
+        if (!daq_process.daq_ptr->Init()) {
+            QUILL_LOG_CRITICAL(logger, "Failed to initialize controller. Service will shut down.");
+        } else {
+            QUILL_LOG_INFO(logger, "Controller initialized successfully.");
+            try {
+                daq_process.daq_ptr->Run(); // This loop should check g_running internally
+            } catch (const std::exception& e) {
+                QUILL_LOG_CRITICAL(logger, "Exception in Controller::Run(): {}", e.what());
+            } catch (...) {
+                QUILL_LOG_CRITICAL(logger, "Unknown exception in Controller::Run()");
+            }
+        }
+    } catch (const std::exception& e) {
+        QUILL_LOG_CRITICAL(logger, "Exception during Controller initialization phase: {}", e.what());
+    } catch (...) {
+        QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
+    }
+    if (daq_process.daq_ptr) {
+        QUILL_LOG_INFO(logger, "Resetting controller pointer");
+        daq_process.daq_ptr.reset();
+    }
+}
+
+template<typename DAQ>
+void StartDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
+    if (!daq_process.daq_thread.joinable()) {
+        LOG_INFO(logger, "Starting Control thread");
+        if (daq_process.use_io_ctx) io_context.restart();
+        daq_process.daq_thread = std::thread([&]() { daq_process.run_function(daq_process, logger, io_context); });
+        if (daq_process.use_io_ctx) daq_process.io_ctx_thread = std::thread([&]() { io_context.run(); });
+    } else {
+        LOG_WARNING(logger, "DAQ controller already running!");
+    }
+}
+
+template<typename DAQ>
+void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
+    if (daq_process.daq_ptr) {
+        daq_process.daq_ptr->SetRunning(false);
+        io_context.stop();
+        JoinThread(daq_process.daq_thread, logger);
+        JoinThread(daq_process.io_ctx_thread, logger);
+        daq_process.daq_ptr.reset(nullptr);
+    } else {
+        LOG_WARNING(logger, "Readout controller not running!");
+    }
+}
+
+template<typename DAQ>
+void ShutdownDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger) {
+    if (daq_process.daq_ptr) {
+        LOG_INFO(logger, "Shutting down DAQ process... ");
+        daq_process.daq_ptr->SetRunning(false);
+        JoinThread(daq_process.daq_thread, logger);
+    }
+}
+
 void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_ptr<TCPConnection> &status_client_ptr,
-                asio::io_context &io_context, quill::Logger *logger) {
+                std::vector<std::unique_ptr<asio::io_context>> &daq_io_context, quill::Logger *logger) {
+
+    // DAQ process threads
+    std::vector<std::thread> daq_worker_threads;
+    std::vector<std::thread> daq_io_ctx_threads;
+
+    // DAQ Processes
+    /** TPC & SiPM Controller */
+    DAQProcess<controller::Controller> tpc_controller_daq;
+    tpc_controller_daq.use_io_ctx = true;
+    tpc_controller_daq.run_function = TpcRunController;
+    /** TPC & SiPM Data Monitor Controller */
+    // DAQProcess<controller::Controller> tpc_monitor_controller_daq;
+    // tpc_monitor_controller_daq.use_io_ctx = true;
+    // tpc_monitor_controller_daq.run_function = RunTpcMonitorController;
 
     // Readout DAQ Controller
-    std::unique_ptr<controller::Controller> controller_ptr;
-    std::thread ctrl_thread;
-    std::thread io_thread;
-    asio::executor_work_guard<asio::io_context::executor_type> work_guard(io_context.get_executor());
+    asio::executor_work_guard<asio::io_context::executor_type> work_guard(daq_io_context.at(0)->get_executor());
 
     while (g_running.load()) {
         Command cmd = command_client_ptr->ReadRecvBuffer();
@@ -314,26 +369,11 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 break;
             }
             case 1: { // start readout DAQ
-                if (!ctrl_thread.joinable()) {
-                    io_context.restart();
-                    LOG_INFO(logger, "Starting Control thread");
-                    ctrl_thread = std::thread([&]() { RunController(controller_ptr, io_context, logger); });
-                    io_thread = std::thread([&]() { io_context.run(); });
-                } else {
-                    LOG_WARNING(logger, "Readout controller already running!");
-                }
+                StartDaqProcess(tpc_controller_daq, logger, *daq_io_context.at(0));
                 break;
             }
             case 2: { // stop readout DAQ
-                if (controller_ptr) {
-                    controller_ptr->SetRunning(false);
-                    io_context.stop();
-                    JoinThread(ctrl_thread, logger);
-                    JoinThread(io_thread, logger);
-                    controller_ptr.reset(nullptr);
-                } else {
-                    LOG_WARNING(logger, "Readout controller not running!");
-                }
+                StopDaqProcess(tpc_controller_daq, logger, *daq_io_context.at(0));
                 break;
             }
             // TODO add case for booting _all_ DAQ (status msg shows if they are running)
@@ -345,10 +385,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     }
 
     LOG_INFO(logger, "Run Daemon stopped, shutting it all down!");
-    if (controller_ptr) {
-        controller_ptr->SetRunning(false);
-        JoinThread(ctrl_thread, logger);
-    }
+    ShutdownDaqProcess(tpc_controller_daq, logger);
 }
 
 } // anonymous namespace
@@ -374,6 +411,11 @@ int main(int argc, char* argv[]) {
     std::unique_ptr<TCPConnection> command_client_ptr;
     std::unique_ptr<TCPConnection> status_client_ptr;
 
+    // Since each DAQ makes a separate connection we need an IO context and thread for each
+    size_t NUM_DAQ = 3;
+    std::vector<std::unique_ptr<asio::io_context>> daq_io_contexts;
+    for (size_t i = 0; i < NUM_DAQ; i++) daq_io_contexts.emplace_back(std::make_unique<asio::io_context>());
+
     try {
         // Start IO context thread first
         io_thread = std::thread([&]() {
@@ -397,8 +439,8 @@ int main(int argc, char* argv[]) {
 
         LOG_INFO(logger, "Starting control connection \n");
         command_client_ptr = std::make_unique<TCPConnection>(io1, kDaemonIp, kDaemonCommandPort, false, true);
-        // status_client_ptr = std::make_unique<TCPConnection>(io1, kDaemonIp, kDaemonStatusPort, false, false);
-        daq_thread = std::thread([&]() { DAQHandler(command_client_ptr, status_client_ptr, io2, logger); });
+        status_client_ptr = std::make_unique<TCPConnection>(io1, kDaemonIp, kDaemonStatusPort, false, true);
+        daq_thread = std::thread([&]() { DAQHandler(command_client_ptr, status_client_ptr, daq_io_contexts, logger); });
 
     } catch (const std::exception& e) {
         QUILL_LOG_CRITICAL(logger, "Exception during initialization phase: {}", e.what());
@@ -416,7 +458,7 @@ int main(int argc, char* argv[]) {
         g_shutdown_cv.wait(lock, [] { return !g_running.load(); });
         // stop the blocking message receiver so the DAQ thread can terminate
         command_client_ptr->setStopCmdRead(true);
-        // status_client_ptr->setStopCmdRead(true);
+        status_client_ptr->setStopCmdRead(true);
         // When woken up, g_running is false
         QUILL_LOG_INFO(logger, "Shutdown signal received or error detected. Initiating shutdown sequence.");
     // } else if (!g_successful_init.load()) {
@@ -433,8 +475,10 @@ int main(int argc, char* argv[]) {
 
     // Stop the ASIO io_context. This will unblock the io_thread.
     // Safe to call multiple times.
-    QUILL_LOG_INFO(logger, "Stopping ASIO io_context.");
+    QUILL_LOG_INFO(logger, "Stopping ASIO io_contexts.");
     io1.stop();
+    io2.stop();
+    for (auto &io_ctx : daq_io_contexts) io_ctx->stop();
 
     // Join threads (wait for them to finish)
     QUILL_LOG_INFO(logger, "Joining DAQ thread...");
