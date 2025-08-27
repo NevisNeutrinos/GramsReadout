@@ -43,12 +43,24 @@ const char* kDaemonIp = "127.0.0.1";  // Daemon software IP
 const uint16_t kDaemonCommandPort = 50001; // Daemon software port, for commands
 const uint16_t kDaemonStatusPort = 50000; // Daemon software port, for status
 
+const size_t NUM_DAQ = 3; // Number of DAQ processes
+
 // --- Global Variables ---
 namespace { // Use anonymous namespace for internal linkage
 
 std::atomic_bool g_running(true);
 std::condition_variable g_shutdown_cv;
 std::mutex g_shutdown_mutex;
+
+// --- Struct for DAQ processes ---
+template <typename DAQ>
+struct DAQProcess {
+        bool use_io_ctx;
+        std::unique_ptr<DAQ> daq_ptr;
+        std::thread io_ctx_thread;
+        std::thread daq_thread;
+        std::function<void(DAQProcess &daq_process, quill::Logger *logger, asio::io_context &io_context)> run_function;
+    };
 
 // --- Signal Handling ---
 void SignalHandler(int signum) {
@@ -264,15 +276,6 @@ void JoinThread(std::thread &thread, quill::Logger *logger) {
     }
 }
 
-template <typename DAQ>
-struct DAQProcess {
-    bool use_io_ctx;
-    std::unique_ptr<DAQ> daq_ptr;
-    std::thread io_ctx_thread;
-    std::thread daq_thread;
-    std::function<void(DAQProcess &daq_process, quill::Logger *logger, asio::io_context &io_context)> run_function;
-};
-
 void TpcRunController(DAQProcess<controller::Controller> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
 
     try {
@@ -324,8 +327,9 @@ void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger, asio::i
         JoinThread(daq_process.daq_thread, logger);
         JoinThread(daq_process.io_ctx_thread, logger);
         daq_process.daq_ptr.reset(nullptr);
+        LOG_INFO(logger, "Stopped DAQ process..");
     } else {
-        LOG_WARNING(logger, "Readout controller not running!");
+        LOG_WARNING(logger, "DAQ process not running!");
     }
 }
 
@@ -359,6 +363,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     asio::executor_work_guard<asio::io_context::executor_type> work_guard(daq_io_context.at(0)->get_executor());
 
     while (g_running.load()) {
+        LOG_INFO(logger, "Waiting for command...");
         Command cmd = command_client_ptr->ReadRecvBuffer();
         LOG_INFO(logger, "Received command [{}] num_args: [{}] \n", cmd.command, cmd.arguments.size());
 
@@ -368,11 +373,11 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 status_client_ptr->WriteSendBuffer(0x0, status);
                 break;
             }
-            case 1: { // start readout DAQ
+            case 1: { // start DAQ process
                 StartDaqProcess(tpc_controller_daq, logger, *daq_io_context.at(0));
                 break;
             }
-            case 2: { // stop readout DAQ
+            case 2: { // stop DAQ process
                 StopDaqProcess(tpc_controller_daq, logger, *daq_io_context.at(0));
                 break;
             }
@@ -405,14 +410,13 @@ int main(int argc, char* argv[]) {
                                                                         kControllerCommandPort, kControllerStatusPort);
 
     // 3. Initialize ASIO and Controller
-    asio::io_context io1, io2;
+    asio::io_context io1;
     std::thread io_thread;
     std::thread daq_thread;
     std::unique_ptr<TCPConnection> command_client_ptr;
     std::unique_ptr<TCPConnection> status_client_ptr;
 
     // Since each DAQ makes a separate connection we need an IO context and thread for each
-    size_t NUM_DAQ = 3;
     std::vector<std::unique_ptr<asio::io_context>> daq_io_contexts;
     for (size_t i = 0; i < NUM_DAQ; i++) daq_io_contexts.emplace_back(std::make_unique<asio::io_context>());
 
@@ -477,7 +481,6 @@ int main(int argc, char* argv[]) {
     // Safe to call multiple times.
     QUILL_LOG_INFO(logger, "Stopping ASIO io_contexts.");
     io1.stop();
-    io2.stop();
     for (auto &io_ctx : daq_io_contexts) io_ctx->stop();
 
     // Join threads (wait for them to finish)
