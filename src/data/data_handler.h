@@ -24,6 +24,7 @@ public:
     explicit DataHandler();
     ~DataHandler();
 
+    void PinThread(std::thread& t, size_t core_id);
     bool Configure(json &config);
     void CollectData(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers);
     std::vector<uint32_t> GetStatus();
@@ -106,6 +107,8 @@ private:
     int pps_sample_period_;
     size_t run_number_;
     unsigned long long trig_data_ctr_;
+    size_t read_core_id_;
+    size_t write_core_id_;
 
     // Metric counters
     std::atomic<size_t> event_count_ = 0;

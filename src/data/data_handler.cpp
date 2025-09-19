@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <cstring>
 #include <chrono>
+#include <pthread.h>
+#include <sched.h>
 
 #include "quill/LogMacros.h"
 
@@ -70,6 +72,32 @@ namespace data_handler {
         return true;
     }
 
+    void DataHandler::PinThread(std::thread& t, size_t core_id) {
+        //cpu_set_t cpuset;
+        //CPU_ZERO(&cpuset);
+        //CPU_SET(core_id, &cpuset);
+
+        pthread_t handle = t.native_handle();
+        //// Set the thread to run on a specific core, the priority for the thread is set below
+        //int rc = pthread_setaffinity_np(handle, sizeof(cpu_set_t), &cpuset);
+        //if (rc != 0) {
+        //    LOG_ERROR(logger_, "pthread_setaffinity_np failed for core {}\n", core_id);
+        //}
+
+        // Be VERY careful with this number, range=(0,99) with 99 the highest priority.
+        // Setting too high will make the CPU core unusable for other processes.
+        int priority = 70;
+        sched_param sch_params{};
+        sch_params.sched_priority = priority;
+
+        // This requires root permission but opening the PCIe card also does so we can assume
+        // we are always root if we get to this function.
+        int ret = pthread_setschedparam(handle, SCHED_FIFO, &sch_params);
+        if (ret != 0) {
+            LOG_ERROR(logger_, "Failed to set realtime priority: {} ", ret);
+        }
+    }
+
     bool DataHandler::Configure(json &config) {
 
         trigger_module_ = config["crate"]["trig_slot"].get<int>();
@@ -90,6 +118,9 @@ namespace data_handler {
         write_file_name_ = data_basedir_ + "/readout_data/pGRAMS_bin_" + std::to_string(run_number_) + "_";
         pps_sample_period_ = config["data_handler"]["pps_sample_period"].get<int>();
         LOG_INFO(logger_, "\n Writing files: {}", write_file_name_);
+
+        read_core_id_ = config["data_handler"]["read_core_id"].get<size_t>();
+        write_core_id_ = config["data_handler"]["write_core_id"].get<size_t>();
 
         return true;
     }
@@ -126,6 +157,11 @@ namespace data_handler {
 
         auto write_thread = std::thread(&DataHandler::DataWrite, this);
         auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
+
+        // Pin these threads to the specified core
+        // PinThread(read_thread, read_core_id_);
+        // PinThread(write_thread, write_core_id_);
+
         // auto read_thread = std::thread(&DataHandler::ReadoutViaController, this, pcie_interface, buffers);
         auto trig_pps = std::thread(&DataHandler::PollTriggerPPS, this, pcie_interface);
         auto trigger_thread = std::thread(&DataHandler::TriggerDMARead, this, pcie_interface);
