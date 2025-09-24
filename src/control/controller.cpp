@@ -14,8 +14,8 @@ namespace controller {
 
     Controller::Controller(asio::io_context& io_context, asio::io_context& status_io_context, const std::string& ip_address,
         const uint16_t command_port, const uint16_t status_port, const bool is_server, const bool is_running) :
-        command_client_(io_context, ip_address, command_port, is_server, true),
-        status_client_(status_io_context, ip_address, status_port, is_server, false),
+        command_client_(io_context, ip_address, command_port, is_server, true, false),
+        status_client_(status_io_context, ip_address, status_port, is_server, false, true),
         is_running_(is_running),
         is_configured_(false),
         enable_monitoring_(false) {
@@ -222,13 +222,13 @@ namespace controller {
 
         PersistRunId();
 
-        if (args.size() != 2) {
+        if (args.size() != 1) {
             LOG_ERROR(logger_, "Wrong number of arguments! {}", args.size());
             return false;
         }
 
         // Load requested config file
-        std::string config_file = readout_basedir_ + "/tpc_configs/data_config/test_" + std::to_string(args.at(1)) + ".json";
+        std::string config_file = readout_basedir_ + "/tpc_configs/data_config/test_" + std::to_string(args.at(0)) + ".json";
         LOG_INFO(logger_, "Loading config {}", config_file);
         config_ = LoadConfig(config_file);
         if (config_.is_null()) {
