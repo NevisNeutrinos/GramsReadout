@@ -34,8 +34,8 @@
 // Best practice: Load these from a config file or environment variables
 // For simplicity, using constants here. Consider systemd Environment= directive.
 
-const char* kControllerIp = "192.168.1.100";  // Readout software IP
-// const char* kControllerIp = "127.0.0.1";  // Readout software IP
+//const char* kControllerIp = "192.168.1.100";  // Readout software IP
+const char* kControllerIp = "127.0.0.1";  // Readout software IP
 const uint16_t kControllerCommandPort = 50003; // Readout software port, for commands
 const uint16_t kControllerStatusPort = 50002; // Readout software port, for status
 
@@ -55,9 +55,7 @@ std::mutex g_shutdown_mutex;
 // --- Struct for DAQ processes ---
 template <typename DAQ>
 struct DAQProcess {
-        bool use_io_ctx;
         std::unique_ptr<DAQ> daq_ptr;
-        std::thread io_ctx_thread;
         std::thread daq_thread;
         std::function<void(DAQProcess &daq_process, quill::Logger *logger, asio::io_context &io_context)> run_function;
     };
@@ -309,23 +307,19 @@ void TpcRunController(DAQProcess<controller::Controller> &daq_process, quill::Lo
 
 template<typename DAQ>
 void StartDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
-    if (!daq_process.daq_thread.joinable()) {
-        LOG_INFO(logger, "Starting Control thread");
-        if (daq_process.use_io_ctx) io_context.restart();
-        daq_process.daq_thread = std::thread([&]() { daq_process.run_function(daq_process, logger, io_context); });
-        if (daq_process.use_io_ctx) daq_process.io_ctx_thread = std::thread([&]() { io_context.run(); });
-    } else {
+    if (daq_process.daq_thread.joinable()) {
         LOG_WARNING(logger, "DAQ controller already running!");
+        return;
     }
+    LOG_INFO(logger, "Starting Control thread");
+    daq_process.daq_thread = std::thread([&]() { daq_process.run_function(daq_process, logger, io_context); });
 }
 
 template<typename DAQ>
-void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
+void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger) {
     if (daq_process.daq_ptr) {
         daq_process.daq_ptr->SetRunning(false);
-        io_context.stop();
         JoinThread(daq_process.daq_thread, logger);
-        JoinThread(daq_process.io_ctx_thread, logger);
         daq_process.daq_ptr.reset(nullptr);
         LOG_INFO(logger, "Stopped DAQ process..");
     } else {
@@ -333,34 +327,20 @@ void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger, asio::i
     }
 }
 
-template<typename DAQ>
-void ShutdownDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger) {
-    if (daq_process.daq_ptr) {
-        LOG_INFO(logger, "Shutting down DAQ process... ");
-        daq_process.daq_ptr->SetRunning(false);
-        JoinThread(daq_process.daq_thread, logger);
-    }
-}
-
 void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_ptr<TCPConnection> &status_client_ptr,
-                std::vector<std::unique_ptr<asio::io_context>> &daq_io_context, quill::Logger *logger) {
+                asio::io_context &io_ctx, quill::Logger *logger) {
 
     // DAQ process threads
     std::vector<std::thread> daq_worker_threads;
-    std::vector<std::thread> daq_io_ctx_threads;
 
     // DAQ Processes
     /** TPC & SiPM Controller */
     DAQProcess<controller::Controller> tpc_controller_daq;
-    tpc_controller_daq.use_io_ctx = true;
     tpc_controller_daq.run_function = TpcRunController;
     /** TPC & SiPM Data Monitor Controller */
     // DAQProcess<controller::Controller> tpc_monitor_controller_daq;
     // tpc_monitor_controller_daq.use_io_ctx = true;
     // tpc_monitor_controller_daq.run_function = RunTpcMonitorController;
-
-    // Readout DAQ Controller
-    asio::executor_work_guard<asio::io_context::executor_type> work_guard(daq_io_context.at(0)->get_executor());
 
     while (g_running.load()) {
         LOG_INFO(logger, "Waiting for command...");
@@ -374,11 +354,11 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 break;
             }
             case 1: { // start DAQ process
-                StartDaqProcess(tpc_controller_daq, logger, *daq_io_context.at(0));
+                StartDaqProcess(tpc_controller_daq, logger, io_ctx);
                 break;
             }
             case 2: { // stop DAQ process
-                StopDaqProcess(tpc_controller_daq, logger, *daq_io_context.at(0));
+                StopDaqProcess(tpc_controller_daq, logger);
                 break;
             }
             // TODO add case for booting _all_ DAQ (status msg shows if they are running)
@@ -390,7 +370,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     }
 
     LOG_INFO(logger, "Run Daemon stopped, shutting it all down!");
-    ShutdownDaqProcess(tpc_controller_daq, logger);
+    StopDaqProcess(tpc_controller_daq, logger);
 }
 
 } // anonymous namespace
@@ -410,41 +390,43 @@ int main(int argc, char* argv[]) {
                                                                         kControllerCommandPort, kControllerStatusPort);
 
     // 3. Initialize ASIO and Controller
-    asio::io_context io1;
-    std::thread io_thread;
+    asio::io_context io_context;
+    size_t num_io_ctx_threads = 3;
     std::thread daq_thread;
     std::unique_ptr<TCPConnection> command_client_ptr;
     std::unique_ptr<TCPConnection> status_client_ptr;
 
-    // Since each DAQ makes a separate connection we need an IO context and thread for each
-    std::vector<std::unique_ptr<asio::io_context>> daq_io_contexts;
-    for (size_t i = 0; i < NUM_DAQ; i++) daq_io_contexts.emplace_back(std::make_unique<asio::io_context>());
-
+    // Here we start the IO context on a few threads. This just gives the context access to
+    // these threads so it can handle asyn operations on multiple sockets at once. This is all
+    // handled under the hood by ASIO
+    std::vector<std::thread> io_ctx_threads;
     try {
-        // Start IO context thread first
-        io_thread = std::thread([&]() {
-            QUILL_LOG_INFO(logger, "ASIO io_context thread started...");
-            // Prevent io_context::run() from returning if there's initially no work
-            auto work_guard = asio::make_work_guard(io1);
-            try {
-                io1.run(); // Blocks until io_context.stop() or work_guard is reset
-            } catch (const std::exception& e) {
-                QUILL_LOG_CRITICAL(logger, "Exception in io_context.run(): {}", e.what());
-                // Signal shutdown if the IO context fails critically
-                g_running.store(false);
-                g_shutdown_cv.notify_one();
-            } catch (...) {
-                QUILL_LOG_CRITICAL(logger, "Unknown exception in io_context.run()");
-                g_running.store(false);
-                g_shutdown_cv.notify_one();
-            }
-            QUILL_LOG_INFO(logger, "ASIO io_context thread finished.");
-        });
-
+        for (size_t i = 0; i < num_io_ctx_threads; i++) {
+            // Start IO context thread first
+            io_ctx_threads.emplace_back( std::thread([&]() {
+                QUILL_LOG_INFO(logger, "ASIO io_context thread started...");
+                // Prevent io_context::run() from returning if there's initially no work
+                auto work_guard = asio::make_work_guard(io_context);
+                try {
+                    io_context.run(); // Blocks until io_context.stop() or work_guard is reset
+                } catch (const std::exception& e) {
+                    QUILL_LOG_CRITICAL(logger, "Exception in io_context.run(): {}", e.what());
+                    // Signal shutdown if the IO context fails critically
+                    g_running.store(false);
+                    g_shutdown_cv.notify_one();
+                } catch (...) {
+                    QUILL_LOG_CRITICAL(logger, "Unknown exception in io_context.run()");
+                    g_running.store(false);
+                    g_shutdown_cv.notify_one();
+                }
+                QUILL_LOG_INFO(logger, "ASIO io_context thread finished.");
+            })
+            );
+        }
         LOG_INFO(logger, "Starting control connection \n");
-        command_client_ptr = std::make_unique<TCPConnection>(io1, kDaemonIp, kDaemonCommandPort, false, true);
-        status_client_ptr = std::make_unique<TCPConnection>(io1, kDaemonIp, kDaemonStatusPort, false, true);
-        daq_thread = std::thread([&]() { DAQHandler(command_client_ptr, status_client_ptr, daq_io_contexts, logger); });
+        command_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonCommandPort, false, true, false);
+        status_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonStatusPort, false, true, true);
+        daq_thread = std::thread([&]() { DAQHandler(command_client_ptr, status_client_ptr, io_context, logger); });
 
     } catch (const std::exception& e) {
         QUILL_LOG_CRITICAL(logger, "Exception during initialization phase: {}", e.what());
@@ -480,8 +462,7 @@ int main(int argc, char* argv[]) {
     // Stop the ASIO io_context. This will unblock the io_thread.
     // Safe to call multiple times.
     QUILL_LOG_INFO(logger, "Stopping ASIO io_contexts.");
-    io1.stop();
-    for (auto &io_ctx : daq_io_contexts) io_ctx->stop();
+    io_context.stop();
 
     // Join threads (wait for them to finish)
     QUILL_LOG_INFO(logger, "Joining DAQ thread...");
@@ -496,16 +477,18 @@ int main(int argc, char* argv[]) {
      QUILL_LOG_INFO(logger, "DAQ thread was not joinable (likely never started or already finished).");
     }
 
-    QUILL_LOG_INFO(logger, "Joining IO thread...");
-    if (io_thread.joinable()) {
-        try {
-            io_thread.join();
-            QUILL_LOG_INFO(logger, "IO thread joined.");
-        } catch (const std::system_error& e) {
-            QUILL_LOG_ERROR(logger, "Error joining IO thread: {}", e.what());
+    QUILL_LOG_INFO(logger, "Joining IO threads...");
+    for (auto &io_thread : io_ctx_threads) {
+        if (io_thread.joinable()) {
+            try {
+                io_thread.join();
+                QUILL_LOG_INFO(logger, "IO thread joined.");
+            } catch (const std::system_error& e) {
+                QUILL_LOG_ERROR(logger, "Error joining IO thread: {}", e.what());
+            }
+        } else {
+            QUILL_LOG_INFO(logger, "IO thread was not joinable (likely never started or already finished).");
         }
-    } else {
-        QUILL_LOG_INFO(logger, "IO thread was not joinable (likely never started or already finished).");
     }
 
     // Quill backend shutdown happens automatically at exit.
