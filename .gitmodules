@@ -7,3 +7,6 @@
 [submodule "tpc_configs"]
 	path = tpc_configs
 	url = https://github.com/NevisNeutrinos/tpc_configs.git
+[submodule "PGramsCommCodec"]
+	path = PGramsCommCodec
+	url = https://github.com/NevisNeutrinos/PGramsCommCodec.git
