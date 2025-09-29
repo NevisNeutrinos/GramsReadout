@@ -16,22 +16,17 @@ namespace light_fem {
 
     bool LightFem::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
         static long imod, ichip;
-        static uint32_t i, k, iprint, ik, is;
+        static uint32_t i, k, ik, is;
         static int nword;
-
-        static int hg, lg;
+        static uint32_t iprint = 0;
         static int lg_ch, hg_ch, trig_ch, bg_ch;
-        static int bg, bge, tre;
-        static int a_id, iframe;
-
-        iprint = 0;
-        bool print_debug = true;
+        static int bg, bge;
+        static int a_id;
 
         static int imod_fem;
         static int imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
         static int imod_st2  = config["crate"]["last_charge_slot"].get<int>();  //st2 corresponds to last tpc slot (farthest to XMIT)
         static int imod_pmt  = config["crate"]["light_fem_slot"].get<int>();
-        static int iframe_length = config["readout_windows"]["frame_length"].get<int>();
 
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         static int mode = (trig_src == "ext") || (trig_src == "software") ? 0 : 3;
@@ -41,7 +36,6 @@ namespace light_fem {
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ LIGHT FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
-        iframe = iframe_length;
         imod_fem = imod_pmt;
 
         static int pmt_words = config["light_fem"]["sipm_words"].get<int>();
@@ -86,9 +80,9 @@ namespace light_fem {
         // fprintf(outinfo, "Hardware config: Gate input = %d\n", bg);
         if (bg == 0 && (mode == 4 || mode == 5 || mode == 7))
         {
-            printf("\nWarning: The PMT Beam Trigger is disabled because the BNB gate is not physically input to the FEM\n");
-            printf("Enter 1 to acknowledge this:\t");
-            scanf("%d", &ik); // enter anything; this will be overwritten next
+            LOG_INFO(logger_, "Warning: The PMT Beam Trigger is disabled because the BNB gate is not physically input to the FEM\n");
+            LOG_INFO(logger_, "Enter 1 to acknowledge this:\t");
+            std::cin >> ik; // enter anything; this will be overwritten next
         }
 
         hg_ch = 2;
@@ -97,19 +91,11 @@ namespace light_fem {
         trig_ch = 0;
         LOG_INFO(logger_, "\tLG_ch = {}, HG_ch = {}, TRIG_ch = {}, BG_ch = {} \n", lg_ch, hg_ch, trig_ch, bg_ch);
 
-        hg = 1;
-        //hg = 0;  //EXT Trigger setup as of 11/26/2024
-        lg = 1;
-        //lg = 0;  //EXT Trigger setup as of 11/26/2024
-        if (bg == 1)
-        {
-            printf("\n\tEnable BNB gate channel (for readout)?\t");
-            scanf("%d", &bge);
+
+        if (bg == 1) {
+            LOG_INFO(logger_, "\tEnable BNB gate channel (for readout)?\t");
+            std::cin >> bge;
         }
-        //  scanf("%d",&tre);
-        tre = 0;
-        //tre = 1; //EXT Trigger set up as of 11/26/2024
-        // threshold0 = 20;     // discriminator 0 threshold (original =40 JLS)
 
         LOG_INFO(logger_, "\nReadout parameter definitions:\n");
         LOG_INFO(logger_, "Discriminator thresholds assume 20 ADC/pe for HG, 2 ADC/pe for LG.\n");
@@ -727,12 +713,6 @@ namespace light_fem {
         std::vector<uint32_t> status;
         status.push_back(1);
         return status;
-    }
-
-    bool LightFem::Reset(pcie_int::PCIeInterface *pcie_interface) {
-        int i = 5;
-        int j = 6;
-        return i > j;
     }
 
 } // light_fem

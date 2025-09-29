@@ -18,7 +18,7 @@ namespace xmit_control {
 
         static long imod, ichip;
         static uint32_t i, k, iprint;
-        static int count, nword;
+        static int nword;
         bool print_debug = true;
         iprint = 0;
 
@@ -227,9 +227,4 @@ namespace xmit_control {
         return status;
     }
 
-    bool XmitControl::Reset(pcie_int::PCIeInterface *pcie_interface) {
-        int i = 5;
-        int j = 6;
-        return i > j;
-    }
 } // xmit_control

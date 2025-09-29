@@ -40,14 +40,6 @@ class HardwareDevice {
     */
     virtual std::vector<uint32_t> GetStatus() = 0;
 
-    /**
-    *  Abstract method which shall implement all required shutdown procedures to
-    *  safely close the hardware and handle any errors which might occur.
-    *
-    * @return  Returns true on successful shutdown, false on failure.
-    */
-    virtual bool Reset(pcie_int::PCIeInterface *pcie_interface) = 0;
-
     HardwareDevice();
     virtual ~HardwareDevice() = default;
 

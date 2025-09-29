@@ -26,9 +26,9 @@ public:
 
     void PinThread(std::thread& t, size_t core_id);
     bool Configure(json &config);
-    void CollectData(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers);
+    void CollectData(pcie_int::PCIeInterface *pcie_interface);
     std::vector<uint32_t> GetStatus();
-    bool Reset(pcie_int::PCIeInterface *pcie_interface, size_t run_number);
+    bool Reset(size_t run_number);
     void SetRun(bool set_running) { is_running_.store(set_running); }
     std::map<std::string, size_t> GetMetrics();
 
@@ -102,11 +102,13 @@ private:
     int software_trigger_rate_{};
     int trigger_module_;
     size_t num_events_;
-    size_t num_dma_loops_ = 1;
-    size_t num_recv_bytes_{};
+    size_t num_dma_loops_;
+    size_t num_recv_bytes_;
     int pps_sample_period_;
     size_t run_number_;
     unsigned long long trig_data_ctr_;
+
+    // Thread pinning to core and scheduler priority
     size_t read_core_id_;
     size_t write_core_id_;
 

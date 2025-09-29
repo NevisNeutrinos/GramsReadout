@@ -18,8 +18,16 @@
 namespace data_handler {
 
     // FIXME, make queue size configurable
-    DataHandler::DataHandler() : num_events_(0), data_queue_(400), trigger_queue_(100),
-    stop_write_(false), metrics_(data_monitor::DataMonitor::GetInstance()) {
+    DataHandler::DataHandler() :
+        metrics_(data_monitor::DataMonitor::GetInstance()),
+        data_queue_(400),
+        trigger_queue_(100),
+        num_events_(0),
+        num_dma_loops_(1),
+        num_recv_bytes_(0),
+        trig_data_ctr_(0),
+        file_count_(0),
+        stop_write_(false) {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
     }
 
@@ -73,16 +81,16 @@ namespace data_handler {
     }
 
     void DataHandler::PinThread(std::thread& t, size_t core_id) {
-        //cpu_set_t cpuset;
-        //CPU_ZERO(&cpuset);
-        //CPU_SET(core_id, &cpuset);
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(core_id, &cpuset);
 
         pthread_t handle = t.native_handle();
-        //// Set the thread to run on a specific core, the priority for the thread is set below
-        //int rc = pthread_setaffinity_np(handle, sizeof(cpu_set_t), &cpuset);
-        //if (rc != 0) {
-        //    LOG_ERROR(logger_, "pthread_setaffinity_np failed for core {}\n", core_id);
-        //}
+        // Set the thread to run on a specific core, the priority for the thread is set below
+        int rc = pthread_setaffinity_np(handle, sizeof(cpu_set_t), &cpuset);
+        if (rc != 0) {
+            LOG_ERROR(logger_, "pthread_setaffinity_np failed for core {}\n", core_id);
+        }
 
         // Be VERY careful with this number, range=(0,99) with 99 the highest priority.
         // Setting too high will make the CPU core unusable for other processes.
@@ -153,7 +161,7 @@ namespace data_handler {
         return true;
     }
 
-    void DataHandler::CollectData(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers) {
+    void DataHandler::CollectData(pcie_int::PCIeInterface *pcie_interface) {
 
         auto write_thread = std::thread(&DataHandler::DataWrite, this);
         auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
@@ -254,9 +262,9 @@ namespace data_handler {
                         if ((local_event_count % 500) == 0) LOG_INFO(logger_, " **** Event: {} \n", local_event_count);
                         local_event_count += event_chunk;
                         event_count_.store(local_event_count);
-                        const size_t write_bytes = write(fd_, word_arr_write.data(), num_words*sizeof(uint32_t));
+                        const int write_bytes = write(fd_, word_arr_write.data(), num_words*sizeof(uint32_t));
                         if (write_bytes == -1) LOG_WARNING(logger_, "Failed write {} \n", std::string(strerror(errno)));
-                        else num_recv_bytes += write_bytes;
+                        else num_recv_bytes += static_cast<size_t>(write_bytes);
 
                         if ((local_event_count > 0) && (local_event_count % 5000 == 0)) {
                             SwitchWriteFile();
@@ -273,9 +281,9 @@ namespace data_handler {
         } // run loop
 
         // Write any remaining full events in the buffer to file before closing
-        const size_t write_bytes = write(fd_, word_arr_write.data(), event_words*sizeof(uint32_t));
+        const int write_bytes = write(fd_, word_arr_write.data(), event_words*sizeof(uint32_t));
         if (write_bytes == -1) LOG_WARNING(logger_, "Failed write {} \n", std::string(strerror(errno)));
-        else num_recv_bytes += write_bytes;
+        else num_recv_bytes += static_cast<size_t>(write_bytes);
 
         LOG_INFO(logger_, "Ended data write and closing file..\n");
         // Make sure all data is flushed to file before closing
@@ -719,7 +727,7 @@ namespace data_handler {
         return status;
     }
 
-    bool DataHandler::Reset(pcie_int::PCIeInterface *pcie_interface, size_t run_number) {
+    bool DataHandler::Reset(size_t run_number) {
 
         // Reset some counting variables
         file_count_.store(0);

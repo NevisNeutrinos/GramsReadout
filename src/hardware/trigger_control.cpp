@@ -145,12 +145,6 @@ namespace trig_ctrl {
         return status;
     }
 
-    bool TriggerControl::Reset(pcie_int::PCIeInterface *pcie_interface) {
-        int i = 5;
-        int j = 6;
-        return i > j;
-    }
-
     void TriggerControl::SendStartTrigger(pcie_int::PCIeInterface *pcie_interface, int itrig_c, int itrig_ext, int trigger_module) {
         static int imod, ichip;
         // static int imod_trig   = 11;

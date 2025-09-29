@@ -381,7 +381,6 @@ namespace pcie_int {
                 std::cout << std::hex;
                 std::cout << "status word before read = " << (u64Data >> 32) << ", " << (u64Data & 0xffff) << std::endl;
                 std::cout << std::dec;
-                printf(" status word before read = %I64u, %I64u \n", (u64Data >> 32), (u64Data & 0xffff));
             }
             lock.unlock(); // make sure the mutex is unlocked to allow other users
             return 0;
@@ -479,9 +478,7 @@ namespace pcie_int {
 
     bool PCIeInterface::DmaContigBufferLock(uint32_t dev_handle, uint32_t dwDMABufSize, DMABufferHandle *pbuf_rec) {
         static DWORD dwStatus;
-        static uint32_t u32Data;
         static int is;
-        static int idebug = 1;
 
         DWORD dwOptions_rec = DMA_FROM_DEVICE | DMA_ALLOW_64BIT_ADDRESS;
 

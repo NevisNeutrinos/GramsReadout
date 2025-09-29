@@ -16,9 +16,11 @@ namespace controller {
         const uint16_t command_port, const uint16_t status_port, const bool is_server, const bool is_running) :
         command_client_(io_context, ip_address, command_port, is_server, true, false),
         status_client_(status_io_context, ip_address, status_port, is_server, false, true),
-        is_running_(is_running),
         is_configured_(false),
-        enable_monitoring_(false) {
+        enable_monitoring_(false),
+        run_id_(0),
+        is_running_(is_running),
+        run_status_(false) {
         // metrics_(data_monitor::DataMonitor::GetInstance()) {
 
         current_state_ = State::kIdle;
@@ -327,7 +329,7 @@ namespace controller {
         LOG_INFO(logger_, "Starting Run! \n");
         try {
             data_handler_->SetRun(true);
-            data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get(), buffers_.get());
+            data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get());
             // run_status_.store(true);
             // status_thread_ = std::thread(&Controller::StatusControl, this);
         } catch (std::exception& ex) {
@@ -379,7 +381,7 @@ namespace controller {
     bool Controller::Reset() {
         PersistRunId();
         config_["data_handler"]["subrun"] = run_id_;
-        data_handler_->Reset(pcie_interface_.get(), run_id_);
+        data_handler_->Reset(run_id_);
         return true;
     }
 
@@ -403,7 +405,7 @@ namespace controller {
             // command_client_.WriteSendBuffer(cmd); //ack
             bool response = HandleCommand(cmd);
             if (cmd.command == CommandCodes::kHeartBeat) continue;
-            // SendAckCommand(response);
+            SendAckCommand(response);
             LOG_INFO(logger_, " \n Current state: [{}] \n", GetStateName());
         }
     }

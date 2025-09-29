@@ -117,17 +117,19 @@
         bool PersistRunId();
         bool JoinDataThread();
 
-        bool is_configured_;
-        bool print_status_;
-        bool enable_monitoring_;
-        uint32_t run_id_;
-
         // TCPConnection tcp_connection_;
         TCPConnection command_client_;
         TCPConnection status_client_;
         std::thread data_thread_;
         std::thread status_thread_;
         std::vector<int> board_slots_{};
+
+        bool is_configured_;
+        bool print_status_;
+        bool enable_monitoring_;
+        uint32_t run_id_;
+        std::atomic_bool is_running_;
+        std::atomic_bool run_status_;
 
         std::unique_ptr<zmq::context_t> context_;
         std::unique_ptr<zmq::socket_t> socket_;
@@ -153,9 +155,6 @@
         std::unique_ptr<pcie_int::PCIeInterface> pcie_interface_;
         std::unique_ptr<pcie_int::PcieBuffers> buffers_;
         std::unique_ptr<status::Status> status_;
-
-        std::atomic_bool is_running_;
-        std::atomic_bool run_status_;
 
         quill::Logger* logger_;
         State current_state_;
