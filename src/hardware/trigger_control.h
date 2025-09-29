@@ -18,7 +18,7 @@ public:
 
     bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers& buffers) override;
     std::vector<uint32_t> GetStatus() override;
-    void SetRun(const bool set_running) { is_running_.store(set_running); }
+    void StopTrigger(const bool stop_trigger) { is_running_.store(!stop_trigger); }
     bool Reset(pcie_int::PCIeInterface *pcie_interface) override;
 
 

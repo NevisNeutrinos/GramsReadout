@@ -8,6 +8,10 @@
 #include <cstdint>
 #include "../../lib/pcie_driver/pcie_interface.h"
 
+/*
+ * Use this script as a reference for what things do:
+ *  https://github.com/NevisNeutrino/BoardTest/blob/master/bnlnevistest.c
+ */
 
 namespace hw_consts {
 

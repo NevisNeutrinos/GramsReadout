@@ -188,7 +188,6 @@ namespace data_handler {
         LOG_INFO(logger_, "read thread joined... \n");
 
         // The read/write threads will block until a run stop is set. Then we stop the trigger.
-        trigger_.SetRun(false);
         trigger_thread.join();
         LOG_INFO(logger_, "trigger thread joined... \n");
         //trigger_thread.join();
@@ -304,13 +303,6 @@ namespace data_handler {
         static uint32_t is;
         static int itrig_c = 0;
         static int itrig_ext = 1;
-        if (software_trig_ == 1) {
-            // static int itrig_ext = 0;
-            // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, software_trig_, itrig_ext, trigger_module_);
-            // software_trig_ = 0;
-            // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, 0, 0, trigger_module_);
-        }
-
 
         uint32_t data;
         static unsigned long long u64Data;
@@ -326,6 +318,17 @@ namespace data_handler {
         LOG_INFO(logger_, "Buffer 1 & 2 allocation size: {} \n", DMABUFFSIZE);
         SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2, true);
         usleep(500000);
+
+        std::thread trigger_thread;
+        if (software_trig_ == 1) {
+            // static int itrig_ext = 0;
+            // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, 0, 1, trigger_module_);
+            // software_trig_ = 0;
+            // trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, 0, 0, trigger_module_);
+            LOG_INFO(logger_, "Starting software trigger thread...\n");
+            trigger_thread = std::thread(&trig_ctrl::TriggerControl::SendSoftwareTrigger, &trigger_,
+                                            pcie_interface, software_trigger_rate_, trigger_module_);
+        }
 
         while(is_running_.load() && event_count_.load() < num_events_) {
             if (dma_loops % 500 == 0) LOG_INFO(logger_, "=======> DMA Loop [{}] \n", dma_loops);
@@ -367,7 +370,11 @@ namespace data_handler {
                 if (idebug) LOG_INFO(logger_, "DMA set up done, byte count = {} \n", DMABUFFSIZE);
 
                 // send trigger
-                if (iv == 0) trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, software_trig_, itrig_ext, trigger_module_);
+                if (iv == 0) {
+                    trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
+                } else if (software_trig_) {
+                    trig_ctrl::TriggerControl::SendStartTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
+                }
 
                 if (!WaitForDma(pcie_interface, &data, kDev2)) {
                     LOG_WARNING(logger_, " loop [{}] DMA is not finished, aborting...  \n", iv);
@@ -411,6 +418,10 @@ namespace data_handler {
         } // end loop over events
 
         LOG_INFO(logger_, "Stopping triggers..\n");
+        if (software_trig_) {
+            trigger_.StopTrigger(true);
+            if (trigger_thread.joinable()) trigger_thread.join();
+        }
         trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
 
         // If event count triggered the end of run, set stop write flag so write thread completes
@@ -1010,9 +1021,10 @@ namespace data_handler {
     }
 
     bool DataHandler::WaitForDma(pcie_int::PCIeInterface *pcie_interface, uint32_t *data, uint32_t dev_num) {
-        // Check to see if DMA is done or not
+        // Poll DMA until finished
         // Can get stuck waiting for the DMA to finish, use is_running flag check to break from it
-        for (size_t is = 0; is < 6000000000; is++) {
+        // for (size_t is = 0; is < 6000000000; is++) {
+        for (size_t is = 0; is < 10000000; is++) {
             pcie_interface->ReadReg32(dev_num, hw_consts::cs_bar, hw_consts::cs_dma_cntrl, data);
             if ((*data & hw_consts::dma_in_progress) == 0) {
                 return true;

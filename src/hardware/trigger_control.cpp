@@ -110,16 +110,8 @@ namespace trig_ctrl {
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-            // imod=trigger_module_;
-            // buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_prescale8)+(0x0<<16); //set prescale8 0
-            // //        fprintf(outinfo,"trig_prescale8 = 0x%x\n",0x0);
-            // i = 1;
-            // k = 1;
-            // i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
             //End PMT Trigger setup
-        } else {
+        } else if (ext_trig_) {
             //begin EXT Trigger setup as of 11/26/2024
             imod = trigger_module_;
             buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x4A << 16); // set mask1[3] on.
@@ -127,13 +119,22 @@ namespace trig_ctrl {
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-
-            // imod = trigger_module_;
-            // buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale8) + (0x0 << 16); // set prescale1 0
-            // i = 1;
-            // k = 1;
-            // i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
             //End EXT Trigger setup as of 11/26/2024
+        } else if (software_trig_) {
+            imod = trigger_module_;
+            i = 1; k = 1;
+            // mask1 0xFF = light trigger
+            // mask8 0x2 = external trigger
+            // mask8 0x8 = software trigger
+            // Set light trigger mask1 to 0x0
+            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask1) + (0x0 << 16);
+            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            // Set mask8 for software trigger
+            // buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x1D << 16); THIS WORKS!
+            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_mask8) + (0x8 << 16); // 0x8 mask8 is SW trig
+            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+        } else {
+            LOG_ERROR(logger_, "Unknown trigger source! {}", trig_src);
         }
         return true;
     }
@@ -159,21 +160,8 @@ namespace trig_ctrl {
         psend = buf_send.data();
 
         if (itrig_c == 1) {
-            imod = trigger_module;
-            // buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
-            // pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
-
-            std::cout << "Waiting for Trigger..." << std::endl;
-            // usleep(500000); //~2Hz
-            buf_send[0] = (imod << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
+            buf_send[0] = (trigger_module << 11) + (hw_consts::mb_trig_run) + ((0x1) << 16); // set up run
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
-            std::cout << "Triggering" << std::endl;
-            imod = trigger_module; /* trigger module */
-            buf_send[0] = (imod << 11) + hw_consts::mb_trig_pctrig + ((0x0) << 16);
-            // buf_send[0] = (imod << 11) + hw_consts::mb_trig_calib + ((0x0) << 16);
-            pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
-            // usleep(650); // 3x frame size
-            usleep(100000); //~10Hz
         }
         else if (itrig_ext == 1) {
             // only need to restart the run if we use the test data or 1st run
@@ -217,7 +205,7 @@ namespace trig_ctrl {
         std::array<uint32_t, 2> buf_send{0,0};
         uint32_t *psend{};
         psend = buf_send.data();
-        // is_running_.store(false);
+        is_running_.store(true);
 
         const size_t sleep_time = (1. / static_cast<double>(software_trigger_rate)) * 1000000;
 
@@ -227,8 +215,8 @@ namespace trig_ctrl {
         // buf_send[0] = (trigger_module << 11) + (hw_consts::mb_trig_calib) + ((0x0) << 16);
 
         while (is_running_.load()) {
-            // std::this_thread::sleep_for(sleep_length);
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+            std::this_thread::sleep_for(sleep_length);
+            // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             //LOG_INFO(logger_, "Sending software trigger, length={}", sleep_length.count());
             // std::cout << "Sending software trigger, sleep length=" << sleep_length.count() << "us" << std::endl;
             pcie_interface->PCIeSendBuffer(kDev1, 1, 1, psend);
