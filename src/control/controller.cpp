@@ -46,8 +46,7 @@ namespace controller {
              quill::Frontend::create_or_get_sink<quill::ConsoleSink>("sink_id1"));
         }
 
-        LOG_INFO(logger_, "Opened config file: {} \n", config_file);
-        LOG_INFO(logger_, "Config dump: {} \n", setup_config_.dump());
+        LOG_DEBUG(logger_, "Set-Up config dump: {} \n", setup_config_.dump());
 
         // const bool enable_metrics = setup_config_["data_handler"]["enable_metrics"].get<bool>();
         enable_monitoring_ = setup_config_["controller"]["enable_monitoring"].get<bool>();
@@ -137,7 +136,6 @@ namespace controller {
         zmq::message_t message(size);
         memcpy(message.data(), data.data(), size); // Copy counter to message data
         socket_->send(message, zmq::send_flags::none); // Send the message
-        //std::cout << "Sent metric: " << data << std::endl;
     }
 
     bool Controller::PersistRunId() {
@@ -151,7 +149,7 @@ namespace controller {
                 LOG_WARNING(logger_, "Error reading Run ID from file.");
                 run_id_ = 0;
             } else {
-                LOG_INFO(logger_, "Previous Run ID [{}]", run_id_);
+                LOG_DEBUG(logger_, "Previous Run ID [{}]", run_id_);
                 run_id_++;
             }
             run_id_file_in.close(); // Close after reading
@@ -159,7 +157,6 @@ namespace controller {
             std::ofstream run_id_file_out(run_id_file, std::ios::out); // Open for writing (truncates if exists)
             if (run_id_file_out.is_open()) {
                 run_id_file_out << run_id_ << std::endl;
-                LOG_INFO(logger_, "Current Run ID [{}]", run_id_);
                 run_id_file_out.close();
                 read_write_success = true;
             } else {
@@ -170,6 +167,7 @@ namespace controller {
             run_id_ = 0;
             LOG_WARNING(logger_, "Error opening Run ID file for reading.");
         }
+        LOG_INFO(logger_, "Run ID [{}]", run_id_);
         return read_write_success;
     }
 
@@ -211,7 +209,7 @@ namespace controller {
         }
 
         std::cout << "Successfully opened config file.." << std::endl;
-        std::cout << config.dump() << std::endl;
+        // std::cout << config.dump() << std::endl;
         return config;
     }
 
@@ -237,6 +235,9 @@ namespace controller {
             std::cerr << "Config load failed! \n";
             return  false;
         }
+
+        LOG_INFO(logger_, "Data config dump: {} \n", config_.dump());
+
         // Add the setup config to this so we only have to pass around a single config object
         config_.update(setup_config_);
 

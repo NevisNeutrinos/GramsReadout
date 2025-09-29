@@ -19,7 +19,7 @@ namespace light_fem {
         static uint32_t i, k, ik, is;
         static int nword;
         static uint32_t iprint = 0;
-        static int lg_ch, hg_ch, trig_ch, bg_ch;
+        // static int lg_ch, hg_ch, trig_ch, bg_ch;
         static int bg, bge;
         static int a_id;
 
@@ -80,16 +80,16 @@ namespace light_fem {
         // fprintf(outinfo, "Hardware config: Gate input = %d\n", bg);
         if (bg == 0 && (mode == 4 || mode == 5 || mode == 7))
         {
-            LOG_INFO(logger_, "Warning: The PMT Beam Trigger is disabled because the BNB gate is not physically input to the FEM\n");
+            LOG_DEBUG(logger_, "Warning: The PMT Beam Trigger is disabled because the BNB gate is not physically input to the FEM\n");
             LOG_INFO(logger_, "Enter 1 to acknowledge this:\t");
             std::cin >> ik; // enter anything; this will be overwritten next
         }
 
-        hg_ch = 2;
-        lg_ch = 3;
-        bg_ch = 0;
-        trig_ch = 0;
-        LOG_INFO(logger_, "\tLG_ch = {}, HG_ch = {}, TRIG_ch = {}, BG_ch = {} \n", lg_ch, hg_ch, trig_ch, bg_ch);
+        // hg_ch = 2;
+        // lg_ch = 3;
+        // bg_ch = 0;
+        // trig_ch = 0;
+        // LOG_DEBUG(logger_, "\tLG_ch = {}, HG_ch = {}, TRIG_ch = {}, BG_ch = {} \n", lg_ch, hg_ch, trig_ch, bg_ch);
 
 
         if (bg == 1) {
@@ -97,9 +97,8 @@ namespace light_fem {
             std::cin >> bge;
         }
 
-        LOG_INFO(logger_, "\nReadout parameter definitions:\n");
-        LOG_INFO(logger_, "Discriminator thresholds assume 20 ADC/pe for HG, 2 ADC/pe for LG.\n");
-        LOG_INFO(logger_, "\nThreshold for discr 0 = {} ADC counts\n", threshold0);
+        LOG_DEBUG(logger_, "\nReadout parameter definitions:\n");
+        LOG_DEBUG(logger_, "\nThreshold for discr 0 = {} ADC counts\n", threshold0);
 
 
         // if ((mode == 3) || (mode == 5) || (mode == 7))
@@ -154,7 +153,7 @@ namespace light_fem {
 
         LoadFirmware(imod, hw_consts::mb_feb_conf_add, fw_file, pcie_interface, buffers);
 
-        LOG_INFO(logger_, "FEM FPGA configuration done \n");
+        LOG_DEBUG(logger_, "FEM FPGA configuration done \n");
         ik = 1;
         if (ik == 1)
         {
@@ -191,12 +190,12 @@ namespace light_fem {
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
         buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
         i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv); // read out 2 32 bits words
-        LOG_INFO(logger_, "\nFEM STATUS:\n Data word = 0x{:X}, 0x{:X} \n", pcie_int::PcieBuffers::read_array[0],
+        LOG_DEBUG(logger_, "\nFEM STATUS:\n Data word = 0x{:X}, 0x{:X} \n", pcie_int::PcieBuffers::read_array[0],
                                                                             pcie_int::PcieBuffers::read_array[1]);
 
         for (ik = 0; ik < 40; ik++)
         {
-            LOG_INFO(logger_, "Configuration for channel [{}] in progress...\n", ik);
+            LOG_DEBUG(logger_, "Configuration for channel [{}] in progress...\n", ik);
             imod = imod_fem;
             ichip = 3;
             buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_ch_set + (ik << 16); // set channel number for configuration
@@ -302,7 +301,7 @@ namespace light_fem {
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
         }
-        LOG_INFO(logger_, "Configuring PMT Trigger parameters..\n");
+        LOG_DEBUG(logger_, "Configuring PMT Trigger parameters..\n");
         // set PMT cosmic ray trigger multiplicity
         imod = imod_fem;
         ichip = 3;
@@ -345,8 +344,8 @@ namespace light_fem {
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-        LOG_INFO(logger_, "Enable/Disable channels..");
-        LOG_INFO(logger_, "\n Chanel Enable Mask Top=0x{:X}, Upper=0x{:X}, Lower=0x{:X},", en_top, en_upper, en_lower);
+        LOG_DEBUG(logger_, "Enable/Disable channels..");
+        LOG_DEBUG(logger_, "\n Chanel Enable Mask Top=0x{:X}, Upper=0x{:X}, Lower=0x{:X},", en_top, en_upper, en_lower);
         // disable the top channels
         imod = imod_fem;
         ichip = 3;
@@ -587,9 +586,9 @@ namespace light_fem {
             /*   here is common block from tpc */
             for (imod_fem = (imod_st1); imod_fem > imod_st2; imod_fem--) //     now reset all the link port receiver PLL
             {
-                LOG_INFO(logger_, "Module [{}] \n", imod_fem);
+                LOG_DEBUG(logger_, "Module [{}] \n", imod_fem);
                 imod = imod_fem;
-                LOG_INFO(logger_, "Resetting SiPM module [{}] link PLL..\n", imod);
+                LOG_DEBUG(logger_, "Resetting SiPM module [{}] link PLL..\n", imod);
                 ichip = 4;
                 buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pll_reset + (0x0 << 16); // reset LINKIN PLL
                 i = 1;
@@ -606,7 +605,7 @@ namespace light_fem {
 
             for (imod_fem = (imod_st2 + 1); imod_fem < (imod_st1 + 1); imod_fem++) // read back status
             {
-                LOG_INFO(logger_, "Module [{}] \n", imod_fem);
+                LOG_DEBUG(logger_, "Module [{}] \n", imod_fem);
 
                 i = pcie_interface->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers.precv); // init the receiver
                 imod = imod_fem;
@@ -618,36 +617,36 @@ namespace light_fem {
                 buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
                 i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv);
 
-                LOG_INFO(logger_, "\n Received SiPM FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} \n",
+                LOG_DEBUG(logger_, "\n Received SiPM FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} \n",
                                     imod, imod, pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
 
-                LOG_INFO(logger_, "----------------------------\n");
-                LOG_INFO(logger_, "SiPM FEB {} (slot {}) status \n", imod, imod);
-                LOG_INFO(logger_, "----------------------------\n");
-                LOG_INFO(logger_, "cmd return (20)       : {} \n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
-                LOG_INFO(logger_, "check bits 10:8 (0)   : {}  \n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
-                LOG_INFO(logger_, "module number ({})    : {}  \n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
-                LOG_INFO(logger_, "----------------------------\n");
-                LOG_INFO(logger_, "check bit  0 (0)      : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
-                LOG_INFO(logger_, "Right ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
-                LOG_INFO(logger_, "Left  ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
-                LOG_INFO(logger_, "SN pre-buf err        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
-                LOG_INFO(logger_, "Neutrino pre-buf err  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
-                LOG_INFO(logger_, "PLL locked            : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
-                LOG_INFO(logger_, "SN memory ready       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
-                LOG_INFO(logger_, "Neutrino memory ready : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
-                LOG_INFO(logger_, "ADC lock right        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
-                LOG_INFO(logger_, "ADC lock left         : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
-                LOG_INFO(logger_, "ADC align right       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
-                LOG_INFO(logger_, "ADC align left        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
-                LOG_INFO(logger_, "check bits 15:12 (0)  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
-                LOG_INFO(logger_, "----------------------------\n");
+                LOG_DEBUG(logger_, "----------------------------\n");
+                LOG_DEBUG(logger_, "SiPM FEB {} (slot {}) status \n", imod, imod);
+                LOG_DEBUG(logger_, "----------------------------\n");
+                LOG_DEBUG(logger_, "cmd return (20)       : {} \n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
+                LOG_DEBUG(logger_, "check bits 10:8 (0)   : {}  \n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
+                LOG_DEBUG(logger_, "module number ({})    : {}  \n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
+                LOG_DEBUG(logger_, "----------------------------\n");
+                LOG_DEBUG(logger_, "check bit  0 (0)      : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
+                LOG_DEBUG(logger_, "Right ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
+                LOG_DEBUG(logger_, "Left  ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
+                LOG_DEBUG(logger_, "SN pre-buf err        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
+                LOG_DEBUG(logger_, "Neutrino pre-buf err  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
+                LOG_DEBUG(logger_, "PLL locked            : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
+                LOG_DEBUG(logger_, "SN memory ready       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
+                LOG_DEBUG(logger_, "Neutrino memory ready : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
+                LOG_DEBUG(logger_, "ADC lock right        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
+                LOG_DEBUG(logger_, "ADC lock left         : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
+                LOG_DEBUG(logger_, "ADC align right       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
+                LOG_DEBUG(logger_, "ADC align left        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
+                LOG_DEBUG(logger_, "check bits 15:12 (0)  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
+                LOG_DEBUG(logger_, "----------------------------\n");
             }
 
         for (imod_fem = (imod_st1); imod_fem > imod_st2; imod_fem--)
         {
             imod = imod_fem;
-            LOG_INFO(logger_, "Resetting SiPM module [{}] link..\n", imod);
+            LOG_DEBUG(logger_, "Resetting SiPM module [{}] link..\n", imod);
             ichip = 4;
             buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_rxreset + (0x0 << 16); // reset LINKIN DPA
             i = 1;
@@ -680,30 +679,30 @@ namespace light_fem {
             buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
             i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv); // read out 2 32 bits words
 
-            LOG_INFO(logger_, "\n Received SiPM FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} \n",
+            LOG_INFO(logger_, "\n Received SiPM FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} (expect 0xFFE68014, 0x8C008C) \n",
                                 imod, imod, pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
 
-            LOG_INFO(logger_, "----------------------------\n");
-            LOG_INFO(logger_, "SiPM FEB {} (slot {}) status \n", imod, imod);
-            LOG_INFO(logger_, "----------------------------\n");
-            LOG_INFO(logger_, "cmd return (20)       : {} \n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
-            LOG_INFO(logger_, "check bits 10:8 (0)   : {}  \n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
-            LOG_INFO(logger_, "module number ({})    : {}  \n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
-            LOG_INFO(logger_, "----------------------------\n");
-            LOG_INFO(logger_, "check bit  0 (0)      : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
-            LOG_INFO(logger_, "Right ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
-            LOG_INFO(logger_, "Left  ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
-            LOG_INFO(logger_, "SN pre-buf err        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
-            LOG_INFO(logger_, "Neutrino pre-buf err  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
-            LOG_INFO(logger_, "PLL locked            : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
-            LOG_INFO(logger_, "SN memory ready       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
-            LOG_INFO(logger_, "Neutrino memory ready : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
-            LOG_INFO(logger_, "ADC lock right        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
-            LOG_INFO(logger_, "ADC lock left         : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
-            LOG_INFO(logger_, "ADC align right       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
-            LOG_INFO(logger_, "ADC align left        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
-            LOG_INFO(logger_, "check bits 15:12 (0)  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
-            LOG_INFO(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "SiPM FEB {} (slot {}) status \n", imod, imod);
+            LOG_DEBUG(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "cmd return (20)       : {} \n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
+            LOG_DEBUG(logger_, "check bits 10:8 (0)   : {}  \n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
+            LOG_DEBUG(logger_, "module number ({})    : {}  \n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
+            LOG_DEBUG(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "check bit  0 (0)      : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
+            LOG_DEBUG(logger_, "Right ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
+            LOG_DEBUG(logger_, "Left  ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
+            LOG_DEBUG(logger_, "SN pre-buf err        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
+            LOG_DEBUG(logger_, "Neutrino pre-buf err  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
+            LOG_DEBUG(logger_, "PLL locked            : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
+            LOG_DEBUG(logger_, "SN memory ready       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
+            LOG_DEBUG(logger_, "Neutrino memory ready : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
+            LOG_DEBUG(logger_, "ADC lock right        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
+            LOG_DEBUG(logger_, "ADC lock left         : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
+            LOG_DEBUG(logger_, "ADC align right       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
+            LOG_DEBUG(logger_, "ADC align left        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
+            LOG_DEBUG(logger_, "check bits 15:12 (0)  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
+            LOG_DEBUG(logger_, "----------------------------\n");
 
         }
         return true;

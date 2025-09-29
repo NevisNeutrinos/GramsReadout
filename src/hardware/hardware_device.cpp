@@ -39,7 +39,7 @@ bool HardwareDevice::LoadFirmware(int module, int chip, std::string &fw_file,
             buffers.buf_send[0] = (module << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
             pcie_int::PcieBuffers::send_array[0] = buffers.buf_send[0];
             if (dummy1 <= 5) {
-                LOG_INFO(logger_, "counta = {}, first word = 0x{:X} 0x{:X} 0x{:X} 0x{:X} 0x{:X}\n", counta,
+                LOG_DEBUG(logger_, "counta = {}, first word = 0x{:X} 0x{:X} 0x{:X} 0x{:X} 0x{:X}\n", counta,
                     buffers.buf_send[0], buffers.carray[0], buffers.carray[1], buffers.carray[2], buffers.carray[3]);
             }
             for (int ij = 0; ij < nsend; ij++)
@@ -60,10 +60,9 @@ bool HardwareDevice::LoadFirmware(int module, int chip, std::string &fw_file,
             count = 0;
         }
     }
-    LOG_INFO(logger_, "Finished reading bitfile...\n");
+    LOG_INFO(logger_, "Finished reading bitfile. EOF word count = {} {}\n", counta, count);
     if (feof(inpf))
     {
-        LOG_INFO(logger_, "EOF word count = {} {}\n", counta, count);
         buffers.buf_send[0] = (module << 11) + (ichip_c << 8) + (buffers.carray[0] << 16);
         if (count > 1)
         {
@@ -73,7 +72,7 @@ bool HardwareDevice::LoadFirmware(int module, int chip, std::string &fw_file,
                 ik = (count - 1) / 2 + 1;
             }
             ik = ik + 2; // add one more for safety
-            LOG_INFO(logger_, "Num Firmware words to send = {} \n", ik);
+            LOG_DEBUG(logger_, "Num Firmware words to send = {} \n", ik);
             for (int ij = 0; ij < ik; ij++)
             {
                 if (ij == (ik - 1)) {
@@ -87,7 +86,7 @@ bool HardwareDevice::LoadFirmware(int module, int chip, std::string &fw_file,
             ik = 1;
         }
         for (int ij = ik - 10; ij < ik + 1; ij++) {
-            LOG_INFO(logger_, "Last firmware word {} [0x{:X}] \n", ij, buffers.buf_send[ij]);
+            LOG_DEBUG(logger_, "Last firmware word {} [0x{:X}] \n", ij, buffers.buf_send[ij]);
         }
         nword = ik + 1;
         i = 1;

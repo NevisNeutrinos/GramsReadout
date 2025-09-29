@@ -119,7 +119,7 @@ namespace data_handler {
         software_trig_ = trig_src == "software" ? 1 : 0;
         LOG_INFO(logger_, "Trigger source software [{}] external [{}] \n", software_trig_, ext_trig_);
 
-        LOG_INFO(logger_, "\t [{}] DMA loops with [{}] 32b words \n", num_dma_loops_, DATABUFFSIZE / 4);
+        LOG_DEBUG(logger_, "\t [{}] DMA loops with [{}] 32b words \n", num_dma_loops_, DATABUFFSIZE / 4);
 
         data_basedir_ = config["data_handler"]["data_basedir"].get<std::string>();
         file_count_.store(0);
@@ -140,7 +140,7 @@ namespace data_handler {
         // while we continue to write data to the newly opened file.
         int fd_copy = fd_;
         std::thread close_thread([&fd_copy, this]() {
-            LOG_INFO(logger_, "Closing data file {} \n", fd_copy);
+            LOG_DEBUG(logger_, "Closing data file {} \n", fd_copy);
             if(close(fd_copy) == -1) {
                 LOG_ERROR(logger_, "Failed to close data file, with error:{} \n", std::string(strerror(errno)));
             }
@@ -156,7 +156,7 @@ namespace data_handler {
             return false;
         }
 
-        LOG_INFO(logger_, "Switching to file: {} fd={}\n", name, fd_);
+        LOG_INFO(logger_, "Switched to file: {} fd={}\n", name, fd_);
         metrics_->NumFiles(file_count_.load());
         return true;
     }
@@ -190,14 +190,15 @@ namespace data_handler {
         // Shut down the write thread first so we're not trying to access buffer ptrs
         // after they have been deleted in the read thread
         write_thread.join();
-        LOG_INFO(logger_, "write thread joined... \n");
+        LOG_DEBUG(logger_, "write thread joined... \n");
 
         read_thread.join();
-        LOG_INFO(logger_, "read thread joined... \n");
+        LOG_DEBUG(logger_, "read thread joined... \n");
 
         // The read/write threads will block until a run stop is set. Then we stop the trigger.
         trigger_thread.join();
-        LOG_INFO(logger_, "trigger thread joined... \n");
+        LOG_DEBUG(logger_, "trigger thread joined... \n");
+        LOG_INFO(logger_, "Read, Write and Trigger threads joined... \n");
     }
 
     void DataHandler::DataWrite() {
@@ -319,7 +320,7 @@ namespace data_handler {
         pcie_int::DMABufferHandle pbuf_rec2;
 
          /*TPC DMA*/
-        LOG_INFO(logger_, "Buffer 1 & 2 allocation size: {} \n", DMABUFFSIZE);
+        LOG_DEBUG(logger_, "Buffer 1 & 2 allocation size: {} \n", DMABUFFSIZE);
         SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2, true);
         usleep(500000);
 
@@ -338,7 +339,7 @@ namespace data_handler {
                 // sync CPU cache
                 pcie_interface->DmaSyncCpu(dma_num);
 
-                if (idebug) LOG_INFO(logger_, "DMA loop {} with DMA length {}B \n", iv, DMABUFFSIZE);
+                if (idebug) LOG_DEBUG(logger_, "DMA loop {} with DMA length {}B \n", iv, DMABUFFSIZE);
 
                 /** initialize and start the receivers ***/
                 for (size_t rcvr = 1; rcvr < 3; rcvr++) {
@@ -366,7 +367,7 @@ namespace data_handler {
                 data = is == 0 ? hw_consts::dma_tr12 + hw_consts::dma_3dw_rec : hw_consts::dma_tr12 + hw_consts::dma_4dw_rec;
 
                 pcie_interface->WriteReg32(kDev2, hw_consts::cs_bar, hw_consts::cs_dma_cntrl, data);
-                if (idebug) LOG_INFO(logger_, "DMA set up done, byte count = {} \n", DMABUFFSIZE);
+                if (idebug) LOG_DEBUG(logger_, "DMA set up done, byte count = {} \n", DMABUFFSIZE);
 
                 // send trigger
                 if (iv == 0) {
@@ -399,11 +400,11 @@ namespace data_handler {
                 if (idebug) {
                     u64Data = 0;
                     pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t1_cs_reg, &u64Data);
-                    LOG_INFO(logger_, " Status word for channel 1 after read = 0x{:X}, 0x{:X}", (u64Data >> 32), (u64Data & 0xffff));
+                    LOG_DEBUG(logger_, " Status word for channel 1 after read = 0x{:X}, 0x{:X}", (u64Data >> 32), (u64Data & 0xffff));
 
                     u64Data = 0;
                     pcie_interface->ReadReg64(kDev2, hw_consts::cs_bar, hw_consts::t2_cs_reg, &u64Data);
-                    LOG_INFO(logger_, " Status word for channel 1 after read = 0x{:X}, 0x{:X}", (u64Data >> 32), (u64Data & 0xffff));
+                    LOG_DEBUG(logger_, " Status word for channel 1 after read = 0x{:X}, 0x{:X}", (u64Data >> 32), (u64Data & 0xffff));
                 }
                 std::memcpy(word_arr.data(), buffp_rec32, DMABUFFSIZE);
                 data_queue_.write(word_arr);
@@ -416,7 +417,7 @@ namespace data_handler {
             metrics_->DmaLoops(dma_loops);
         } // end loop over events
 
-        LOG_INFO(logger_, "Stopping triggers..\n");
+        LOG_DEBUG(logger_, "Stopping triggers..\n");
         if (software_trig_) {
             trigger_.StopTrigger(true);
             if (trigger_thread.joinable()) trigger_thread.join();
@@ -424,19 +425,19 @@ namespace data_handler {
         trig_ctrl::TriggerControl::SendStopTrigger(pcie_interface, software_trig_, ext_trig_, trigger_module_);
 
         // If event count triggered the end of run, set stop write flag so write thread completes
-        LOG_INFO(logger_, "Stopping run and freeing pointer \n");
+        LOG_DEBUG(logger_, "Stopping run and freeing pointer \n");
         stop_write_.store(true);
 
         if (num_buffer_full > 0) LOG_WARNING(logger_, "Buffer full: [{}]\n", num_buffer_full);
 
         // Since the two PCIe buffer handles are scoped to this function, free the buffer before
         // they go out of scope
-        LOG_INFO(logger_, "Freeing DMA buffers and closing file..\n");
+        LOG_DEBUG(logger_, "Freeing DMA buffers and closing file..\n");
         if (!pcie_interface->FreeDmaContigBuffers()) {
             LOG_ERROR(logger_, "Failed freeing DMA buffers! \n");
         }
 
-        LOG_INFO(logger_, "Ran {} DMA loops \n", dma_loops);
+        LOG_INFO(logger_, "Finished read with {} DMA loops \n", dma_loops);
     }
 
     void DataHandler::ReadoutViaController(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers) {
@@ -648,11 +649,11 @@ namespace data_handler {
 
     void DataHandler::ClearDmaOnAbort(pcie_int::PCIeInterface *pcie_interface, unsigned long long *u64Data, uint32_t dev_num) {
         pcie_interface->ReadReg64(dev_num, hw_consts::cs_bar, hw_consts::t1_cs_reg, u64Data);
-        LOG_INFO(logger_, " Status word for channel 1 after read = 0x{:X}, 0x{:X} \n", (*u64Data >> 32), (*u64Data & 0xffff));
+        LOG_DEBUG(logger_, " Status word for channel 1 after read = 0x{:X}, 0x{:X} \n", (*u64Data >> 32), (*u64Data & 0xffff));
 
         *u64Data = 0;
         pcie_interface->ReadReg64(dev_num, hw_consts::cs_bar, hw_consts::t2_cs_reg, u64Data);
-        LOG_INFO(logger_, " Status word for channel 2 after read = 0x{:X}, 0x{:X} \n", (*u64Data >> 32), (*u64Data & 0xffff));
+        LOG_DEBUG(logger_, " Status word for channel 2 after read = 0x{:X}, 0x{:X} \n", (*u64Data >> 32), (*u64Data & 0xffff));
 
         /* write this will abort previous DMA */
         pcie_interface->WriteReg32(dev_num, hw_consts::cs_bar, hw_consts::cs_dma_msi_abort, hw_consts::dma_abort);
@@ -706,14 +707,14 @@ namespace data_handler {
             uint32_t pps_frame = read_array.at(0) & 0xFFFFFF;
             uint32_t pps_sample = read_array.at(1) & 0xFFF;
             uint32_t pps_div = ( ( read_array.at(1) & 0x70000) >> 16 );
-            std::cout << "++++" << std::endl;
-            std::cout << "PPS -- Frame: " << pps_frame << " Sample: " << pps_sample << " Div: " << pps_div << std::endl;
+            LOG_DEBUG(logger_, "PPS - Frame: {} Sample: {} Div: {}", pps_frame, pps_sample, pps_div);
 
             if (pps_frame > 0) {
                 // Get the current time point from the system clock
                 auto now = std::chrono::system_clock::now();
                 long long seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
                 pps_file << seconds << ", " << pps_frame << ", " << pps_sample << ", " << pps_div << std::endl;
+                LOG_DEBUG(logger_, "Writing PPS data to file");
             }
         }
 
@@ -746,6 +747,7 @@ namespace data_handler {
 
         run_number_ = run_number;
         write_file_name_ = data_basedir_ + "/readout_data/pGRAMS_bin_" + std::to_string(run_number_) + "_";
+        LOG_INFO(logger_, "Reset data handler..");
 
         return true;
     }

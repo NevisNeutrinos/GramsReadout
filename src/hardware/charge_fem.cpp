@@ -58,7 +58,7 @@ namespace charge_fem {
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
             usleep(200000); // wait for 200 ms
 
-            LOG_INFO(logger_, "Loading FPGA bitfile: \n", fw_file);
+            LOG_DEBUG(logger_, "Loading FPGA bitfile: \n", fw_file);
             // FILE *inpf = fopen(config["charge_fem"]["fpga_bitfile"].get<std::string>().c_str(), "r");
 
             ichip = hw_consts::mb_feb_conf_add;    // ichip=mb_feb_config_add(=2) is for configuration chip
@@ -70,7 +70,7 @@ namespace charge_fem {
             usleep(2000); // wait for a while (1ms->2ms JLS)
 
             LoadFirmware(imod, hw_consts::mb_feb_conf_add, fw_file, pcie_interface, buffers);
-            LOG_INFO(logger_, "Configuration for module in slot [{}] COMPLETE \n", imod);
+            LOG_DEBUG(logger_, "Configuration for module in slot [{}] COMPLETE \n", imod);
         }
 
         // if (print_debug == true)
@@ -85,7 +85,7 @@ namespace charge_fem {
 
         // imod_xmit = imod_xmit - 1;
 
-        LOG_INFO(logger_, "LIGHT FEB booting done.. \n");
+        LOG_DEBUG(logger_, "LIGHT FEB booting done.. \n");
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ CHARGE FEM SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
@@ -94,7 +94,7 @@ namespace charge_fem {
         int fakeadcdata = 0;
         int femfakedata = 0;
         // imod_xmit = imod_xmit+1;
-        LOG_INFO(logger_, "Setting up TPC FEB's...\n");
+        LOG_DEBUG(logger_, "Setting up TPC FEB's...\n");
         for (imod_fem = (imod_tpc); imod_fem < (imod_st2 + 1); imod_fem++) // ++ -> -- JLS
         //for (imod_fem = (imod_tpc); imod_fem > (imod_st2 - 1); imod_fem--) // ++ -> -- JLS
         {
@@ -123,7 +123,7 @@ namespace charge_fem {
 
             if (adcdata == 1)
             {
-                LOG_INFO(logger_, "Setting up ADC module [{}] \n", imod);
+                LOG_DEBUG(logger_, "Setting up ADC module [{}] \n", imod);
                 // Set ADC address 1
                 for (is = 0; is < 8; is++)
                 {
@@ -343,7 +343,7 @@ namespace charge_fem {
             // this was in SN loop
             if (imod == imod_st1)
             {
-                LOG_INFO(logger_, "Set last module ON, module address: [{}] \n", imod);
+                LOG_DEBUG(logger_, "Set last module ON, module address: [{}] \n", imod);
                 ichip = 4;
                 // set last module on
                 buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_lst_on, (0x0 << 16));
@@ -353,7 +353,7 @@ namespace charge_fem {
             }
             else
             {
-                LOG_INFO(logger_, "Set last module OFF, module address: [{}] \n", imod);
+                LOG_DEBUG(logger_, "Set last module OFF, module address: [{}] \n", imod);
                 ichip = 4;
                 // set last module on
                 buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_lst_off, (0x0 << 16));
@@ -373,7 +373,7 @@ namespace charge_fem {
         for (imod_fem = (imod_st2); imod_fem > imod_xmit; imod_fem--) //     now reset all the link port receiver PLL
         {
             imod = imod_fem;
-            LOG_INFO(logger_, "Resetting TPC link PLL for module [{}] \n", imod);
+            LOG_DEBUG(logger_, "Resetting TPC link PLL for module [{}] \n", imod);
             ichip = 4;
             // reset LINKIN PLL
             buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_pll_reset, (0x0 << 16));
@@ -391,7 +391,7 @@ namespace charge_fem {
 
         for (imod_fem = (imod_xmit + 1); imod_fem < (imod_st2 + 1); imod_fem++) // read back status
         {
-            LOG_INFO(logger_, "FEM [{}]\n", imod_fem);
+            LOG_DEBUG(logger_, "FEM [{}]\n", imod_fem);
 
             i = pcie_interface->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers.precv); // init the receiver
             imod = imod_fem;
@@ -404,37 +404,37 @@ namespace charge_fem {
 
             buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
             i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv);
-            LOG_INFO(logger_, "\n Received TPC FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} \n",
+            LOG_DEBUG(logger_, "\n Received TPC FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} \n",
                                 imod, imod, pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
 
-            LOG_INFO(logger_, "----------------------------\n");
-            LOG_INFO(logger_, "TPC FEB {} (slot {}) status \n", imod, imod);
-            LOG_INFO(logger_, "----------------------------\n");
-            LOG_INFO(logger_, "cmd return (20)       : {} \n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
-            LOG_INFO(logger_, "check bits 10:8 (0)   : {}  \n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
-            LOG_INFO(logger_, "module number ({})    : {}  \n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
-            LOG_INFO(logger_, "----------------------------\n");
-            LOG_INFO(logger_, "check bit  0 (0)      : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
-            LOG_INFO(logger_, "Right ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
-            LOG_INFO(logger_, "Left  ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
-            LOG_INFO(logger_, "SN pre-buf err        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
-            LOG_INFO(logger_, "Neutrino pre-buf err  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
-            LOG_INFO(logger_, "PLL locked            : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
-            LOG_INFO(logger_, "SN memory ready       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
-            LOG_INFO(logger_, "Neutrino memory ready : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
-            LOG_INFO(logger_, "ADC lock right        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
-            LOG_INFO(logger_, "ADC lock left         : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
-            LOG_INFO(logger_, "ADC align right       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
-            LOG_INFO(logger_, "ADC align left        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
-            LOG_INFO(logger_, "check bits 15:12 (0)  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
-            LOG_INFO(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "TPC FEB {} (slot {}) status \n", imod, imod);
+            LOG_DEBUG(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "cmd return (20)       : {} \n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
+            LOG_DEBUG(logger_, "check bits 10:8 (0)   : {}  \n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
+            LOG_DEBUG(logger_, "module number ({})    : {}  \n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
+            LOG_DEBUG(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "check bit  0 (0)      : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
+            LOG_DEBUG(logger_, "Right ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
+            LOG_DEBUG(logger_, "Left  ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
+            LOG_DEBUG(logger_, "SN pre-buf err        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
+            LOG_DEBUG(logger_, "Neutrino pre-buf err  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
+            LOG_DEBUG(logger_, "PLL locked            : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
+            LOG_DEBUG(logger_, "SN memory ready       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
+            LOG_DEBUG(logger_, "Neutrino memory ready : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
+            LOG_DEBUG(logger_, "ADC lock right        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
+            LOG_DEBUG(logger_, "ADC lock left         : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
+            LOG_DEBUG(logger_, "ADC align right       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
+            LOG_DEBUG(logger_, "ADC align left        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
+            LOG_DEBUG(logger_, "check bits 15:12 (0)  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
+            LOG_DEBUG(logger_, "----------------------------\n");
         }
 
         for (imod_fem = (imod_st2); imod_fem > imod_xmit; imod_fem--)
         {
-            LOG_INFO(logger_, "Module [{}] \n", imod_fem);
+            LOG_DEBUG(logger_, "Module [{}] \n", imod_fem);
             imod = imod_fem;
-            LOG_INFO(logger_, "Resetting TPC module [{}] link..", imod);
+            LOG_DEBUG(logger_, "Resetting TPC module [{}] link..", imod);
             ichip = 4;
             // reset LINKIN DPA
             buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_rxreset, (0x0 << 16));
@@ -469,29 +469,29 @@ namespace charge_fem {
             buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
             i = pcie_interface->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers.precv); // read out 2 32 bits words
 
-            LOG_INFO(logger_, "\n Received TPC FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} \n",
+            LOG_INFO(logger_, "\n Received TPC FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} (expect  0xFFE67814, 0xF000F ) \n",
                                 imod, imod, pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
-            LOG_INFO(logger_, "----------------------------\n");
-            LOG_INFO(logger_, "TPC FEB {} (slot {}) status \n", imod, imod);
-            LOG_INFO(logger_, "----------------------------\n");
-            LOG_INFO(logger_, "cmd return (20)       : {} \n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
-            LOG_INFO(logger_, "check bits 10:8 (0)   : {}  \n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
-            LOG_INFO(logger_, "module number ({})    : {}  \n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
-            LOG_INFO(logger_, "----------------------------\n");
-            LOG_INFO(logger_, "check bit  0 (0)      : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
-            LOG_INFO(logger_, "Right ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
-            LOG_INFO(logger_, "Left  ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
-            LOG_INFO(logger_, "SN pre-buf err        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
-            LOG_INFO(logger_, "Neutrino pre-buf err  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
-            LOG_INFO(logger_, "PLL locked            : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
-            LOG_INFO(logger_, "SN memory ready       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
-            LOG_INFO(logger_, "Neutrino memory ready : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
-            LOG_INFO(logger_, "ADC lock right        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
-            LOG_INFO(logger_, "ADC lock left         : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
-            LOG_INFO(logger_, "ADC align right       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
-            LOG_INFO(logger_, "ADC align left        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
-            LOG_INFO(logger_, "check bits 15:12 (0)  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
-            LOG_INFO(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "TPC FEB {} (slot {}) status \n", imod, imod);
+            LOG_DEBUG(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "cmd return (20)       : {} \n", (pcie_int::PcieBuffers::read_array[0] & 0xFF));               // bits 7:0
+            LOG_DEBUG(logger_, "check bits 10:8 (0)   : {}  \n", ((pcie_int::PcieBuffers::read_array[0] >> 8) & 0x7));         // bits 10:8
+            LOG_DEBUG(logger_, "module number ({})    : {}  \n", imod, ((pcie_int::PcieBuffers::read_array[0] >> 11) & 0x1F)); // bits 15:11
+            LOG_DEBUG(logger_, "----------------------------\n");
+            LOG_DEBUG(logger_, "check bit  0 (0)      : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 16) & 0x1);
+            LOG_DEBUG(logger_, "Right ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 17) & 0x1);
+            LOG_DEBUG(logger_, "Left  ADC DPA locked  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 18) & 0x1);
+            LOG_DEBUG(logger_, "SN pre-buf err        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 19) & 0x1);
+            LOG_DEBUG(logger_, "Neutrino pre-buf err  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 20) & 0x1);
+            LOG_DEBUG(logger_, "PLL locked            : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 21) & 0x1);
+            LOG_DEBUG(logger_, "SN memory ready       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 22) & 0x1);
+            LOG_DEBUG(logger_, "Neutrino memory ready : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 23) & 0x1);
+            LOG_DEBUG(logger_, "ADC lock right        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 24) & 0x1);
+            LOG_DEBUG(logger_, "ADC lock left         : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 25) & 0x1);
+            LOG_DEBUG(logger_, "ADC align right       : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 26) & 0x1);
+            LOG_DEBUG(logger_, "ADC align left        : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 27) & 0x1);
+            LOG_DEBUG(logger_, "check bits 15:12 (0)  : {}  \n", (pcie_int::PcieBuffers::read_array[0] >> 28) & 0xf);
+            LOG_DEBUG(logger_, "----------------------------\n");
         }
 
         return true;
