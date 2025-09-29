@@ -87,8 +87,11 @@ void SignalHandler(int signum) {
 }
 
 void SetupSignalHandlers() {
-    struct sigaction sa{nullptr};
-    // std::memset(&sa, 0, sizeof(sa));
+    struct sigaction sa{};
+    sa.sa_handler = nullptr;
+    sa.sa_mask = {};
+    sa.sa_flags = 0;
+
     sa.sa_handler = SignalHandler;
     sigemptyset(&sa.sa_mask); // Don't block signals during handling
     sa.sa_flags = SA_RESTART; // Restart syscalls if possible after handler
@@ -206,7 +209,7 @@ int32_t GetCpuStats(quill::Logger *logger) {
 std::vector<int32_t> GetComputerStatus(quill::Logger *logger) {
     // Define the scaling factor for load averages if not readily available
     // Usually it's (1 << SI_LOAD_SHIFT), and SI_LOAD_SHIFT is typically 16
-    constexpr double LOAD_SCALE = 65536.0; // 2^16
+    // constexpr double LOAD_SCALE = 65536.0; // 2^16
     constexpr unsigned long long GB_divisor = 1024 * 1024 * 1024;
     std::vector<int32_t> status_vec(4, 0);
 
@@ -242,18 +245,19 @@ std::vector<int32_t> GetComputerStatus(quill::Logger *logger) {
     return status_vec;
 }
 
-void KillThread(std::thread &thread, quill::Logger *logger) {
-    // WARNING: This is very dangerous way to deal with threads, only using as a very
-    // last resort.
-    if (thread.joinable()) {
-        QUILL_LOG_CRITICAL(logger, "Thread not terminating, forcing a SIGTERM.");
-        pthread_kill(thread.native_handle(), SIGTERM);
-    }
-    if (thread.joinable()) {
-        QUILL_LOG_CRITICAL(logger, "Thread not terminating AFTER a SIGTERM, forcing a SIGKILL.");
-        pthread_kill(thread.native_handle(), SIGKILL);
-    }
-}
+// Not working yet
+// void KillThread(std::thread &thread, quill::Logger *logger) {
+//     // WARNING: This is very dangerous way to deal with threads, only using as a very
+//     // last resort.
+//     if (thread.joinable()) {
+//         QUILL_LOG_CRITICAL(logger, "Thread not terminating, forcing a SIGTERM.");
+//         pthread_kill(thread.native_handle(), SIGTERM);
+//     }
+//     if (thread.joinable()) {
+//         QUILL_LOG_CRITICAL(logger, "Thread not terminating AFTER a SIGTERM, forcing a SIGKILL.");
+//         pthread_kill(thread.native_handle(), SIGKILL);
+//     }
+// }
 
 void JoinThread(std::thread &thread, quill::Logger *logger) {
     // FIXME add way to force thread to end if it is still running
@@ -376,7 +380,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
 } // anonymous namespace
 
 // --- Main Entry Point ---
-int main(int argc, char* argv[]) {
+int main() {
     // 1. Setup Signal Handlers Early
     SetupSignalHandlers();
 
@@ -425,7 +429,7 @@ int main(int argc, char* argv[]) {
         }
         LOG_INFO(logger, "Starting control connection \n");
         command_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonCommandPort, false, true, false);
-        status_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonStatusPort, false, true, true);
+        status_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonStatusPort, false, false, true);
         daq_thread = std::thread([&]() { DAQHandler(command_client_ptr, status_client_ptr, io_context, logger); });
 
     } catch (const std::exception& e) {

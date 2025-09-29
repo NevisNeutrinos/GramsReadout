@@ -11,7 +11,8 @@ namespace pcie_control {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
     }
 
-    bool PcieControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
+    bool PcieControl::Configure([[maybe_unused]]json &config, pcie_int::PCIeInterface *pcie_interface,
+                                pcie_int::PcieBuffers &buffers) {
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^ CONTROLLER-PCIE SETTUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
         // Initialize Tx for both transcievers

@@ -9,6 +9,9 @@ After=network.target network-online.target
 # Our C++ code does not fork/daemonize itself.
 Type=simple
 
+# Since we don't have access to environment variables list them here
+Environment="TPC_DAQ_BASEDIR=/home/???/GramsReadout" "DATA_BASE_DIR=/??/data"
+
 # Path to the compiled, installed executable
 ExecStart=/usr/local/bin/daq_orchestrator
 
