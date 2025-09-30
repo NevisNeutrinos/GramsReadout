@@ -167,7 +167,7 @@ int32_t GetMemoryStats(quill::Logger *logger) {
 int32_t GetCpuStats(quill::Logger *logger) {
     int32_t cpu_usage_percent = 0;
     size_t cpu_entries1;
-    QUILL_LOG_INFO(logger, "Getting CPU Stat 1");
+    QUILL_LOG_DEBUG(logger, "Getting CPU Stat 1");
     sg_cpu_stats *cpu_stats = sg_get_cpu_stats(&cpu_entries1);
     if (!cpu_stats) {
         QUILL_LOG_ERROR(logger, "Error getting CPU stats: {}", strerror(errno));
@@ -180,7 +180,7 @@ int32_t GetCpuStats(quill::Logger *logger) {
     sleep(1);
 
     size_t cpu_entries2;
-    QUILL_LOG_INFO(logger, "Getting CPU Stat 2");
+    QUILL_LOG_DEBUG(logger, "Getting CPU Stat 2");
     cpu_stats = sg_get_cpu_stats(&cpu_entries2);
     if (!cpu_stats) {
         QUILL_LOG_ERROR(logger, "Error getting CPU stats: {}", strerror(errno));
@@ -193,7 +193,7 @@ int32_t GetCpuStats(quill::Logger *logger) {
         if (cpu_entries1 > 0 && cpu_entries2 > 0) {
             double total_cpu_diff = total_cpu2 - total_cpu1;
             double cpu_idle_diff = cpu_idle2 - cpu_idle1;
-            QUILL_LOG_INFO(logger, "Total total/idle diff {}/{}", total_cpu_diff, cpu_idle_diff);
+            QUILL_LOG_DEBUG(logger, "Total total/idle diff {}/{}", total_cpu_diff, cpu_idle_diff);
             double cpu_usage = ((total_cpu_diff + total_cpu_diff) > 0) ?
                                 (100.0 * total_cpu_diff / (total_cpu_diff + cpu_idle_diff)) : 0.0;
             cpu_usage_percent = static_cast<int32_t>(cpu_usage);
@@ -262,26 +262,26 @@ std::vector<int32_t> GetComputerStatus(quill::Logger *logger) {
 void JoinThread(std::thread &thread, quill::Logger *logger) {
     // FIXME add way to force thread to end if it is still running
     // We do not want things to hang here if the Readout goes bad
-    QUILL_LOG_INFO(logger, "Joining thread...");
+    QUILL_LOG_DEBUG(logger, "Joining thread...");
     if (thread.joinable()) {
         try {
             thread.join();
             // my_thread.join_for(timeout);
             // auto end_time = std::chrono::steady_clock::now();
             // auto elapsed_time = end_time - start_time;
-            QUILL_LOG_INFO(logger, "Thread joined.");
+            QUILL_LOG_DEBUG(logger, "Thread joined.");
         } catch (const std::system_error& e) {
             QUILL_LOG_ERROR(logger, "Error joining thread: {}", e.what());
         }
     } else {
-        QUILL_LOG_INFO(logger, "Thread was not joinable (likely never started or already finished).");
+        QUILL_LOG_DEBUG(logger, "Thread was not joinable (likely never started or already finished).");
     }
 }
 
 void TpcRunController(DAQProcess<controller::Controller> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
 
     try {
-        QUILL_LOG_INFO(logger, "Starting controller initialization...");
+        QUILL_LOG_DEBUG(logger, "Starting controller initialization...");
         // FIXME add status io context
         daq_process.daq_ptr = std::make_unique<controller::Controller>(
             io_context, io_context, kControllerIp,
@@ -304,7 +304,7 @@ void TpcRunController(DAQProcess<controller::Controller> &daq_process, quill::Lo
         QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
     }
     if (daq_process.daq_ptr) {
-        QUILL_LOG_INFO(logger, "Resetting controller pointer");
+        QUILL_LOG_DEBUG(logger, "Resetting controller pointer");
         daq_process.daq_ptr.reset();
     }
 }
@@ -315,7 +315,7 @@ void StartDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger, asio::
         LOG_WARNING(logger, "DAQ controller already running!");
         return;
     }
-    LOG_INFO(logger, "Starting Control thread");
+    QUILL_LOG_DEBUG(logger, "Starting Control thread");
     daq_process.daq_thread = std::thread([&]() { daq_process.run_function(daq_process, logger, io_context); });
 }
 
@@ -325,7 +325,7 @@ void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger) {
         daq_process.daq_ptr->SetRunning(false);
         JoinThread(daq_process.daq_thread, logger);
         daq_process.daq_ptr.reset(nullptr);
-        LOG_INFO(logger, "Stopped DAQ process..");
+        QUILL_LOG_DEBUG(logger, "Stopped DAQ process..");
     } else {
         LOG_WARNING(logger, "DAQ process not running!");
     }
@@ -347,9 +347,9 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     // tpc_monitor_controller_daq.run_function = RunTpcMonitorController;
 
     while (g_running.load()) {
-        LOG_INFO(logger, "Waiting for command...");
+        QUILL_LOG_DEBUG(logger, "Waiting for command...");
         Command cmd = command_client_ptr->ReadRecvBuffer();
-        LOG_INFO(logger, "Received command [{}] num_args: [{}] \n", cmd.command, cmd.arguments.size());
+        QUILL_LOG_INFO(logger, "Received command [{}] num_args: [{}] \n", cmd.command, cmd.arguments.size());
 
         switch (cmd.command) {
             case 0: {
@@ -367,13 +367,13 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
             }
             // TODO add case for booting _all_ DAQ (status msg shows if they are running)
             default: {
-                LOG_WARNING(logger, "Unknown command {}", cmd.command);
+                QUILL_LOG_WARNING(logger, "Unknown command {}", cmd.command);
                 break;
             }
         }
     }
 
-    LOG_INFO(logger, "Run Daemon stopped, shutting it all down!");
+    QUILL_LOG_INFO(logger, "Run Daemon stopped, shutting it all down!");
     StopDaqProcess(tpc_controller_daq, logger);
 }
 
@@ -408,7 +408,7 @@ int main() {
         for (size_t i = 0; i < num_io_ctx_threads; i++) {
             // Start IO context thread first
             io_ctx_threads.emplace_back( std::thread([&]() {
-                QUILL_LOG_INFO(logger, "ASIO io_context thread started...");
+                QUILL_LOG_DEBUG(logger, "ASIO io_context thread started...");
                 // Prevent io_context::run() from returning if there's initially no work
                 auto work_guard = asio::make_work_guard(io_context);
                 try {
@@ -423,11 +423,11 @@ int main() {
                     g_running.store(false);
                     g_shutdown_cv.notify_one();
                 }
-                QUILL_LOG_INFO(logger, "ASIO io_context thread finished.");
+                QUILL_LOG_DEBUG(logger, "ASIO io_context thread finished.");
             })
             );
         }
-        LOG_INFO(logger, "Starting control connection \n");
+        QUILL_LOG_DEBUG(logger, "Starting control connection \n");
         command_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonCommandPort, false, true, false);
         status_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonStatusPort, false, false, true);
         daq_thread = std::thread([&]() { DAQHandler(command_client_ptr, status_client_ptr, io_context, logger); });
@@ -496,7 +496,7 @@ int main() {
     }
 
     // Quill backend shutdown happens automatically at exit.
-    QUILL_LOG_INFO(logger, "Shutdown sequence complete. Exiting.");
+    QUILL_LOG_INFO(logger, "Shutdown sequence complete. Exiting...");
 
     return EXIT_SUCCESS;
 }
