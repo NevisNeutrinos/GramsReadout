@@ -15,6 +15,7 @@ pkg_check_modules(ZeroMQ REQUIRED libzmq)
 add_subdirectory(quill)
 add_subdirectory(lib/pcie_driver)
 add_subdirectory(networking)
+add_subdirectory(PGramsCommCodec)
 
 include_directories(/usr/include)
 include_directories(networking
@@ -24,9 +25,10 @@ include_directories(networking
                     lib/monitoring
                     lib/pcie_driver
                     lib/folly
-                    lib/nlohmann_json)
+                    lib/nlohmann_json
+                    PGramsCommCodec/include)
 
-file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp)
+file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp PGramsCommCodec/src/tpc_configs.cpp)
 file(GLOB_RECURSE DATA_HANDLER_SRC src/data/*.cpp)
 file(GLOB_RECURSE HARDWARE_SRC src/hardware/*.cpp)
 file(GLOB_RECURSE STATUS_SRC src/status/*.cpp)

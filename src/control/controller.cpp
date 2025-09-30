@@ -218,11 +218,69 @@ namespace controller {
         return true;
     }
 
+    bool Controller::SetConfigFromComm(json& config, const std::vector<int32_t> &config_vec, size_t skip_words) {
+        try {
+            tpc_configs_.deserialize(config_vec.begin()+skip_words, config_vec.end());
+            LOG_INFO(logger_, "Config serialized.. {} params \n", config_vec.size());
+        } catch (const std::exception& e) {
+            LOG_ERROR(logger_, "Error serializing config.. {}", e.what());
+            return false;
+        }
+        catch (...) {
+            LOG_ERROR(logger_, "Error serializing config..");
+            return false;
+        }
+        try {
+            // light_fem
+            config["light_fem"]["cosmic_summed_adc_thresh"] = tpc_configs_.getSummedPeakThresh();
+            config["light_fem"]["cosmic_multiplicity"]      = tpc_configs_.getChannelMultiplicity();
+            config["light_fem"]["pmt_delay_0"]              = tpc_configs_.getRoiDelay0();
+            config["light_fem"]["pmt_delay_1"]              = tpc_configs_.getRoiDelay1();
+            config["light_fem"]["pmt_precount"]             = tpc_configs_.getRoiPrecount();
+            config["light_fem"]["pmt_window"]               = tpc_configs_.getRoiPeakWindow();
+
+            config["light_fem"]["pmt_enable_top"]           = tpc_configs_.getEnableTop();
+            config["light_fem"]["pmt_enable_middle"]        = tpc_configs_.getEnableMiddle();
+            config["light_fem"]["pmt_enable_lower"]         = tpc_configs_.getEnableBottom();
+
+            config["light_fem"]["sipm_words"]               = tpc_configs_.getNumRoiWords();
+            config["light_fem"]["sipm_deadtime"]            = tpc_configs_.getRoiDeadtime();
+
+            config["light_fem"]["pmt_gate_size"]            = tpc_configs_.getPmtGateSize();
+            config["light_fem"]["pmt_beam_size"]            = tpc_configs_.getPmtBeamSize();
+            config["light_fem"]["pmt_blocksize"]            = tpc_configs_.getFifoBlocksize();
+
+            // thresholds (just first channel as scalar)
+            config["light_fem"]["channel_thresh0"]          = tpc_configs_.getDiscThreshold0()[0];
+            config["light_fem"]["channel_thresh1"]          = tpc_configs_.getDiscThreshold1()[0];
+
+            // trigger
+            config["trigger"]["trigger_source"]             = tpc_configs_.toTriggerSourceString(tpc_configs_.getTriggerSource());
+            config["trigger"]["software_trigger_rate_hz"]   = tpc_configs_.getSoftwareTriggerRateHz();
+            config["trigger"]["dead_time"]                  = tpc_configs_.getTpcDeadTime();
+
+            // prescale (array → JSON array)
+            const auto& prescales = tpc_configs_.getPrescale();
+            config["trigger"]["prescale"] = nlohmann::json::array();
+            for (size_t i = 0; i < prescales.size(); ++i) {
+                config["trigger"]["prescale"].push_back(prescales.at(i));
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR(logger_, "Error setting up config.. {}", e.what());
+            return false;
+        }
+        catch (...) {
+            LOG_ERROR(logger_, "Error setting up config structure.");
+            return false;
+        }
+        return true;
+    }
+
     bool Controller::Configure(const std::vector<int32_t>& args) {
 
         PersistRunId();
 
-        if (args.size() != 1) {
+        if (args.size() < 1) {
             LOG_ERROR(logger_, "Wrong number of arguments! {}", args.size());
             return false;
         }
@@ -236,6 +294,13 @@ namespace controller {
             return  false;
         }
 
+        if (args.size() > 1) {
+            LOG_INFO(logger_, "Setting config from ground comms \n");
+            size_t skip_words = 1;
+            if (!SetConfigFromComm(config_, args, skip_words)) {
+                return false;
+            }
+        }
         LOG_INFO(logger_, "Data config dump: {} \n", config_.dump());
 
         // Add the setup config to this so we only have to pass around a single config object

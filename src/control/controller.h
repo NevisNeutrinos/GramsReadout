@@ -18,6 +18,7 @@
 #include "trigger_control.h"
 #include "xmit_control.h"
 #include "../status/status.h"
+#include "tpc_configs.h"
 #include "data_monitor.h"
 
 
@@ -116,6 +117,7 @@
         json LoadConfig(const std::string &config_file);
         bool PersistRunId();
         bool JoinDataThread();
+        bool SetConfigFromComm(json& config, const std::vector<int32_t> &config_vec, size_t skip_words);
 
         // TCPConnection tcp_connection_;
         TCPConnection command_client_;
@@ -161,6 +163,8 @@
 
         json setup_config_;
         json config_;
+
+        TpcConfigs tpc_configs_{};
 
     };
 
