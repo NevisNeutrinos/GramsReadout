@@ -246,30 +246,20 @@ std::vector<int32_t> GetComputerStatus(quill::Logger *logger) {
     return status_vec;
 }
 
-// Not working yet
-// void KillThread(std::thread &thread, quill::Logger *logger) {
-//     // WARNING: This is very dangerous way to deal with threads, only using as a very
-//     // last resort.
-//     if (thread.joinable()) {
-//         QUILL_LOG_CRITICAL(logger, "Thread not terminating, forcing a SIGTERM.");
-//         pthread_kill(thread.native_handle(), SIGTERM);
-//     }
-//     if (thread.joinable()) {
-//         QUILL_LOG_CRITICAL(logger, "Thread not terminating AFTER a SIGTERM, forcing a SIGKILL.");
-//         pthread_kill(thread.native_handle(), SIGKILL);
-//     }
-// }
+void SendStatus(std::unique_ptr<TCPConnection> &status_client_ptr, quill::Logger *logger) {
+    while (g_status_running.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        std::vector<int32_t> status = GetComputerStatus(logger); // returns vector of 0's on failure
+        status_client_ptr->WriteSendBuffer(0x20, status);
+    }
+}
 
 void JoinThread(std::thread &thread, quill::Logger *logger) {
-    // FIXME add way to force thread to end if it is still running
     // We do not want things to hang here if the Readout goes bad
     QUILL_LOG_DEBUG(logger, "Joining thread...");
     if (thread.joinable()) {
         try {
             thread.join();
-            // my_thread.join_for(timeout);
-            // auto end_time = std::chrono::steady_clock::now();
-            // auto elapsed_time = end_time - start_time;
             QUILL_LOG_DEBUG(logger, "Thread joined.");
         } catch (const std::system_error& e) {
             QUILL_LOG_ERROR(logger, "Error joining thread: {}", e.what());
@@ -277,6 +267,28 @@ void JoinThread(std::thread &thread, quill::Logger *logger) {
     } else {
         QUILL_LOG_DEBUG(logger, "Thread was not joinable (likely never started or already finished).");
     }
+}
+
+bool WaitForThreadJoin(std::thread & thread, quill::Logger *logger) {
+    // Join thread with increasing aggressiveness if thread does not join within 2s..
+    auto fut = std::async(std::launch::async, [&] { JoinThread(thread, logger); });
+
+    if (fut.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+        QUILL_LOG_WARNING(logger, "Thread not terminating, cancelling..");
+        pthread_cancel(thread.native_handle());
+        if (fut.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+            QUILL_LOG_CRITICAL(logger, "Thread not terminating AFTER a cancel, forcing a SIGTERM..");
+            pthread_kill(thread.native_handle(), SIGTERM);
+            if (fut.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+                QUILL_LOG_CRITICAL(logger, "Thread not terminating AFTER a SIGTERM, forcing a SIGKILL.");
+                pthread_kill(thread.native_handle(), SIGKILL);
+                if (fut.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+                    QUILL_LOG_CRITICAL(logger, "If still running it is very bad.. :( ");
+                }
+            }
+        }
+    }
+    return true;
 }
 
 void TpcRunController(DAQProcess<controller::Controller> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
@@ -324,19 +336,12 @@ template<typename DAQ>
 void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger) {
     if (daq_process.daq_ptr) {
         daq_process.daq_ptr->SetRunning(false);
-        JoinThread(daq_process.daq_thread, logger);
+        // JoinThread(daq_process.daq_thread, logger);
+        WaitForThreadJoin(daq_process.daq_thread, logger);
         daq_process.daq_ptr.reset(nullptr);
         QUILL_LOG_DEBUG(logger, "Stopped DAQ process..");
     } else {
         LOG_WARNING(logger, "DAQ process not running!");
-    }
-}
-
-void SendStatus(std::unique_ptr<TCPConnection> &status_client_ptr, quill::Logger *logger) {
-    while (g_status_running.load()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        std::vector<int32_t> status = GetComputerStatus(logger); // returns vector of 0's on failure
-        status_client_ptr->WriteSendBuffer(0x20, status);
     }
 }
 
@@ -362,9 +367,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
         QUILL_LOG_INFO(logger, "Received command [{}] num_args: [{}] \n", cmd.command, cmd.arguments.size());
 
         switch (cmd.command) {
-            case 0: {
-                // std::vector<int32_t> status = GetComputerStatus(logger);
-                // status_client_ptr->WriteSendBuffer(0x0, status);
+            case 0x0: {
                 // Start thread to send periodic status
                 if (!status_thread.joinable()) {
                     g_status_running.store(true);
@@ -372,17 +375,17 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 }
                 break;
             }
-            case 1: { // start DAQ process
+            case 0x1: { // start DAQ process
                 StartDaqProcess(tpc_controller_daq, logger, io_ctx);
                 break;
             }
-            case 2: { // stop DAQ process
+            case 0x2: { // stop DAQ process
                 StopDaqProcess(tpc_controller_daq, logger);
                 break;
             }
-            case 3: { // stop the status thread
+            case 0x3: { // stop the status thread
                 g_status_running.store(false);
-                JoinThread(status_thread, logger);
+                WaitForThreadJoin(status_thread, logger);
                 break;
             }
             // TODO add case for booting _all_ DAQ (status msg shows if they are running)
@@ -396,7 +399,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     QUILL_LOG_INFO(logger, "Run Daemon stopped, shutting it all down!");
     g_status_running.store(false);
     StopDaqProcess(tpc_controller_daq, logger);
-    JoinThread(status_thread, logger);
+    WaitForThreadJoin(status_thread, logger);
 }
 
 } // anonymous namespace
