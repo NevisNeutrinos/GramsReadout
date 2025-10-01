@@ -49,6 +49,7 @@ const size_t NUM_DAQ = 3; // Number of DAQ processes
 namespace { // Use anonymous namespace for internal linkage
 
 std::atomic_bool g_running(true);
+std::atomic_bool g_status_running(false);
 std::condition_variable g_shutdown_cv;
 std::mutex g_shutdown_mutex;
 
@@ -331,11 +332,20 @@ void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger) {
     }
 }
 
+void SendStatus(std::unique_ptr<TCPConnection> &status_client_ptr, quill::Logger *logger) {
+    while (g_status_running.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        std::vector<int32_t> status = GetComputerStatus(logger); // returns vector of 0's on failure
+        status_client_ptr->WriteSendBuffer(0x20, status);
+    }
+}
+
 void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_ptr<TCPConnection> &status_client_ptr,
                 asio::io_context &io_ctx, quill::Logger *logger) {
 
     // DAQ process threads
     std::vector<std::thread> daq_worker_threads;
+    std::thread status_thread;
 
     // DAQ Processes
     /** TPC & SiPM Controller */
@@ -353,8 +363,13 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
 
         switch (cmd.command) {
             case 0: {
-                std::vector<int32_t> status = GetComputerStatus(logger);
-                status_client_ptr->WriteSendBuffer(0x0, status);
+                // std::vector<int32_t> status = GetComputerStatus(logger);
+                // status_client_ptr->WriteSendBuffer(0x0, status);
+                // Start thread to send periodic status
+                if (!status_thread.joinable()) {
+                    g_status_running.store(true);
+                    status_thread = std::thread([&]() { SendStatus(status_client_ptr, logger); });
+                }
                 break;
             }
             case 1: { // start DAQ process
@@ -363,6 +378,11 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
             }
             case 2: { // stop DAQ process
                 StopDaqProcess(tpc_controller_daq, logger);
+                break;
+            }
+            case 3: { // stop the status thread
+                g_status_running.store(false);
+                JoinThread(status_thread, logger);
                 break;
             }
             // TODO add case for booting _all_ DAQ (status msg shows if they are running)
@@ -374,7 +394,9 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     }
 
     QUILL_LOG_INFO(logger, "Run Daemon stopped, shutting it all down!");
+    g_status_running.store(false);
     StopDaqProcess(tpc_controller_daq, logger);
+    JoinThread(status_thread, logger);
 }
 
 } // anonymous namespace
