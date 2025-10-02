@@ -28,11 +28,12 @@ include_directories(networking
                     lib/nlohmann_json
                     PGramsCommCodec/include)
 
-file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp PGramsCommCodec/src/tpc_configs.cpp)
+file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp)
 file(GLOB_RECURSE DATA_HANDLER_SRC src/data/*.cpp)
 file(GLOB_RECURSE HARDWARE_SRC src/hardware/*.cpp)
 file(GLOB_RECURSE STATUS_SRC src/status/*.cpp)
 file(GLOB NETWORK_SRC networking/tcp*.cpp)
+file(GLOB METRIC_SRC PGramsCommCodec/src/*.cpp)
 
 # Create a static library containing DataMonitor
 add_library(data_monitor STATIC lib/monitoring/data_monitor.cpp)
@@ -45,7 +46,8 @@ add_executable(GramsReadout main.cpp
         ${DATA_HANDLER_SRC}
         ${HARDWARE_SRC}
         ${STATUS_SRC}
-        ${NETWORK_SRC})
+        ${NETWORK_SRC}
+        ${METRIC_SRC})
 
 target_compile_definitions(GramsReadout PUBLIC
         -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
@@ -61,7 +63,8 @@ add_library(gramsreadout STATIC src/control/controller.cpp
                                     ${DATA_HANDLER_SRC}
                                     ${HARDWARE_SRC}
                                     ${STATUS_SRC}
-                                    ${NETWORK_SRC})
+                                    ${NETWORK_SRC}
+                                    ${METRIC_SRC})
 
 target_compile_definitions(gramsreadout PUBLIC
         -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)

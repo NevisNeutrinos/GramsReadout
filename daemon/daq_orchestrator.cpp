@@ -4,6 +4,7 @@
 
 #include "controller.h"
 #include "tcp_protocol.h"
+#include "daq_comp_monitor.h"
 
 #include <asio.hpp>
 #include "quill/Backend.h"
@@ -29,6 +30,8 @@
 #include <sys/vfs.h>
 #include <sys/sysinfo.h>
 #include <statgrab.h>
+#include <fstream>
+#include <string>
 
 // --- Configuration ---
 // Best practice: Load these from a config file or environment variables
@@ -52,6 +55,9 @@ std::atomic_bool g_running(true);
 std::atomic_bool g_status_running(false);
 std::condition_variable g_shutdown_cv;
 std::mutex g_shutdown_mutex;
+
+// Keep a global monitor instance
+DaqCompMonitor g_daq_monitor{};
 
 // --- Struct for DAQ processes ---
 template <typename DAQ>
@@ -140,13 +146,42 @@ void SetupLogging() {
     QUILL_LOG_INFO(logger, "Logging initialized successfully. Outputting to stdout.");
 }
 
-int32_t GetMemoryStats(quill::Logger *logger) {
-    int32_t memory_usage_percent = 0;
+void GetCoreDiskTemp() {
+
+    std::array<int32_t, NUM_CPUS> core_temp{};
+    // Read disk temperature
+    try {
+        int disk = 1;
+        std::ifstream hwmon("/sys/class/hwmon/hwmon1/temp" + std::to_string(disk) + "_input");
+        if (!hwmon.is_open()) { std::cerr << "Could not open hwmon" << std::endl; }
+        int tempMilli;
+        hwmon >> tempMilli;
+        // core_disk_temp.at(NUM_CPUS) = static_cast<int>(tempMilli / 1000.0);
+        g_daq_monitor.setDiskTemp(static_cast<int>(tempMilli / 1000.0));
+    } catch (const std::exception& e) {
+        std::cerr << "FATAL: Failed to read Disk temp" << std::endl;
+    }
+    // Read CPU temperatures
+    for (int i = 0; i < NUM_CPUS; ++i) {
+        try {
+            std::ifstream hwmon("/sys/class/hwmon/hwmon2/temp" + std::to_string(i+1) + "_input");
+            if (!hwmon.is_open()) { std::cerr << "Could not open hwmon" << std::endl; }
+            int tempMilli;
+            hwmon >> tempMilli;
+            core_temp.at(i) = static_cast<int>(tempMilli / 1000.0);
+        } catch (const std::exception& e) {
+            std::cerr << "FATAL: Failed to read CPU temp" << std::endl;
+        }
+    }
+    g_daq_monitor.setCpuTemp(core_temp);
+}
+
+void GetMemoryStats(quill::Logger *logger) {
     size_t mem_entries;
     sg_mem_stats *mem_stats = sg_get_mem_stats(&mem_entries);
     if (!mem_stats) {
+        g_daq_monitor.setMemoryUsage(0);
         QUILL_LOG_ERROR(logger, "Error getting memory stats: {}", strerror(errno));
-        return memory_usage_percent;
     }
     try {
         if (mem_entries > 0) {
@@ -155,24 +190,22 @@ int32_t GetMemoryStats(quill::Logger *logger) {
             const size_t used_memory_bytes = total_memory_bytes - free_memory_bytes;
             const double memory_usage = (total_memory_bytes > 0) ?
                         (100.0 * static_cast<double>(used_memory_bytes) / total_memory_bytes) : 0.0;
-            memory_usage_percent = static_cast<int32_t>(memory_usage);
+            g_daq_monitor.setMemoryUsage(static_cast<int32_t>(memory_usage));
         } else {
             QUILL_LOG_WARNING(logger, "No memory stats available!");
         }
     } catch (std::exception& e) {
         QUILL_LOG_ERROR(logger, "Error getting memory stats: {}", e.what());
     }
-    return memory_usage_percent;
 }
 
-int32_t GetCpuStats(quill::Logger *logger) {
-    int32_t cpu_usage_percent = 0;
+void GetCpuStats(quill::Logger *logger) {
     size_t cpu_entries1;
     QUILL_LOG_DEBUG(logger, "Getting CPU Stat 1");
     sg_cpu_stats *cpu_stats = sg_get_cpu_stats(&cpu_entries1);
     if (!cpu_stats) {
+        g_daq_monitor.setCpuUsage(0);
         QUILL_LOG_ERROR(logger, "Error getting CPU stats: {}", strerror(errno));
-        return cpu_usage_percent;
     }
     double total_cpu1 = cpu_stats->user + cpu_stats->nice;
     double cpu_idle1 = cpu_stats->idle;
@@ -185,7 +218,7 @@ int32_t GetCpuStats(quill::Logger *logger) {
     cpu_stats = sg_get_cpu_stats(&cpu_entries2);
     if (!cpu_stats) {
         QUILL_LOG_ERROR(logger, "Error getting CPU stats: {}", strerror(errno));
-        return cpu_usage_percent;
+        g_daq_monitor.setCpuUsage(0);
     }
     double total_cpu2 = cpu_stats->user + cpu_stats->nice;
     double cpu_idle2 = cpu_stats->idle;
@@ -197,35 +230,40 @@ int32_t GetCpuStats(quill::Logger *logger) {
             QUILL_LOG_DEBUG(logger, "Total total/idle diff {}/{}", total_cpu_diff, cpu_idle_diff);
             double cpu_usage = ((total_cpu_diff + total_cpu_diff) > 0) ?
                                 (100.0 * total_cpu_diff / (total_cpu_diff + cpu_idle_diff)) : 0.0;
-            cpu_usage_percent = static_cast<int32_t>(cpu_usage);
+            g_daq_monitor.setCpuUsage(static_cast<int32_t>(cpu_usage));
         } else {
             QUILL_LOG_WARNING(logger, "No memory stats available!");
         }
     } catch (std::exception& e) {
         QUILL_LOG_ERROR(logger, "Error getting memory stats: {}", e.what());
     }
-    return cpu_usage_percent;
 }
 
-std::vector<int32_t> GetComputerStatus(quill::Logger *logger) {
+void GetComputerStatus(quill::Logger *logger) {
     // Define the scaling factor for load averages if not readily available
     // Usually it's (1 << SI_LOAD_SHIFT), and SI_LOAD_SHIFT is typically 16
     // constexpr double LOAD_SCALE = 65536.0; // 2^16
     constexpr unsigned long long GB_divisor = 1024 * 1024 * 1024;
-    std::vector<int32_t> status_vec(4, 0);
 
     try {
         struct statfs data_disk_info{};
         if (statfs("/home/pgrams/data", &data_disk_info) == 0) {
             const auto free_space = static_cast<unsigned long>(data_disk_info.f_bavail * data_disk_info.f_frsize);
-            status_vec.at(0) = free_space / GB_divisor;
+            g_daq_monitor.setTpcDisk(free_space / GB_divisor);
         } else {
             QUILL_LOG_ERROR(logger, "Failed to get data disk space with error {}", strerror(errno));
+        }
+        struct statfs tof_data_disk_info{};
+        if (statfs("/home/pgrams/data/tof_data", &tof_data_disk_info) == 0) {
+            const auto free_space = static_cast<unsigned long>(tof_data_disk_info.f_bavail * tof_data_disk_info.f_frsize);
+            g_daq_monitor.setTofDisk(free_space / GB_divisor);
+        } else {
+            QUILL_LOG_ERROR(logger, "Failed to get TOF data disk space with error {}", strerror(errno));
         }
         struct statfs main_disk_info{};
         if (statfs("/", &main_disk_info) == 0) {
             const auto free_space = static_cast<unsigned long>(main_disk_info.f_bavail * main_disk_info.f_frsize);
-            status_vec.at(1) = free_space / GB_divisor;
+            g_daq_monitor.setSysDisk(free_space / GB_divisor);
         } else {
             QUILL_LOG_ERROR(logger, "Failed to get main disk space with error {}", strerror(errno));
         }
@@ -233,23 +271,24 @@ std::vector<int32_t> GetComputerStatus(quill::Logger *logger) {
        // Initialize libstatgrab
         if (!sg_init(0)) {
             // The 1s load average across 12 CPUs
-            status_vec.at(2) = GetCpuStats(logger);
+            GetCpuStats(logger);
             // RAM usage
-            status_vec.at(3) = GetMemoryStats(logger);
+            GetMemoryStats(logger);
             sg_shutdown();
         } else {
             QUILL_LOG_ERROR(logger, "Failed to Init libstatgrab with error code {}", strerror(errno));
         }
+        GetCoreDiskTemp();
     } catch (const std::exception& e) {
         QUILL_LOG_ERROR(logger, "Failed to get disk space with exception: {}", e.what());
     }
-    return status_vec;
 }
 
 void SendStatus(std::unique_ptr<TCPConnection> &status_client_ptr, quill::Logger *logger) {
     while (g_status_running.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        std::vector<int32_t> status = GetComputerStatus(logger); // returns vector of 0's on failure
+        GetComputerStatus(logger); // returns vector of 0's on failure
+        auto status = g_daq_monitor.serialize();
         status_client_ptr->WriteSendBuffer(0x20, status);
     }
 }
@@ -377,10 +416,12 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
             }
             case 0x1: { // start DAQ process
                 StartDaqProcess(tpc_controller_daq, logger, io_ctx);
+                g_daq_monitor.setTpcDaq();
                 break;
             }
             case 0x2: { // stop DAQ process
                 StopDaqProcess(tpc_controller_daq, logger);
+                g_daq_monitor.unsetTpcDaq();
                 break;
             }
             case 0x3: { // stop the status thread
