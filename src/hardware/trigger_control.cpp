@@ -27,11 +27,11 @@ namespace trig_ctrl {
 
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         //this is either 0x1 (PMT beam) 0x4 (PMT cosmic) or 0x8 (PMT all)
-        ext_trig_ = trig_src == "ext" ? 1 : 0;
+        ext_trig_ = trig_src == "external" ? 1 : 0;
         light_trig_ = trig_src == "light" ? 1 : 0;
         software_trig_ = trig_src == "software" ? 1 : 0;
-        static int mask1 = trig_src == "ext" ? 0x0 : 0x8;
-        static int mask8 = trig_src == "ext" ? 0x2 : 0x0;
+        static int mask1 = trig_src == "light" ? 0x8 : 0x0;
+        static int mask8 = trig_src == "external" ? 0x2 : 0x0;
 
         prescale_vec_ = config["trigger"]["prescale"].get<std::vector<uint32_t>>();
 
@@ -85,12 +85,13 @@ namespace trig_ctrl {
         for (const uint32_t prescale : prescale_vec_) {
             buffers.buf_send[0] = (imod << 11) + trigger_prescale + (prescale << 16);
             pcie_interface->PCIeSendBuffer(1, 1, 1, buffers.psend);
+            usleep(1000);
             //trigger_prescale += 1;
         }
 
         if(light_trig_) {  // Begin PMT Trigger setup
             imod = trigger_module_;
-            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask1)+((mask1&0xf)<<16); //set mask1[3] on.
+            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask1)+((mask1 & 0xF) << 16); //set mask1[3] on.
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -105,7 +106,7 @@ namespace trig_ctrl {
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
             imod=trigger_module_;
-            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask8)+((mask8&0xff)<<16);
+            buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask8)+((mask8 & 0xFF) << 16);
             //        fprintf(outinfo,"trig_mask8 = 0x%x\n",mask8);
             i = 1;
             k = 1;

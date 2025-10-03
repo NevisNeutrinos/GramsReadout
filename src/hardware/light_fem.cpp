@@ -29,7 +29,7 @@ namespace light_fem {
         static int imod_pmt  = config["crate"]["light_fem_slot"].get<int>();
 
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
-        static int mode = (trig_src == "ext") || (trig_src == "software") ? 0 : 3;
+        static int mode = (trig_src == "external") || (trig_src == "software") ? 0 : 3;
 
         const auto data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
         std::string fw_file = data_basedir + "/" + config["light_fem"]["fpga_bitfile"].get<std::string>();

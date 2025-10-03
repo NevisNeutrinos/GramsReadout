@@ -312,16 +312,16 @@ bool WaitForThreadJoin(std::thread & thread, quill::Logger *logger) {
     // Join thread with increasing aggressiveness if thread does not join within 2s..
     auto fut = std::async(std::launch::async, [&] { JoinThread(thread, logger); });
 
-    if (fut.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+    if (fut.wait_for(std::chrono::seconds(5)) == std::future_status::timeout) {
         QUILL_LOG_WARNING(logger, "Thread not terminating, cancelling..");
         pthread_cancel(thread.native_handle());
-        if (fut.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+        if (fut.wait_for(std::chrono::seconds(5)) == std::future_status::timeout) {
             QUILL_LOG_CRITICAL(logger, "Thread not terminating AFTER a cancel, forcing a SIGTERM..");
             pthread_kill(thread.native_handle(), SIGTERM);
-            if (fut.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+            if (fut.wait_for(std::chrono::seconds(5)) == std::future_status::timeout) {
                 QUILL_LOG_CRITICAL(logger, "Thread not terminating AFTER a SIGTERM, forcing a SIGKILL.");
                 pthread_kill(thread.native_handle(), SIGKILL);
-                if (fut.wait_for(std::chrono::seconds(2)) == std::future_status::timeout) {
+                if (fut.wait_for(std::chrono::seconds(5)) == std::future_status::timeout) {
                     QUILL_LOG_CRITICAL(logger, "If still running it is very bad.. :( ");
                 }
             }

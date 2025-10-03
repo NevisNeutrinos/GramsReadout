@@ -115,7 +115,7 @@ namespace data_handler {
         // const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
         run_number_ = config["data_handler"]["subrun"].get<size_t>();
         std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
-        ext_trig_ = trig_src == "ext" ? 1 : 0;
+        ext_trig_ = trig_src == "external" || "light" ? 1 : 0;
         software_trig_ = trig_src == "software" ? 1 : 0;
         LOG_INFO(logger_, "Trigger source software [{}] external [{}] \n", software_trig_, ext_trig_);
 
@@ -586,7 +586,7 @@ namespace data_handler {
         LOG_INFO(logger_, "Starting Trigger Read \n");
 
         // while(is_running_.load()) {
-        while(true) {
+        while(is_running_.load()) {
          std::this_thread::sleep_for(std::chrono::milliseconds(2));
          pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &trig_data_ctr);
          trig_data_ctr = (trig_data_ctr>>32) & 0xffffff;

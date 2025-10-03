@@ -301,7 +301,6 @@ namespace controller {
                 return false;
             }
         }
-        LOG_INFO(logger_, "Data config dump: {} \n", config_.dump());
 
         // Add the setup config to this so we only have to pass around a single config object
         config_.update(setup_config_);
@@ -339,6 +338,9 @@ namespace controller {
             LOG_ERROR(logger_, "PCIe device initialization failed!");
             return false;
         }
+
+        LOG_INFO(logger_, "Config dump: {} \n", config_.dump());
+
         LOG_INFO(logger_, "PCIe devices initialized!");
         LOG_INFO(logger_, "Initializing hardware...");
         pcie_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
