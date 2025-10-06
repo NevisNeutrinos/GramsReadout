@@ -398,8 +398,11 @@ namespace controller {
         try {
             data_handler_->SetRun(true);
             data_thread_ = std::thread(&data_handler::DataHandler::CollectData, data_handler_.get(), pcie_interface_.get());
-            // run_status_.store(true);
-            // status_thread_ = std::thread(&Controller::StatusControl, this);
+            // Start status thread but only if it's not already running
+            if (!status_thread_.joinable()) {
+                run_status_.store(true);
+                status_thread_ = std::thread(&Controller::StatusControl, this);
+            }
         } catch (std::exception& ex) {
             LOG_ERROR(logger_, "Exception occurred starting DataHandler: {}", ex.what());
             data_handler_->SetRun(false);

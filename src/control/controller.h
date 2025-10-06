@@ -35,7 +35,7 @@
     // These are the codes which will be received/sent
     // from/to the HUB computer.
     enum class CommandCodes : uint16_t {
-        kReset = 0x0,
+        kReset = 0xA,
         kConfigure = 0x1,
         kStartRun = 0x2,
         kStopRun = 0x3,

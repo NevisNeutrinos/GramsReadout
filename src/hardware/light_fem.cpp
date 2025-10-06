@@ -67,8 +67,8 @@ namespace light_fem {
         static int beam_thres = config["light_fem"]["beam_summed_adc_thresh"].get<int>();
         static int beam_mult = config["light_fem"]["beam_multiplicity"].get<int>();
 
-        uint32_t en_top = 0x0; //config["light_fem"]["pmt_enable_top"].get<uint32_t>();
-        uint32_t en_upper = 0x0; //config["light_fem"]["pmt_enable_middle"].get<uint32_t>();
+        uint32_t en_top = 0xFFFF; //config["light_fem"]["pmt_enable_top"].get<uint32_t>();
+        uint32_t en_upper = 0xFFFF; //config["light_fem"]["pmt_enable_middle"].get<uint32_t>();
         uint32_t en_lower = 0xFFFF; //config["light_fem"]["pmt_enable_lower"].get<uint32_t>();
         uint32_t pmt_blocksize = 0xFFFF; //config["light_fem"]["pmt_blocksize"].get<uint32_t>();
 
@@ -344,8 +344,8 @@ namespace light_fem {
         i = 1;
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-        LOG_DEBUG(logger_, "Enable/Disable channels..");
-        LOG_DEBUG(logger_, "\n Chanel Enable Mask Top=0x{:X}, Upper=0x{:X}, Lower=0x{:X},", en_top, en_upper, en_lower);
+        LOG_INFO(logger_, "Enable/Disable channels..");
+        LOG_INFO(logger_, "\n Chanel Enable Mask Top=0x{:X}, Upper=0x{:X}, Lower=0x{:X},", en_top, en_upper, en_lower);
         // disable the top channels
         imod = imod_fem;
         ichip = 3;

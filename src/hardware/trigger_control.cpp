@@ -81,9 +81,10 @@ namespace trig_ctrl {
 
         // Set prescale for triggers 0-8
         imod=trigger_module_;
-        uint32_t trigger_prescale = hw_consts::mb_trig_prescale0;
-        for (const uint32_t prescale : prescale_vec_) {
-            buffers.buf_send[0] = (imod << 11) + trigger_prescale + (prescale << 16);
+        constexpr uint32_t trig_prescale_offset = hw_consts::mb_trig_prescale0;
+        for (size_t t = 0; t < prescale_vec_.size(); t++) {
+            LOG_DEBUG(logger_, "Prescale {} [{}]", (t + trig_prescale_offset), prescale_vec_[t]);
+            buffers.buf_send[0] = (imod << 11) + (t + trig_prescale_offset) + (prescale_vec_.at(t) << 16);
             pcie_interface->PCIeSendBuffer(1, 1, 1, buffers.psend);
             usleep(1000);
             //trigger_prescale += 1;
@@ -98,12 +99,12 @@ namespace trig_ctrl {
             //        fprintf(outinfo,"trig_mask1 = 0x%x\n",mask1);
 
 
-            imod = trigger_module_;
-            buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale1)+(0x0<<16); //set prescale1 0
-            //        fprintf(outinfo,"trig_prescale1 = 0x%x\n",0x0);
-            i = 1;
-            k = 1;
-            i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+            // imod = trigger_module_;
+            // buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale1)+(0x0<<16); //set prescale1 0
+            // //        fprintf(outinfo,"trig_prescale1 = 0x%x\n",0x0);
+            // i = 1;
+            // k = 1;
+            // i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
             imod=trigger_module_;
             buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask8)+((mask8 & 0xFF) << 16);
