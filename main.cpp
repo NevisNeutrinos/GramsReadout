@@ -2,6 +2,7 @@
 #include <ctime>
 #include "src/control/controller.h"
 #include "networking/tcp_protocol.h"
+#include "communication_codes.h"
 #include "quill/Backend.h"
 #include "quill/Frontend.h"
 #include "quill/LogMacros.h"
@@ -22,7 +23,24 @@ int GetUserInput() {
         return GetUserInput();  // Retry
     }
 
-    return choice;
+    switch (choice) {
+        case 0x0: {
+            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Reset_Run);
+        } case 0x1: {
+            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Configure);
+        } case 0x2: {
+            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Start_Run);
+        } case 0x3: {
+            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Stop_Run);
+        } case 39: {
+            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Query_Hardware_Status);
+        } case -1: {
+            return -1;
+        } default: {
+            std::cerr << "Invalid input. Please enter a number.\n";
+            return GetUserInput();
+        }
+    }
 }
 
 // Prints the current state and available options.
@@ -52,8 +70,9 @@ void Run(controller::Controller& ctrl) {
             break;
         }
 
+        if (static_cast<uint16_t>(input) == 0x0) input = 0xA;
         cmd.command = static_cast<uint16_t>(input);
-        cmd.arguments = {1, 1};
+        cmd.arguments = {1};
         if (ctrl.HandleCommand(cmd)) {
             std::cout << "State changed to: " << ctrl.GetStateName() << "\n";
             LOG_INFO(logger, "State changed to {}! \n", std::string_view{ctrl.GetStateName()});
@@ -78,8 +97,8 @@ int main() {
     asio::io_context status_io_context;
 
     bool run = true;
-    std::string ip_addr = "192.168.1.100";
-    // std::string ip_addr = "127.0.0.1";
+    // std::string ip_addr = "192.168.1.100";
+    std::string ip_addr = "127.0.0.1";
     std::cout << "Starting controller..." << std::endl;
     controller::Controller controller(io_context, status_io_context, ip_addr, 50003, 50002, false, run);
     // controller::Controller controller(io_context, "127.0.0.1", 12345, true, run);
