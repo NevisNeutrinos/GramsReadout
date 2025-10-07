@@ -362,7 +362,7 @@ namespace controller {
         auto status_vec = status_->ReadStatus(board_slots_, pcie_interface_.get(), false);
         if (!print_status_) {
             // Construct and send a status packet
-            Command cmd(static_cast<uint16_t>(CommandCodes::kStatusPacket), status_vec.size());
+            Command cmd(to_u16(CommunicationCodes::COL_Hardware_Status), status_vec.size());
             cmd.arguments = std::move(status_vec);
             status_client_.WriteSendBuffer(cmd);
         } else {
@@ -378,7 +378,7 @@ namespace controller {
             auto status_vec = status_->ReadStatus(board_slots_, pcie_interface_.get(), false);
             if (!print_status_) {
                 // Construct and send a status packet
-                Command cmd(static_cast<uint16_t>(CommandCodes::kStatusPacket), status_vec.size());
+                Command cmd(to_u16(CommunicationCodes::COL_Hardware_Status), status_vec.size());
                 cmd.arguments = std::move(status_vec);
                 status_client_.WriteSendBuffer(cmd);
                 // Get the same metrics but in json string form
@@ -413,25 +413,6 @@ namespace controller {
             return false;
         }
         return true;
-    }
-
-    void Controller::TestRead(const std::vector<int32_t>& args) {
-
-        const uint32_t imod_fem = args.at(0);
-        const uint32_t ichip = args.at(1);
-        const uint32_t command = args.at(2);
-        const uint32_t nword = args.at(3);
-
-        int iprint = 1;
-        pcie_interface_->PCIeRecvBuffer(1, 0, 1, nword, iprint, buffers_->precv); // init the receiver
-
-        buffers_->buf_send[0] = (imod_fem << 11) + (ichip << 8) + command + (0x0 << 16); // read out status
-        pcie_interface_->PCIeSendBuffer(1, 1, 1, buffers_->psend);
-
-        buffers_->precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
-        pcie_interface_->PCIeRecvBuffer(1, 0, 2, nword, iprint, buffers_->precv);
-        LOG_INFO(logger_, "\n Received TPC FEB [{}] (slot={}) status data word = 0x{:X}, 0x{:X} \n",
-                            imod_fem, imod_fem, pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1]);
     }
 
     bool Controller::StopRun() {
@@ -475,7 +456,7 @@ namespace controller {
             std::cout << "Received command: " << cmd.command << std::endl;
             // command_client_.WriteSendBuffer(cmd); //ack
             bool response = HandleCommand(cmd);
-            if (cmd.command == CommandCodes::kHeartBeat) continue;
+            if (cmd.command == CommunicationCodes::COM_HeartBeat) continue;
             SendAckCommand(response);
             LOG_INFO(logger_, " \n Current state: [{}] \n", GetStateName());
         }
@@ -492,7 +473,7 @@ namespace controller {
     bool Controller::HandleCommand(const Command& command) {
         LOG_INFO(logger_, " \n Sending command: [{}] \n", command.command);
 
-        if (command.command == CommandCodes::kConfigure && current_state_ == State::kIdle) {
+        if (command.command == CommunicationCodes::COL_Configure && current_state_ == State::kIdle) {
             LOG_INFO(logger_, " \n State [Idle] \n");
             if (!is_configured_) {
                 if (!Configure(command.arguments)) return false;
@@ -500,19 +481,19 @@ namespace controller {
             current_state_ = State::kConfigured;
             return true;
 
-        } if (command.command == CommandCodes::kStartRun && current_state_ == State::kConfigured) {
+        } if (command.command == CommunicationCodes::COL_Start_Run && current_state_ == State::kConfigured) {
             LOG_INFO(logger_, " \n State [Configure] \n ");
             current_state_ = State::kRunning;
             StartRun();
             return true;
 
-        } if (command.command == CommandCodes::kStopRun && current_state_ == State::kRunning) {
+        } if (command.command == CommunicationCodes::COL_Stop_Run && current_state_ == State::kRunning) {
             LOG_INFO(logger_, " \n State [Running] \n");
             current_state_ = State::kStopped;
             StopRun();
             return true;
 
-        } if (command.command == CommandCodes::kReset && current_state_ == State::kStopped) {
+        } if (command.command == CommunicationCodes::COL_Reset_Run && current_state_ == State::kStopped) {
             LOG_INFO(logger_, " \n State [Stopped] \n");
             Reset();
             // is_configured_ = false;
@@ -521,21 +502,13 @@ namespace controller {
             return true;
         }
 
-        if (command.command == CommandCodes::kStatusPacket) {
+        if (command.command == CommunicationCodes::COL_Query_Hardware_Status) {
             LOG_INFO(logger_, " \n State [ReadStatus] \n");
             if (is_configured_) ReadStatus();
             else LOG_WARNING(logger_, "Cant read status before configuration!\n");
             // don't change from the previous state
             return true;
         }
-
-        if (command.command == 0x10) {
-            LOG_INFO(logger_, " \n State [TestRead] \n");
-            TestRead(command.arguments);
-            // don't change from the previous state
-            return true;
-        }
-
         LOG_INFO(logger_, "Invalid command or transition from state: {}", GetStateName());
         // metrics_->ControllerState(static_cast<int>(current_state_));
         return false;

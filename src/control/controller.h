@@ -19,10 +19,13 @@
 #include "xmit_control.h"
 #include "../status/status.h"
 #include "tpc_configs.h"
+#include "communication_codes.h"
 #include "data_monitor.h"
 
 
-    namespace controller {
+namespace controller {
+
+    using namespace pgrams::communication;
 
     // Enum for states
     enum class State : int {
@@ -34,31 +37,12 @@
 
     // These are the codes which will be received/sent
     // from/to the HUB computer.
+    // FIXME Should be in CommunicationCodes
     enum class CommandCodes : uint16_t {
-        kReset = 0xA,
-        kConfigure = 0x1,
-        kStartRun = 0x2,
-        kStopRun = 0x3,
-        kGetStatus = 0x4,
-        kPrepareRestart = 0x5,
-        kRestart = 0x6,
-        kPrepareShutdown = 0x7,
-        kShutdown = 0x8,
-        kReadStatus = 0x9,
-        kStatusPacket = 0x27,
-        kCmdSuccess = 0x1000,
-        kCmdFailure = 0x2000,
-        kHeartBeat = 0xFFFF,
-        kInvalid = UINT16_MAX
-    };
-
-    // Explicitly handle the type conversion for equality check, for safety.
-    inline bool operator==(const uint16_t lhs, const CommandCodes& rhs) {
-        return lhs == static_cast<uint16_t>(rhs);
-    }
-    inline bool operator==(const CommandCodes& lhs, const uint16_t rhs) {
-        return static_cast<uint16_t>(lhs) == rhs;
-    }
+            kCmdSuccess = 0x1000,
+            kCmdFailure = 0x2000,
+            kInvalid = UINT16_MAX
+        };
 
     // Converts state enum to a string.
     inline std::string StateToString(const State state) {
@@ -103,7 +87,6 @@
         Controller& operator=(const Controller&) = delete;
 
         // State machine functions
-        void TestRead(const std::vector<int32_t>& args);
         bool Configure(const std::vector<int32_t>& args);
         bool StartRun();
         bool StopRun();
