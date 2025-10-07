@@ -5,6 +5,7 @@
 #include "controller.h"
 #include "tcp_protocol.h"
 #include "daq_comp_monitor.h"
+#include "communication_codes.h"
 
 #include <asio.hpp>
 #include "quill/Backend.h"
@@ -49,7 +50,9 @@ const uint16_t kDaemonStatusPort = 50000; // Daemon software port, for status
 const size_t NUM_DAQ = 3; // Number of DAQ processes
 
 // --- Global Variables ---
-namespace { // Use anonymous namespace for internal linkage
+namespace pgrams::orchestrator { // Use anonymous namespace for internal linkage
+
+using namespace communication;
 
 std::atomic_bool g_running(true);
 std::atomic_bool g_status_running(false);
@@ -406,7 +409,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
         QUILL_LOG_INFO(logger, "Received command [{}] num_args: [{}] \n", cmd.command, cmd.arguments.size());
 
         switch (cmd.command) {
-            case 0x0: {
+            case to_u16(CommunicationCodes::ORC_Start_Computer_Status): {
                 // Start thread to send periodic status
                 if (!status_thread.joinable()) {
                     g_status_running.store(true);
@@ -414,17 +417,17 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 }
                 break;
             }
-            case 0x1: { // start DAQ process
+            case to_u16(CommunicationCodes::ORC_Boot_All_DAQ): { // start DAQ processes
                 StartDaqProcess(tpc_controller_daq, logger, io_ctx);
                 g_daq_monitor.setTpcDaq();
                 break;
             }
-            case 0x2: { // stop DAQ process
+            case to_u16(CommunicationCodes::ORC_Shutdown_All_DAQ): { // stop DAQ processes
                 StopDaqProcess(tpc_controller_daq, logger);
                 g_daq_monitor.unsetTpcDaq();
                 break;
             }
-            case 0x3: { // stop the status thread
+            case to_u16(CommunicationCodes::ORC_Stop_Computer_Status): { // stop the status thread
                 g_status_running.store(false);
                 WaitForThreadJoin(status_thread, logger);
                 break;
@@ -448,10 +451,10 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
 // --- Main Entry Point ---
 int main() {
     // 1. Setup Signal Handlers Early
-    SetupSignalHandlers();
+    pgrams::orchestrator::SetupSignalHandlers();
 
     // 2. Initialize Logging
-    SetupLogging(); // Configures Quill to log to stdout
+    pgrams::orchestrator::SetupLogging(); // Configures Quill to log to stdout
     quill::Logger* logger = quill::Frontend::create_or_get_logger("readout_logger");
 
     QUILL_LOG_INFO(logger, "Connection service starting up...");
@@ -482,12 +485,12 @@ int main() {
                 } catch (const std::exception& e) {
                     QUILL_LOG_CRITICAL(logger, "Exception in io_context.run(): {}", e.what());
                     // Signal shutdown if the IO context fails critically
-                    g_running.store(false);
-                    g_shutdown_cv.notify_one();
+                    pgrams::orchestrator::g_running.store(false);
+                    pgrams::orchestrator::g_shutdown_cv.notify_one();
                 } catch (...) {
                     QUILL_LOG_CRITICAL(logger, "Unknown exception in io_context.run()");
-                    g_running.store(false);
-                    g_shutdown_cv.notify_one();
+                    pgrams::orchestrator::g_running.store(false);
+                    pgrams::orchestrator::g_shutdown_cv.notify_one();
                 }
                 QUILL_LOG_DEBUG(logger, "ASIO io_context thread finished.");
             })
@@ -496,22 +499,22 @@ int main() {
         QUILL_LOG_DEBUG(logger, "Starting control connection \n");
         command_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonCommandPort, false, true, false);
         status_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonStatusPort, false, false, true);
-        daq_thread = std::thread([&]() { DAQHandler(command_client_ptr, status_client_ptr, io_context, logger); });
+        daq_thread = std::thread([&]() { pgrams::orchestrator::DAQHandler(command_client_ptr, status_client_ptr, io_context, logger); });
 
     } catch (const std::exception& e) {
         QUILL_LOG_CRITICAL(logger, "Exception during initialization phase: {}", e.what());
-        g_running.store(false); // Signal shutdown
+        pgrams::orchestrator::g_running.store(false); // Signal shutdown
     } catch (...) {
         QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
-        g_running.store(false); // Signal shutdown
+        pgrams::orchestrator::g_running.store(false); // Signal shutdown
     }
 
     // 4. Main Wait Loop (only if initialization was okay)
     // Wait until g_running is false (due to signal or error)
-    if (g_running.load()) {
+    if (pgrams::orchestrator::g_running.load()) {
         QUILL_LOG_INFO(logger, "Service running. Waiting for termination signal...");
-        std::unique_lock<std::mutex> lock(g_shutdown_mutex);
-        g_shutdown_cv.wait(lock, [] { return !g_running.load(); });
+        std::unique_lock<std::mutex> lock(pgrams::orchestrator::g_shutdown_mutex);
+        pgrams::orchestrator::g_shutdown_cv.wait(lock, [] { return !pgrams::orchestrator::g_running.load(); });
         // stop the blocking message receiver so the DAQ thread can terminate
         command_client_ptr->setStopCmdRead(true);
         status_client_ptr->setStopCmdRead(true);
