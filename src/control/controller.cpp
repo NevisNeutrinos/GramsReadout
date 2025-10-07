@@ -359,7 +359,7 @@ namespace controller {
     void Controller::ReadStatus() {
         // This line essentially samples the metrics that are accumulating in the data handler
         status_->SetDataHandlerStatus(data_handler_.get());
-
+        tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
         status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
         if (!print_status_) {
             // Construct and send a status packet
@@ -378,6 +378,7 @@ namespace controller {
         while (run_status_) {
             std::this_thread::sleep_for(std::chrono::seconds(2));
             status_->SetDataHandlerStatus(data_handler_.get());
+            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
             status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
             if (!print_status_) {
                 auto tmp_vec = tpc_readout_monitor_.serialize();

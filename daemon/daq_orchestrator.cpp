@@ -387,6 +387,24 @@ void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger) {
     }
 }
 
+void ShutdownComputer() {
+    // Call systemd's shutdown command (graceful, syncs filesystems automatically)
+    int ret = std::system("systemctl shutdown");
+    if (ret != 0) {
+        std::cerr << "Shutdown command failed with code: " << ret << "\n";
+        // FIXME raise error flag here
+    }
+}
+
+void RebootComputer() {
+    // Call systemd's reboot command (graceful, syncs filesystems automatically)
+    int ret = std::system("systemctl reboot");
+    if (ret != 0) {
+        std::cerr << "Reboot command failed with code: " << ret << "\n";
+        // FIXME raise error flag here
+    }
+}
+
 void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_ptr<TCPConnection> &status_client_ptr,
                 asio::io_context &io_ctx, quill::Logger *logger) {
 
@@ -427,9 +445,18 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 g_daq_monitor.unsetTpcDaq();
                 break;
             }
-            case to_u16(CommunicationCodes::ORC_Stop_Computer_Status): { // stop the status thread
+            case to_u16(CommunicationCodes::ORC_Stop_Computer_Status): {
+                // stop the status thread
                 g_status_running.store(false);
                 WaitForThreadJoin(status_thread, logger);
+                break;
+            } case to_u16(CommunicationCodes::ORC_Exec_CPU_Restart): {
+                // FIXME add shutdown DAQ here
+                RebootComputer();
+                break;
+            } case to_u16(CommunicationCodes::ORC_Exec_CPU_Shutdown): {
+                // FIXME add shutdown DAQ here
+                ShutdownComputer();
                 break;
             }
             // TODO add case for booting _all_ DAQ (status msg shows if they are running)
