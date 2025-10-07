@@ -13,54 +13,31 @@ namespace status {
 using json = nlohmann::json;
 
     void Status::SetDataHandlerStatus(data_handler::DataHandler *data_handler) {
-
-        auto metrics = data_handler->GetMetrics();
-
-        data_handler_status_vec_.clear();
-        size_t tmp_size = 0;
-        size_t mask_32b = 0xFFFFFFFF;
-
-        tmp_size = metrics["num_events"];
-        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
-        data_handler_status_vec_.push_back(tmp_size & mask_32b);
-
-        tmp_size = metrics["event_diff"];
-        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
-        data_handler_status_vec_.push_back(tmp_size & mask_32b);
-
-        tmp_size = metrics["num_dma_loops"];
-        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
-        data_handler_status_vec_.push_back(tmp_size & mask_32b);
-
-        tmp_size = metrics["mega_bytes_received"];
-        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
-        data_handler_status_vec_.push_back(tmp_size & mask_32b);
-
-        tmp_size = metrics["event_size_words"];
-        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
-        data_handler_status_vec_.push_back(tmp_size & mask_32b);
-
-        tmp_size = metrics["num_files"];
-        data_handler_status_vec_.push_back((tmp_size >> 32) & mask_32b);
-        data_handler_status_vec_.push_back(tmp_size & mask_32b);
-
+        data_handler_metrics_ = data_handler->GetMetrics();
     }
 
 //    std::string Status::JsonHandlerStatus() {
     std::string Status::JsonHandlerStatus(data_handler::DataHandler *data_handler) {
       	auto metrics = data_handler->GetMetrics();
 		json json_metrics;
-		for (const auto& pair : metrics) {
+		for (const auto& pair : data_handler_metrics_) {
     		json_metrics[pair.first] = pair.second;
 		}
         return json_metrics.dump();
     }
 
-    std::vector<int32_t> Status::ReadStatus(const std::vector<int>& boards, pcie_int::PCIeInterface *pcie_interface, bool minimal_status) {
+    void Status::ReadStatus(TpcReadoutMonitor &tpc_monitor, const std::vector<int>& boards,
+                            pcie_int::PCIeInterface *pcie_interface, bool minimal_status) {
 
-        // This contains the data collection stats and status
-        auto status_vec = GetDataHandlerStatus();
+        // Collect the data handler metrics
+        tpc_monitor.setNumEvents(data_handler_metrics_["num_events"]);
+        tpc_monitor.setEventDiff(data_handler_metrics_["event_diff"]);
+        tpc_monitor.setNumDmaLoops(data_handler_metrics_["num_dma_loops"]);
+        tpc_monitor.setReceivedMbytes(data_handler_metrics_["mega_bytes_received"]);
+        tpc_monitor.setAvgEventSize(data_handler_metrics_["event_size_words"]);
+        tpc_monitor.setNumFiles(data_handler_metrics_["num_files"]);
 
+        std::vector<int32_t> status_vec;
         if (minimal_status) {
              int32_t status_res = 0;
              bool is_fem = false;
@@ -76,7 +53,7 @@ using json = nlohmann::json;
                 status_vec.push_back(res);
             }
         }
-        return status_vec;
+        tpc_monitor.setBoardStatus(status_vec);
     }
 
     bool Status::GetMinimalStatus(uint32_t board_number, pcie_int::PCIeInterface *pcie_interface, bool is_fem) {

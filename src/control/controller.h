@@ -20,6 +20,7 @@
 #include "../status/status.h"
 #include "tpc_configs.h"
 #include "communication_codes.h"
+#include "tpc_readout_monitor.h"
 #include "data_monitor.h"
 
 
@@ -148,6 +149,7 @@ namespace controller {
         json config_;
 
         TpcConfigs tpc_configs_{};
+        TpcReadoutMonitor tpc_readout_monitor_{};
 
     };
 

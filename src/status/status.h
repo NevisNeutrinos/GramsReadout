@@ -7,6 +7,7 @@
 
 #include "pcie_interface.h"
 #include "../src/data/data_handler.h"
+#include "tpc_readout_monitor.h"
 #include <vector>
 #include <cstdint>
 #include <atomic>
@@ -21,10 +22,10 @@ public:
 
     bool GetMinimalStatus(uint32_t board_number, pcie_int::PCIeInterface *pcie_interface, bool is_fem);
     int32_t GetBoardStatus(int32_t board_number, pcie_int::PCIeInterface *pcie_interface);
-    std::vector<int32_t> ReadStatus(const std::vector<int>& boards, pcie_int::PCIeInterface *pcie_interface, bool minimal_status);
+    void ReadStatus(TpcReadoutMonitor &tpc_monitor, const std::vector<int>& boards,
+                    pcie_int::PCIeInterface *pcie_interface, bool minimal_status);
     void SetDataHandlerStatus(data_handler::DataHandler *data_handler);
     std::string JsonHandlerStatus(data_handler::DataHandler *data_handler);
-    std::vector<int32_t> GetDataHandlerStatus() { return data_handler_status_vec_; }
     void SetPrintStatus(const bool print) { print_status_ = print; }
 
 private:
@@ -37,6 +38,7 @@ private:
     uint32_t fem_status_chip_ = 3;
     uint32_t fem_status_num_word_ = 1;
     std::vector<int32_t> data_handler_status_vec_;
+    std::map<std::string, size_t> data_handler_metrics_{};
 
 };
 

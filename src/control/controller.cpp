@@ -357,16 +357,19 @@ namespace controller {
     }
 
     void Controller::ReadStatus() {
-
+        // This line essentially samples the metrics that are accumulating in the data handler
         status_->SetDataHandlerStatus(data_handler_.get());
-        auto status_vec = status_->ReadStatus(board_slots_, pcie_interface_.get(), false);
+
+        status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
         if (!print_status_) {
             // Construct and send a status packet
-            Command cmd(to_u16(CommunicationCodes::COL_Hardware_Status), status_vec.size());
-            cmd.arguments = std::move(status_vec);
-            status_client_.WriteSendBuffer(cmd);
+            // Command cmd(to_u16(CommunicationCodes::COL_Hardware_Status), status_vec.size());
+            // cmd.arguments = std::move(status_vec);
+            auto tmp_vec = tpc_readout_monitor_.serialize();
+            status_client_.WriteSendBuffer(to_u16(CommunicationCodes::COL_Hardware_Status), tmp_vec);
         } else {
-            for (auto stat : status_vec)  LOG_INFO(logger_, "Data Handler Status: {} \n", stat);
+            // for (auto stat : status_vec)  LOG_INFO(logger_, "Data Handler Status: {} \n", stat);
+            tpc_readout_monitor_.print();
         }
     }
 
@@ -375,19 +378,17 @@ namespace controller {
         while (run_status_) {
             std::this_thread::sleep_for(std::chrono::seconds(2));
             status_->SetDataHandlerStatus(data_handler_.get());
-            auto status_vec = status_->ReadStatus(board_slots_, pcie_interface_.get(), false);
+            status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
             if (!print_status_) {
-                // Construct and send a status packet
-                Command cmd(to_u16(CommunicationCodes::COL_Hardware_Status), status_vec.size());
-                cmd.arguments = std::move(status_vec);
-                status_client_.WriteSendBuffer(cmd);
+                auto tmp_vec = tpc_readout_monitor_.serialize();
+                status_client_.WriteSendBuffer(to_u16(CommunicationCodes::COL_Hardware_Status), tmp_vec);
                 // Get the same metrics but in json string form
-                if (enable_monitoring_) {
+                if (enable_monitoring_) { // for MQTT direct tests, not for flight
                     auto msg = status_->JsonHandlerStatus(data_handler_.get());
                     SendMetrics(msg, msg.size());
                 }
             } else {
-                for (auto stat : status_vec)  LOG_INFO(logger_, "Data Handler Status: {} \n", stat);
+                tpc_readout_monitor_.print();
             }
         }
     }
