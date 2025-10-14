@@ -264,11 +264,16 @@ namespace controller {
             config["trigger"]["dead_time"]                  = tpc_configs_.getTpcDeadTime();
 
             // prescale (array → JSON array)
-            const auto& prescales = tpc_configs_.getPrescale();
-            config["trigger"]["prescale"] = nlohmann::json::array();
-            for (size_t i = 0; i < prescales.size(); ++i) {
-                config["trigger"]["prescale"].push_back(prescales.at(i));
-            }
+            auto& prescales = tpc_configs_.getPrescale();
+            // element 2 is the light trigger
+            prescales.at(1) = tpc_configs_.getLightTrigPrescale();
+            config["trigger"]["prescale"] = prescales;
+
+            // const auto& prescales = tpc_configs_.getPrescale();
+            // config["trigger"]["prescale"] = nlohmann::json::array();
+            // for (size_t i = 0; i < prescales.size(); ++i) {
+            //     config["trigger"]["prescale"].push_back(prescales.at(i));
+            // }
         } catch (const std::exception& e) {
             LOG_ERROR(logger_, "Error setting up config.. {}", e.what());
             return nullptr;
@@ -315,6 +320,8 @@ namespace controller {
             config_["light_fem"]["channel_thresh0"] = channel_thresh0;
             std::vector<int> channel_thresh1(NUM_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh1"]);
             config_["light_fem"]["channel_thresh1"] = channel_thresh1;
+            // element 2 is the light trigger
+            config_["trigger"]["prescale"].at(1) = config_["trigger"]["light_trig_prescale"];
         }
 
         // Add the setup config to this so we only have to pass around a single config object
