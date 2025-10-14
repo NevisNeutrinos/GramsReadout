@@ -97,7 +97,7 @@ namespace controller {
         void ReadStatus();
 
         void ReceiveCommand();
-        void SendAckCommand(bool success);
+        void SendCallback(uint16_t command, bool success);
         json LoadConfig(const std::string &config_file);
         bool PersistRunId();
         bool JoinDataThread();

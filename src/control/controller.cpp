@@ -381,7 +381,7 @@ namespace controller {
     void Controller::ReadStatus() {
         // This line essentially samples the metrics that are accumulating in the data handler
         status_->SetDataHandlerStatus(data_handler_.get());
-        tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+        // tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
         status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
         if (!print_status_) {
             // Construct and send a status packet
@@ -400,7 +400,7 @@ namespace controller {
         while (run_status_) {
             std::this_thread::sleep_for(std::chrono::seconds(2));
             status_->SetDataHandlerStatus(data_handler_.get());
-            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+            // tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
             status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
             if (!print_status_) {
                 auto tmp_vec = tpc_readout_monitor_.serialize();
@@ -481,16 +481,17 @@ namespace controller {
             // command_client_.WriteSendBuffer(cmd); //ack
             bool response = HandleCommand(cmd);
             if (cmd.command == CommunicationCodes::COM_HeartBeat) continue;
-            SendAckCommand(response);
+            SendCallback(cmd.command, response);
             LOG_INFO(logger_, " \n Current state: [{}] \n", GetStateName());
         }
     }
 
-    void Controller::SendAckCommand(bool success) {
-        auto acknowledge = success ? CommandCodes::kCmdSuccess : CommandCodes::kCmdFailure;
-        Command cmd(static_cast<uint16_t>(acknowledge), 1);
-        cmd.arguments.at(0) = static_cast<int>(current_state_);
-        command_client_.WriteSendBuffer(cmd);
+    void Controller::SendCallback(uint16_t command, bool success) {
+        auto acknowledge = success ? 0xFAB : 0XDEAD;
+        tpc_readout_monitor_.setLastCommand(command);
+        tpc_readout_monitor_.setLastCommandStatus(acknowledge);
+        auto data = tpc_readout_monitor_.serialize();
+        status_client_.WriteSendBuffer(command, data);
     }
 
     // Handle user commands
@@ -499,30 +500,29 @@ namespace controller {
 
         if (command.command == CommunicationCodes::COL_Configure && current_state_ == State::kIdle) {
             LOG_INFO(logger_, " \n State [Idle] \n");
-            if (!is_configured_) {
-                if (!Configure(command.arguments)) return false;
-            }
-            current_state_ = State::kConfigured;
-            return true;
-
+            bool status = is_configured_ ? true : Configure(command.arguments);
+            if (status) current_state_ = State::kConfigured;
+            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+            return status;
         } if (command.command == CommunicationCodes::COL_Start_Run && current_state_ == State::kConfigured) {
             LOG_INFO(logger_, " \n State [Configure] \n ");
             current_state_ = State::kRunning;
             StartRun();
+            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
             return true;
-
         } if (command.command == CommunicationCodes::COL_Stop_Run && current_state_ == State::kRunning) {
             LOG_INFO(logger_, " \n State [Running] \n");
             current_state_ = State::kStopped;
             StopRun();
+            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
             return true;
-
         } if (command.command == CommunicationCodes::COL_Reset_Run && current_state_ == State::kStopped) {
             LOG_INFO(logger_, " \n State [Stopped] \n");
             Reset();
             // is_configured_ = false;
             // current_state_ = State::kIdle;
             current_state_ = State::kConfigured;
+            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
             return true;
         }
 
@@ -531,10 +531,12 @@ namespace controller {
             if (is_configured_) ReadStatus();
             else LOG_WARNING(logger_, "Cant read status before configuration!\n");
             // don't change from the previous state
+            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
             return true;
         }
         LOG_INFO(logger_, "Invalid command or transition from state: {}", GetStateName());
         // metrics_->ControllerState(static_cast<int>(current_state_));
+        tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
         return false;
     }
 
