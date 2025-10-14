@@ -218,17 +218,17 @@ namespace controller {
         return true;
     }
 
-    bool Controller::SetConfigFromComm(json& config, const std::vector<int32_t> &config_vec, size_t skip_words) {
+    json Controller::SetConfigFromComm(json& config, const std::vector<int32_t> &config_vec, size_t skip_words) {
         try {
             tpc_configs_.deserialize(config_vec.begin()+skip_words, config_vec.end());
             LOG_INFO(logger_, "Config serialized.. {} params \n", config_vec.size());
         } catch (const std::exception& e) {
             LOG_ERROR(logger_, "Error serializing config.. {}", e.what());
-            return false;
+            return nullptr;
         }
         catch (...) {
             LOG_ERROR(logger_, "Error serializing config..");
-            return false;
+            return nullptr;
         }
         try {
             // light_fem
@@ -236,7 +236,9 @@ namespace controller {
             config["light_fem"]["cosmic_multiplicity"]      = tpc_configs_.getChannelMultiplicity();
             config["light_fem"]["pmt_delay_0"]              = tpc_configs_.getRoiDelay0();
             config["light_fem"]["pmt_delay_1"]              = tpc_configs_.getRoiDelay1();
-            config["light_fem"]["pmt_precount"]             = tpc_configs_.getRoiPrecount();
+
+            std::vector<int> sipm_precount(NUM_LIGHT_CHANNELS, tpc_configs_.getRoiPrecount());
+            config["light_fem"]["pmt_precount"]             = sipm_precount;
             config["light_fem"]["pmt_window"]               = tpc_configs_.getRoiPeakWindow();
 
             config["light_fem"]["pmt_enable_top"]           = tpc_configs_.getEnableTop();
@@ -244,15 +246,17 @@ namespace controller {
             config["light_fem"]["pmt_enable_lower"]         = tpc_configs_.getEnableBottom();
 
             config["light_fem"]["sipm_words"]               = tpc_configs_.getNumRoiWords();
-            config["light_fem"]["sipm_deadtime"]            = tpc_configs_.getRoiDeadtime();
+
+            std::vector<int> sipm_deadtime(NUM_LIGHT_CHANNELS, tpc_configs_.getRoiDeadtime());
+            config["light_fem"]["sipm_deadtime"]            = sipm_deadtime;
 
             config["light_fem"]["pmt_gate_size"]            = tpc_configs_.getPmtGateSize();
             config["light_fem"]["pmt_beam_size"]            = tpc_configs_.getPmtBeamSize();
             config["light_fem"]["pmt_blocksize"]            = tpc_configs_.getFifoBlocksize();
 
             // thresholds (just first channel as scalar)
-            config["light_fem"]["channel_thresh0"]          = tpc_configs_.getDiscThreshold0()[0];
-            config["light_fem"]["channel_thresh1"]          = tpc_configs_.getDiscThreshold1()[0];
+            config["light_fem"]["channel_thresh0"]          = tpc_configs_.getDiscThreshold0();
+            config["light_fem"]["channel_thresh1"]          = tpc_configs_.getDiscThreshold1();
 
             // trigger
             config["trigger"]["trigger_source"]             = tpc_configs_.toTriggerSourceString(tpc_configs_.getTriggerSource());
@@ -267,13 +271,13 @@ namespace controller {
             }
         } catch (const std::exception& e) {
             LOG_ERROR(logger_, "Error setting up config.. {}", e.what());
-            return false;
+            return nullptr;
         }
         catch (...) {
             LOG_ERROR(logger_, "Error setting up config structure.");
-            return false;
+            return nullptr;
         }
-        return true;
+        return config;
     }
 
     bool Controller::Configure(const std::vector<int32_t>& args) {
@@ -297,9 +301,20 @@ namespace controller {
         if (args.size() > 1) {
             LOG_INFO(logger_, "Setting config from ground comms \n");
             size_t skip_words = 1;
-            if (!SetConfigFromComm(config_, args, skip_words)) {
+            config_ = SetConfigFromComm(config_, args, skip_words);
+            if (config_.is_null()) {
                 return false;
             }
+        } else {
+            // Not making these vectors for convenience but keeping them here in case it is needed
+            std::vector<int> sipm_precount(NUM_LIGHT_CHANNELS, config_["light_fem"]["pmt_precount"]);
+            config_["light_fem"]["pmt_precount"] = sipm_precount;
+            std::vector<int> sipm_deadtime(NUM_LIGHT_CHANNELS, config_["light_fem"]["sipm_deadtime"]);
+            config_["light_fem"]["sipm_deadtime"] = sipm_deadtime;
+            std::vector<int> channel_thresh0(NUM_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh0"]);
+            config_["light_fem"]["channel_thresh0"] = channel_thresh0;
+            std::vector<int> channel_thresh1(NUM_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh1"]);
+            config_["light_fem"]["channel_thresh1"] = channel_thresh1;
         }
 
         // Add the setup config to this so we only have to pass around a single config object

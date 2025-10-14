@@ -39,10 +39,13 @@ namespace light_fem {
         imod_fem = imod_pmt;
 
         static int pmt_words = config["light_fem"]["sipm_words"].get<int>();
-        static int pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<int>();
-        static int threshold0 = config["light_fem"]["channel_thresh0"].get<int>();
+        // static int pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<int>();
+        std::vector<int> pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<std::vector<int>>();
+        // static int threshold0 = config["light_fem"]["channel_thresh0"].get<int>();
+        std::vector<int> threshold0 = config["light_fem"]["channel_thresh0"].get<std::vector<int>>();
         static int threshold2 = config["light_fem"]["channel_thresh2"].get<int>();
-        static int threshold1 = config["light_fem"]["channel_thresh1"].get<int>();
+        // static int threshold1 = config["light_fem"]["channel_thresh1"].get<int>();
+        std::vector<int> threshold1 = config["light_fem"]["channel_thresh1"].get<std::vector<int>>();
         static int threshold3 = config["light_fem"]["channel_thresh3"].get<int>();
 
         /////////////////////////////////////////////////
@@ -56,7 +59,8 @@ namespace light_fem {
         static int pmt_beam_delay = config["light_fem"]["pmt_beam_delay"].get<int>();
         static int pmt_delay_0 = config["light_fem"]["pmt_delay_0"].get<int>();
         static int pmt_delay_1 = config["light_fem"]["pmt_delay_1"].get<int>();
-        static int pmt_precount = config["light_fem"]["pmt_precount"].get<int>();
+        // static int pmt_precount = config["light_fem"]["pmt_precount"].get<int>();
+        std::vector<int> pmt_precount = config["light_fem"]["pmt_precount"].get<std::vector<int>>();
         static int pmt_width = config["light_fem"]["pmt_width"].get<int>();
 
         static int pmt_window = config["light_fem"]["pmt_window"].get<int>();
@@ -227,14 +231,14 @@ namespace light_fem {
             // set PMT precount
             imod = imod_fem;
             ichip = 3;
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_precount + (pmt_precount << 16); // set pmt precount
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_precount + (pmt_precount.at(ik) << 16); // set pmt precount
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
             // set PMT threshold 0
             imod = imod_fem;
             ichip = 3;
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_thresh0 + (threshold0 << 16); // set threshold 0
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_thresh0 + (threshold0.at(ik) << 16); // set threshold 0
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -254,7 +258,7 @@ namespace light_fem {
             //    if (ik==hg_ch) buffers.buf_send[0]=(imod<<11)+(ichip<<8)+mb_feb_pmt_thresh1+(threshold1hg<<16);
             //    else if (ik==lg_ch) buffers.buf_send[0]=(imod<<11)+(ichip<<8)+mb_feb_pmt_thresh1+(threshold1lg<<16);
             //    else
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_thresh1 + (threshold1 << 16); // set threshold 1
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_thresh1 + (threshold1.at(ik) << 16); // set threshold 1
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
@@ -282,7 +286,7 @@ namespace light_fem {
             //    if (ik==hg_ch) buffers.buf_send[0]=(imod<<11)+(ichip<<8)+mb_feb_pmt_deadtime+(pmt_deadtimehg<<16);  // set pmt dead timr
             //    else if (ik==lg_ch) buffers.buf_send[0]=(imod<<11)+(ichip<<8)+mb_feb_pmt_deadtime+(pmt_deadtimelg<<16);
             //    else
-            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_deadtime + (pmt_deadtime << 16);
+            buffers.buf_send[0] = (imod << 11) + (ichip << 8) + hw_consts::mb_feb_pmt_deadtime + (pmt_deadtime.at(ik) << 16);
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);

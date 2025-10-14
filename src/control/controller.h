@@ -101,7 +101,7 @@ namespace controller {
         json LoadConfig(const std::string &config_file);
         bool PersistRunId();
         bool JoinDataThread();
-        bool SetConfigFromComm(json& config, const std::vector<int32_t> &config_vec, size_t skip_words);
+        json SetConfigFromComm(json& config, const std::vector<int32_t> &config_vec, size_t skip_words);
 
         // TCPConnection tcp_connection_;
         TCPConnection command_client_;
