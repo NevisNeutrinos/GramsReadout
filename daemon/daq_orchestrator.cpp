@@ -246,18 +246,19 @@ void GetComputerStatus(quill::Logger *logger) {
     // Define the scaling factor for load averages if not readily available
     // Usually it's (1 << SI_LOAD_SHIFT), and SI_LOAD_SHIFT is typically 16
     // constexpr double LOAD_SCALE = 65536.0; // 2^16
+    auto data_basedir = std::string(std::getenv("DATA_BASE_DIR"));
     constexpr unsigned long long GB_divisor = 1024 * 1024 * 1024;
 
     try {
         struct statfs data_disk_info{};
-        if (statfs("/home/pgrams/data", &data_disk_info) == 0) {
+        if (statfs(data_basedir.c_str(), &data_disk_info) == 0) {
             const auto free_space = static_cast<unsigned long>(data_disk_info.f_bavail * data_disk_info.f_frsize);
             g_daq_monitor.setTpcDisk(free_space / GB_divisor);
         } else {
             QUILL_LOG_ERROR(logger, "Failed to get data disk space with error {}", strerror(errno));
         }
         struct statfs tof_data_disk_info{};
-        if (statfs("/home/pgrams/data/tof_data", &tof_data_disk_info) == 0) {
+        if (statfs((data_basedir + "/tof_data").c_str(), &tof_data_disk_info) == 0) {
             const auto free_space = static_cast<unsigned long>(tof_data_disk_info.f_bavail * tof_data_disk_info.f_frsize);
             g_daq_monitor.setTofDisk(free_space / GB_divisor);
         } else {
