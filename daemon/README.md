@@ -47,3 +47,8 @@ Apr 17 08:16:53 sabertooth-01 daq_orchestrator[1673358]: 08:16:53.039011860 [167
 Apr 17 08:16:53 sabertooth-01 daq_orchestrator[1673358]: 08:16:53.039191856 [1673358] daq_orchestrator.cpp:269     LOG_INFO      readout_logger Service running. Waiting for termination signal...
 Apr 17 08:16:56 sabertooth-01 daq_orchestrator[1673358]: Connection timed out.
 ```
+
+To view the updating log you can run the following command,
+```
+sudo journalctl -u daq_orchestrator.service -f
+```

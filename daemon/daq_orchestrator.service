@@ -12,6 +12,8 @@ Type=simple
 # Since we don't have access to environment variables list them here
 Environment="TPC_DAQ_BASEDIR=/home/???/GramsReadout" "DATA_BASE_DIR=/??/data"
 
+# Make sure the PCIe driver kernel module is loaded and initialized at boot
+ExecStartPre=${TPC_DAQ_BASEDIR}/scripts/setup_windriver.sh
 # Path to the compiled, installed executable
 ExecStart=/usr/local/bin/daq_orchestrator
 
@@ -51,7 +53,7 @@ StandardError=journal
 # NoNewPrivileges=true      # Prevents escalation of privileges
 # CapabilityBoundingSet=~CAP_SYS_ADMIN CAP_NET_ADMIN # Drop unnecessary capabilities
 # ReadWritePaths=/var/lib/my_controller # Allow writing only to specific paths if needed
-
+i
 [Install]
 # Enable the service to start on boot for multi-user target
 WantedBy=multi-user.target
