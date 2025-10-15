@@ -42,6 +42,7 @@ namespace pcie_int {
         // FreeDmaContigBuffers(); // moved to DataHandler
 
         if (buffer_info_struct_send_->dma_buff) {
+            std::cout << "Freeing Send DMA buffer.." << std::endl;
             if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct_send_->dma_buff) != WD_STATUS_SUCCESS) {
                 std::cerr << "DMA SEND Buffer close failed" << std::endl;
                 std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
@@ -49,6 +50,7 @@ namespace pcie_int {
             buffer_info_struct_send_->dma_buff = nullptr;
         }
         if (buffer_info_struct_recv_->dma_buff) {
+            std::cout << "Freeing Receive DMA buffer.." << std::endl;
             if(GRAMSREADOUT_DmaBufUnlock(buffer_info_struct_recv_->dma_buff) != WD_STATUS_SUCCESS) {
                 std::cerr << "DMA RECV Buffer close failed" << std::endl;
                 std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
@@ -57,6 +59,7 @@ namespace pcie_int {
         }
 
         if (dev_handle_1) {
+            std::cout << "Freeing Dev Handle 1.." << std::endl;
             if (!GRAMSREADOUT_DeviceClose(dev_handle_1)) {
                 std::cerr << "Device 1 close failed" << std::endl;
                 std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
@@ -64,6 +67,7 @@ namespace pcie_int {
         }
 
         if (dev_handle_2) {
+            std::cout << "Freeing Dev Handle 2.." << std::endl;
             if (!GRAMSREADOUT_DeviceClose(dev_handle_2)) {
                 std::cerr << "Device 2 close failed" << std::endl;
                 std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
@@ -73,6 +77,7 @@ namespace pcie_int {
         // Uninitialize the Windriver library but ONLY if it is already initialized.
         // If not we mess up WinDriver's library instance tracking
         if (is_initialized_) {
+            std::cout << "Uninitializing Driver Library.." << std::endl;
             if (WD_STATUS_SUCCESS != GRAMSREADOUT_LibUninit()) {
                 std::cerr << "GRAMSREADOUT_LibUninit() failed:" << std::endl;
                 std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
@@ -103,10 +108,18 @@ namespace pcie_int {
         dev_handle_2 = GRAMSREADOUT_DeviceOpen(vendor_id, dev2);
 
         if (!dev_handle_1 || !dev_handle_2) {
+            std::cout << "Dev Handle 1: " << dev_handle_1 << " Dev Handle 2: " << dev_handle_2 << std::endl;
+            std::cout << "Addr: Dev Handle 1: " << &dev_handle_1 << " Dev Handle 2: " << &dev_handle_2 << std::endl;
             std::cerr << "Failed to open PCIe devices.." << std::endl;
             std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
-            if (dev_handle_1) GRAMSREADOUT_DeviceClose(dev_handle_1);
-            if (dev_handle_2) GRAMSREADOUT_DeviceClose(dev_handle_2);
+            if (dev_handle_1) {
+                GRAMSREADOUT_DeviceClose(dev_handle_1);
+                dev_handle_1 = nullptr;
+            }
+            if (dev_handle_2) {
+                GRAMSREADOUT_DeviceClose(dev_handle_2);
+                dev_handle_2 = nullptr;
+            }
             GRAMSREADOUT_LibUninit();
             return 0x5;
         }
