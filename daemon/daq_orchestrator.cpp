@@ -405,6 +405,21 @@ void RebootComputer() {
     }
 }
 
+void InitPcieDriver() {
+    // Returns null if not found
+    auto readout_basedir = std::string(std::getenv("TPC_DAQ_BASEDIR"));
+    if (readout_basedir.data() == nullptr) {
+        std::cerr << "Could not find env variable TPC_DAQ_BASEDIR " << std::endl;
+        return;
+    }
+
+    int ret = std::system((readout_basedir + "/scripts/setup_windriver.sh").c_str());
+    if (ret != 0) {
+        std::cerr << "PCIe Init failed with code: " << ret << "\n";
+        // FIXME raise error flag here
+    }
+}
+
 void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_ptr<TCPConnection> &status_client_ptr,
                 asio::io_context &io_ctx, quill::Logger *logger) {
 
@@ -452,11 +467,17 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 break;
             } case to_u16(CommunicationCodes::ORC_Exec_CPU_Restart): {
                 // FIXME add shutdown DAQ here
+                QUILL_LOG_INFO(logger, "Rebooting DAQ Computer!");
                 RebootComputer();
                 break;
             } case to_u16(CommunicationCodes::ORC_Exec_CPU_Shutdown): {
                 // FIXME add shutdown DAQ here
-                ShutdownComputer();
+                QUILL_LOG_INFO(logger, "Shutting down DAQ Computer!");
+                // ShutdownComputer();
+                break;
+            } case to_u16(CommunicationCodes::ORC_Init_PCIe_Driver): {
+                QUILL_LOG_INFO(logger, "Initializing PCIe Driver!");
+                InitPcieDriver();
                 break;
             }
             // TODO add case for booting _all_ DAQ (status msg shows if they are running)
