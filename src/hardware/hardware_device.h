@@ -12,6 +12,7 @@
 #include "quill/sinks/ConsoleSink.h"
 #include "pcie_interface.h"
 #include "hardware_constants.h"
+#include "tpc_readout_monitor.h"
 #include "json.hpp"
 
 using json = nlohmann::json;
@@ -29,7 +30,8 @@ class HardwareDevice {
     *
     * @return  Returns true on successful configuration, false on failure.
     */
-    virtual bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) = 0;
+    virtual uint32_t Configure(json &config, pcie_int::PCIeInterface *pcie_interface,
+                               pcie_int::PcieBuffers &buffers) = 0;
 
     /**
     *  Abstract method to get status of the respective hardware.

@@ -14,7 +14,7 @@ namespace light_fem {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
     }
 
-    bool LightFem::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
+    uint32_t LightFem::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
         static long imod, ichip;
         static uint32_t i, k, ik, is;
         static int nword;
@@ -24,57 +24,97 @@ namespace light_fem {
         static int a_id;
 
         static int imod_fem;
-        static int imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
-        static int imod_st2  = config["crate"]["last_charge_slot"].get<int>();  //st2 corresponds to last tpc slot (farthest to XMIT)
-        static int imod_pmt  = config["crate"]["light_fem_slot"].get<int>();
+        static int imod_st1 = 0;
+        static int imod_st2 = 0;
+        static int imod_pmt = 0;
+        std::string trig_src{};
+        static int mode = -1;
+        std::string data_basedir{};
+        std::string fw_file{};
+        static int pmt_words = 0;
+        std::vector<int> pmt_deadtime;
+        std::vector<int> threshold0;
+        static int threshold2;
+        std::vector<int> threshold1;
+        static int threshold3 = 0;
 
-        std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
-        static int mode = (trig_src == "external") || (trig_src == "software") ? 0 : 3;
+        static int pmt_gate_size = 0;
+        static int pmt_beam_size = 0;
+        static int cos_thres = 0;
+        static int cos_mult = 0;
+        static int pmt_beam_delay = 4;
+        static int pmt_delay_0 = 4;
+        static int pmt_delay_1 = 4;
+        std::vector<int> pmt_precount{NUM_LIGHT_CHANNELS, 2};
+        static int pmt_width = 7;
+        static int pmt_window = 4;
+        static int michel_thres = 4095;
+        static int michel_mult = 100;
+        static int beam_thres = 4095;
+        static int beam_mult = 100;
 
-        const auto data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
-        std::string fw_file = data_basedir + "/" + config["light_fem"]["fpga_bitfile"].get<std::string>();
+        uint32_t en_top = 0xFFFF;
+        uint32_t en_upper = 0xFFFF;
+        uint32_t en_lower = 0xFFFF;
+        uint32_t pmt_blocksize = 0xFFFF;
 
-        /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ LIGHT FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+        try {
 
-        imod_fem = imod_pmt;
+            imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
+            imod_st2  = config["crate"]["last_charge_slot"].get<int>();  //st2 corresponds to last tpc slot (farthest to XMIT)
+            imod_pmt  = config["crate"]["light_fem_slot"].get<int>();
 
-        static int pmt_words = config["light_fem"]["sipm_words"].get<int>();
-        // static int pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<int>();
-        std::vector<int> pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<std::vector<int>>();
-        // static int threshold0 = config["light_fem"]["channel_thresh0"].get<int>();
-        std::vector<int> threshold0 = config["light_fem"]["channel_thresh0"].get<std::vector<int>>();
-        static int threshold2 = config["light_fem"]["channel_thresh2"].get<int>();
-        // static int threshold1 = config["light_fem"]["channel_thresh1"].get<int>();
-        std::vector<int> threshold1 = config["light_fem"]["channel_thresh1"].get<std::vector<int>>();
-        static int threshold3 = config["light_fem"]["channel_thresh3"].get<int>();
+            trig_src = config["trigger"]["trigger_source"].get<std::string>();
+            mode = (trig_src == "external") || (trig_src == "software") ? 0 : 3;
 
-        /////////////////////////////////////////////////
+            data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
+            fw_file = data_basedir + "/" + config["light_fem"]["fpga_bitfile"].get<std::string>();
 
-        static int pmt_gate_size = config["light_fem"]["pmt_gate_size"].get<int>();
-        static int pmt_beam_size = config["light_fem"]["pmt_beam_size"].get<int>();
+            /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ LIGHT FEM BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
-        static int cos_thres = config["light_fem"]["cosmic_summed_adc_thresh"].get<int>();
-        static int cos_mult = config["light_fem"]["cosmic_multiplicity"].get<int>();
+            imod_fem = imod_pmt;
 
-        static int pmt_beam_delay = config["light_fem"]["pmt_beam_delay"].get<int>();
-        static int pmt_delay_0 = config["light_fem"]["pmt_delay_0"].get<int>();
-        static int pmt_delay_1 = config["light_fem"]["pmt_delay_1"].get<int>();
-        // static int pmt_precount = config["light_fem"]["pmt_precount"].get<int>();
-        std::vector<int> pmt_precount = config["light_fem"]["pmt_precount"].get<std::vector<int>>();
-        static int pmt_width = config["light_fem"]["pmt_width"].get<int>();
+            pmt_words = config["light_fem"]["sipm_words"].get<int>();
+            // static int pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<int>();
+            pmt_deadtime = config["light_fem"]["sipm_deadtime"].get<std::vector<int>>();
+            // static int threshold0 = config["light_fem"]["channel_thresh0"].get<int>();
+            threshold0 = config["light_fem"]["channel_thresh0"].get<std::vector<int>>();
+            threshold2 = config["light_fem"]["channel_thresh2"].get<int>();
+            // static int threshold1 = config["light_fem"]["channel_thresh1"].get<int>();
+            threshold1 = config["light_fem"]["channel_thresh1"].get<std::vector<int>>();
+            threshold3 = config["light_fem"]["channel_thresh3"].get<int>();
 
-        static int pmt_window = config["light_fem"]["pmt_window"].get<int>();
+            /////////////////////////////////////////////////
 
-        static int michel_thres = config["light_fem"]["michel_summed_adc_thresh"].get<int>();
-        static int michel_mult = config["light_fem"]["michel_multiplicity"].get<int>();
+            pmt_gate_size = config["light_fem"]["pmt_gate_size"].get<int>();
+            pmt_beam_size = config["light_fem"]["pmt_beam_size"].get<int>();
 
-        static int beam_thres = config["light_fem"]["beam_summed_adc_thresh"].get<int>();
-        static int beam_mult = config["light_fem"]["beam_multiplicity"].get<int>();
+            cos_thres = config["light_fem"]["cosmic_summed_adc_thresh"].get<int>();
+            cos_mult = config["light_fem"]["cosmic_multiplicity"].get<int>();
 
-        uint32_t en_top = 0xFFFF; //config["light_fem"]["pmt_enable_top"].get<uint32_t>();
-        uint32_t en_upper = 0xFFFF; //config["light_fem"]["pmt_enable_middle"].get<uint32_t>();
-        uint32_t en_lower = 0xFFFF; //config["light_fem"]["pmt_enable_lower"].get<uint32_t>();
-        uint32_t pmt_blocksize = 0xFFFF; //config["light_fem"]["pmt_blocksize"].get<uint32_t>();
+            pmt_beam_delay = config["light_fem"]["pmt_beam_delay"].get<int>();
+            pmt_delay_0 = config["light_fem"]["pmt_delay_0"].get<int>();
+            pmt_delay_1 = config["light_fem"]["pmt_delay_1"].get<int>();
+            // static int pmt_precount = config["light_fem"]["pmt_precount"].get<int>();
+            pmt_precount = config["light_fem"]["pmt_precount"].get<std::vector<int>>();
+            pmt_width = config["light_fem"]["pmt_width"].get<int>();
+
+            pmt_window = config["light_fem"]["pmt_window"].get<int>();
+
+            michel_thres = config["light_fem"]["michel_summed_adc_thresh"].get<int>();
+            michel_mult = config["light_fem"]["michel_multiplicity"].get<int>();
+
+            beam_thres = config["light_fem"]["beam_summed_adc_thresh"].get<int>();
+            beam_mult = config["light_fem"]["beam_multiplicity"].get<int>();
+
+            en_top = 0xFFFF; //config["light_fem"]["pmt_enable_top"].get<uint32_t>();
+            en_upper = 0xFFFF; //config["light_fem"]["pmt_enable_middle"].get<uint32_t>();
+            en_lower = 0xFFFF; //config["light_fem"]["pmt_enable_lower"].get<uint32_t>();
+            pmt_blocksize = 0xFFFF; //config["light_fem"]["pmt_blocksize"].get<uint32_t>();
+        } catch (const std::exception &e) {
+            LOG_ERROR(logger_, "Failed to read config with error {}", e.what());
+            return TpcReadoutMonitor::ErrorBits::lightfem_get_config;
+        }
 
         /////////////////////////////////////////////////
 
@@ -709,7 +749,7 @@ namespace light_fem {
             LOG_DEBUG(logger_, "----------------------------\n");
 
         }
-        return true;
+        return 0x0;
     }
 
     std::vector<uint32_t> LightFem::GetStatus() {

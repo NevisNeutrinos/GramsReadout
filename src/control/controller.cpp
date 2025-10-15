@@ -356,8 +356,10 @@ namespace controller {
         // Connect to the PCIe bus handle
         const int device_id_0 = config_["controller"]["device_id_0"].get<int>();
         const int device_id_1 = config_["controller"]["device_id_1"].get<int>();
-        if (!pcie_interface_->InitPCIeDevices(device_id_0, device_id_1)) {
+        uint32_t ret = pcie_interface_->InitPCIeDevices(device_id_0, device_id_1);
+        if (ret != 0x0) {
             LOG_ERROR(logger_, "PCIe device initialization failed!");
+            tpc_readout_monitor_.setErrorBitWord(ret);
             return false;
         }
 
@@ -365,12 +367,25 @@ namespace controller {
 
         LOG_INFO(logger_, "PCIe devices initialized!");
         LOG_INFO(logger_, "Initializing hardware...");
-        pcie_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
-        xmit_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
-        light_fem_->Configure(config_, pcie_interface_.get(), *buffers_);
-        charge_fem_->Configure(config_, pcie_interface_.get(), *buffers_);
-        trigger_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
-        data_handler_->Configure(config_);
+        uint32_t ret_value = 0x0;
+        ret_value = pcie_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
+        if (ret_value != 0x0) { tpc_readout_monitor_.setErrorBitWord(ret_value); }
+
+        ret_value = xmit_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
+        if (ret_value != 0x0) { tpc_readout_monitor_.setErrorBitWord(ret_value); }
+
+        ret_value = light_fem_->Configure(config_, pcie_interface_.get(), *buffers_);
+        if (ret_value != 0x0) { tpc_readout_monitor_.setErrorBitWord(ret_value); }
+
+        ret_value = charge_fem_->Configure(config_, pcie_interface_.get(), *buffers_);
+        if (ret_value != 0x0) { tpc_readout_monitor_.setErrorBitWord(ret_value); }
+
+        ret_value = trigger_ctrl_->Configure(config_, pcie_interface_.get(), *buffers_);
+        if (ret_value != 0x0) { tpc_readout_monitor_.setErrorBitWord(ret_value); }
+
+        ret_value = data_handler_->Configure(config_);
+        if (ret_value != 0x0) { tpc_readout_monitor_.setErrorBitWord(ret_value); }
+
         LOG_INFO(logger_, "Configured Hardware! \n");
         is_configured_ = true;
         run_status_.store(true);

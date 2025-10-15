@@ -106,31 +106,31 @@ namespace data_handler {
         }
     }
 
-    bool DataHandler::Configure(json &config) {
-
-        trigger_module_ = config["crate"]["trig_slot"].get<int>();
-        software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
-        num_events_ = config["data_handler"]["num_events"].get<size_t>();
-        metrics_->DmaSize(DMABUFFSIZE);
-        // const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
-        run_number_ = config["data_handler"]["subrun"].get<size_t>();
-        std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
-        ext_trig_ = trig_src == "external" || "light" ? 1 : 0;
-        software_trig_ = trig_src == "software" ? 1 : 0;
-        LOG_INFO(logger_, "Trigger source software [{}] external [{}] \n", software_trig_, ext_trig_);
-
-        LOG_DEBUG(logger_, "\t [{}] DMA loops with [{}] 32b words \n", num_dma_loops_, DATABUFFSIZE / 4);
-
-        data_basedir_ = config["data_handler"]["data_basedir"].get<std::string>();
-        file_count_.store(0);
-        write_file_name_ = data_basedir_ + "/readout_data/pGRAMS_bin_" + std::to_string(run_number_) + "_";
-        pps_sample_period_ = config["data_handler"]["pps_sample_period"].get<int>();
-        LOG_INFO(logger_, "\n Writing files: {}", write_file_name_);
-
-        read_core_id_ = config["data_handler"]["read_core_id"].get<size_t>();
-        write_core_id_ = config["data_handler"]["write_core_id"].get<size_t>();
-
-        return true;
+    uint32_t DataHandler::Configure(json &config) {
+        try {
+            trigger_module_ = config["crate"]["trig_slot"].get<int>();
+            software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
+            num_events_ = config["data_handler"]["num_events"].get<size_t>();
+            metrics_->DmaSize(DMABUFFSIZE);
+            // const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
+            run_number_ = config["data_handler"]["subrun"].get<size_t>();
+            std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
+            ext_trig_ = trig_src == "external" || "light" ? 1 : 0;
+            software_trig_ = trig_src == "software" ? 1 : 0;
+            data_basedir_ = config["data_handler"]["data_basedir"].get<std::string>();
+            file_count_.store(0);
+            write_file_name_ = data_basedir_ + "/readout_data/pGRAMS_bin_" + std::to_string(run_number_) + "_";
+            pps_sample_period_ = config["data_handler"]["pps_sample_period"].get<int>();
+            read_core_id_ = config["data_handler"]["read_core_id"].get<size_t>();
+            write_core_id_ = config["data_handler"]["write_core_id"].get<size_t>();
+            LOG_INFO(logger_, "Trigger source software [{}] external [{}] \n", software_trig_, ext_trig_);
+            LOG_DEBUG(logger_, "\t [{}] DMA loops with [{}] 32b words \n", num_dma_loops_, DATABUFFSIZE / 4);
+            LOG_INFO(logger_, "\n Writing files: {}", write_file_name_);
+        } catch (std::exception &e) {
+            LOG_ERROR(logger_, "Exception while getting DataHandler config, with error {} \n", e.what());
+            return TpcReadoutMonitor::ErrorBits::datahandler_get_config;
+        }
+        return 0x0;
     }
 
     bool DataHandler::SwitchWriteFile() {

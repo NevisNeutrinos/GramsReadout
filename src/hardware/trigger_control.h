@@ -16,7 +16,7 @@ public:
     TriggerControl();
     ~TriggerControl() override = default;
 
-    bool Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers& buffers) override;
+    uint32_t Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) override;
     std::vector<uint32_t> GetStatus() override;
     void StopTrigger(const bool stop_trigger) { is_running_.store(!stop_trigger); }
 

@@ -14,18 +14,28 @@ namespace xmit_control {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
     }
 
-    bool XmitControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
+    uint32_t XmitControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface,
+                                    pcie_int::PcieBuffers &buffers) {
 
         static long imod, ichip;
         static uint32_t i, k, iprint;
         static int nword;
         iprint = 0;
 
-        static int imod_xmit = config["crate"]["xmit_slot"].get<int>();
-        static int imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
+        static int imod_xmit = 0;
+        static int imod_st1 = 0;
+        std::string data_basedir{};
+        std::string fw_file{};
+        try {
+            imod_xmit = config["crate"]["xmit_slot"].get<int>();
+            imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last pmt slot (closest to xmit)
+            data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
+            fw_file = data_basedir + "/" + config["xmit"]["fpga_bitfile"].get<std::string>();
+        } catch (const std::exception &e) {
+            LOG_ERROR(logger_, "Failed to read config with error {}", e.what());
+            return TpcReadoutMonitor::ErrorBits::xmit_get_config;
+        }
 
-        const auto data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
-        std::string fw_file = data_basedir + "/" + config["xmit"]["fpga_bitfile"].get<std::string>();
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ XMIT BOOT  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
@@ -215,7 +225,7 @@ namespace xmit_control {
         LOG_DEBUG(logger_, "mb_xmit_rdstatus 0x{:X}       \n", hw_consts::mb_xmit_rdstatus);
         LOG_DEBUG(logger_, "mb_xmit_rdstatus 0x{:X}       \n", hw_consts::mb_xmit_rdstatus);
 
-        return true;
+        return 0x0;
     }
 
     std::vector<uint32_t> XmitControl::GetStatus() {

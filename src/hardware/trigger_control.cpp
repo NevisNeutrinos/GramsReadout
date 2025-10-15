@@ -14,26 +14,34 @@ namespace trig_ctrl {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
     }
 
-    bool TriggerControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
+    uint32_t TriggerControl::Configure(json &config, pcie_int::PCIeInterface *pcie_interface,
+                                       pcie_int::PcieBuffers &buffers) {
     /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ TRIGGER_SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
         static uint32_t i, k;
         static long imod, ichip;
         static int iframe, itrig_delay;
+        static int iframe_length = 0;
+        int tpc_dead_time = 1;
+        std::string trig_src{};
 
-        software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
-        trigger_module_ = config["crate"]["trig_slot"].get<int>();
-        static int iframe_length = config["readout_windows"]["frame_length"].get<int>();
-        const int tpc_dead_time = config["trigger"]["dead_time"].get<int>();
+        try {
+            software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
+            trigger_module_ = config["crate"]["trig_slot"].get<int>();
+            iframe_length = config["readout_windows"]["frame_length"].get<int>();
+            tpc_dead_time = config["trigger"]["dead_time"].get<int>();
+            trig_src = config["trigger"]["trigger_source"].get<std::string>();
+            prescale_vec_ = config["trigger"]["prescale"].get<std::vector<uint32_t>>();
+        } catch (std::exception &e) {
+            LOG_ERROR(logger_, "Exception while getting trigger config, with error {} \n", e.what());
+            return TpcReadoutMonitor::ErrorBits::trigger_get_config;
+        }
 
-        std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
         //this is either 0x1 (PMT beam) 0x4 (PMT cosmic) or 0x8 (PMT all)
         ext_trig_ = trig_src == "external" ? 1 : 0;
         light_trig_ = trig_src == "light" ? 1 : 0;
         software_trig_ = trig_src == "software" ? 1 : 0;
         static int mask1 = trig_src == "light" ? 0x8 : 0x0;
         static int mask8 = trig_src == "external" ? 0x2 : 0x0;
-
-        prescale_vec_ = config["trigger"]["prescale"].get<std::vector<uint32_t>>();
 
         LOG_INFO(logger_, "Trigger source [{}]", trig_src);
 
@@ -138,7 +146,7 @@ namespace trig_ctrl {
         } else {
             LOG_ERROR(logger_, "Unknown trigger source! {}", trig_src);
         }
-        return true;
+        return 0x0;
     }
 
     std::vector<uint32_t> TriggerControl::GetStatus() {

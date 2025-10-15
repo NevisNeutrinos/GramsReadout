@@ -11,8 +11,8 @@ namespace pcie_control {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
     }
 
-    bool PcieControl::Configure([[maybe_unused]]json &config, pcie_int::PCIeInterface *pcie_interface,
-                                pcie_int::PcieBuffers &buffers) {
+    uint32_t PcieControl::Configure([[maybe_unused]] json &config, pcie_int::PCIeInterface *pcie_interface,
+                                    pcie_int::PcieBuffers &buffers) {
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^ CONTROLLER-PCIE SETTUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^*/
 
         // Initialize Tx for both transcievers
@@ -25,8 +25,8 @@ namespace pcie_control {
 
         pcie_interface->WriteReg32(kDev2, hw_consts::cs_bar, hw_consts::tx_md_reg, 0xfff);
 
-        buffers.psend = buffers.buf_send.data(); //&buf_send[0]; // RUN INITIALIZATION
-        buffers.precv = pcie_int::PcieBuffers::read_array.data(); //&read_array[0];
+        buffers.psend = buffers.buf_send.data();  // RUN INITIALIZATION
+        buffers.precv = pcie_int::PcieBuffers::read_array.data();
 
         buffers.buf_send[0] = 0x0; // INITIALIZE
         buffers.buf_send[1] = 0x0;
@@ -35,10 +35,10 @@ namespace pcie_control {
         uint32_t num_words = 1;
         mode = pcie_interface->PCIeSendBuffer(kDev1, mode, num_words, buffers.psend);
 
-        LOG_INFO(logger_, "1am i: {} \n", mode);
-        LOG_INFO(logger_, "1am psend: 0x{:X} \n", *buffers.psend);
+        LOG_DEBUG(logger_, "1am i: {} \n", mode);
+        LOG_DEBUG(logger_, "1am psend: 0x{:X} \n", *buffers.psend);
 
-        return true;
+        return 0x0;
     }
 
     std::vector<uint32_t> PcieControl::GetStatus() {

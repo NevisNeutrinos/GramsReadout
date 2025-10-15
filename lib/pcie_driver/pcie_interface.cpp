@@ -20,7 +20,7 @@ namespace pcie_int {
                                      buffer_info_struct_recv_(std::make_unique<DmaBuffStruct>()),
                                      buffer_info_struct1(std::make_unique<DmaBuffStruct>()),
                                      buffer_info_struct2(std::make_unique<DmaBuffStruct>()),
-                                     buffer_info_struct_trig(std::make_unique<DmaBuffStruct>()){
+                                     buffer_info_struct_trig(std::make_unique<DmaBuffStruct>()) {
         dev_handle_1 = nullptr;
         dev_handle_2 = nullptr;
         hDev = nullptr;
@@ -82,7 +82,7 @@ namespace pcie_int {
         is_initialized_ = false;
     }
 
-    bool PCIeInterface::InitPCIeDevices(uint32_t dev1, uint32_t dev2) {
+    uint32_t PCIeInterface::InitPCIeDevices(uint32_t dev1, uint32_t dev2) {
 
         // If the PCIe hardware is already initialized we don't, and should not, initialize it again!
         if (is_initialized_) {
@@ -94,7 +94,7 @@ namespace pcie_int {
         if (WD_STATUS_SUCCESS != dwStatus) {
             std::cerr << "GRAMSREADOUT_LibInit() failed!" << std::endl;
             std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
-            return false;
+            return 0x4;
         }
 
         constexpr uint32_t vendor_id = GRAMSREADOUT_DEFAULT_VENDOR_ID;
@@ -102,7 +102,14 @@ namespace pcie_int {
         dev_handle_1 = GRAMSREADOUT_DeviceOpen(vendor_id, dev1);
         dev_handle_2 = GRAMSREADOUT_DeviceOpen(vendor_id, dev2);
 
-        if (!dev_handle_1 || !dev_handle_2) { return false; }
+        if (!dev_handle_1 || !dev_handle_2) {
+            std::cerr << "Failed to open PCIe devices.." << std::endl;
+            std::cerr << std::string(GRAMSREADOUT_GetLastErr()) << std::endl;
+            if (dev_handle_1) GRAMSREADOUT_DeviceClose(dev_handle_1);
+            if (dev_handle_2) GRAMSREADOUT_DeviceClose(dev_handle_2);
+            GRAMSREADOUT_LibUninit();
+            return 0x5;
+        }
 
         std::cout << std::hex;
         std::cout << "Dev Handle 1: " << dev_handle_1 << " Dev Handle 2: " << dev_handle_2 << std::endl;
@@ -114,11 +121,13 @@ namespace pcie_int {
                             CONFIGDMABUFFSIZE, &buffer_info_struct_send_->dma_buff);
         if (WD_STATUS_SUCCESS != dwStatus) {
             printf("Failed locking SEND Contiguous DMA buffer. Error 0x%x - %s\n", dwStatus, Stat2Str(dwStatus));
+            return 0x6;
         }
         dwStatus = WDC_DMAContigBufLock(dev_handle_1, &pbuf_recv_, DMA_FROM_DEVICE,
                             CONFIGDMABUFFSIZE, &buffer_info_struct_recv_->dma_buff);
         if (WD_STATUS_SUCCESS != dwStatus) {
-            printf("Failed locking SEND Contiguous DMA buffer. Error 0x%x - %s\n", dwStatus, Stat2Str(dwStatus));
+            printf("Failed locking RECEIVE Contiguous DMA buffer. Error 0x%x - %s\n", dwStatus, Stat2Str(dwStatus));
+            return 0x6;
         }
         std::cout << "Opened configuration send/receive DMA buffers.." << std::endl;
         buffer_send_ = static_cast<uint32_t*>(pbuf_send_);
@@ -131,7 +140,7 @@ namespace pcie_int {
         }
 
         is_initialized_ = true;
-        return true;
+        return 0x0;
     }
 
     void PCIeInterface::ReadReg32(uint32_t dev_handle, uint32_t addr_space, uint32_t adr_offset, uint32_t *data) {

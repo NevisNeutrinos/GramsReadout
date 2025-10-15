@@ -25,7 +25,7 @@ public:
     ~DataHandler();
 
     void PinThread(std::thread& t, size_t core_id);
-    bool Configure(json &config);
+    uint32_t Configure(json &config);
     void CollectData(pcie_int::PCIeInterface *pcie_interface);
     std::vector<uint32_t> GetStatus();
     bool Reset(size_t run_number);

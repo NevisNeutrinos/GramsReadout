@@ -20,7 +20,7 @@ namespace charge_fem {
     }
 
 
-    bool ChargeFem::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
+    uint32_t ChargeFem::Configure(json &config, pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers &buffers) {
 
         static long imod, ichip;
         static uint32_t i, k, iprint, ik, is;
@@ -29,16 +29,28 @@ namespace charge_fem {
         iprint = 0;
 
         static int imod_fem;
-        static int imod_xmit = config["crate"]["xmit_slot"].get<int>();
-        static int imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last SiPM slot (closest to xmit)
-        static int imod_st2  = config["crate"]["last_charge_slot"].get<int>();  //st2 corresponds to last TPC slot (farthest to XMIT)
-        static int imod_tpc  = config["crate"]["charge_fem_slot"].get<int>();  // tpc slot closest to XMIT
+        static int a_id = 0;
+        static int imod_xmit = 0;
+        static int imod_st1 = 0;
+        static int imod_st2 = 0;
+        static int imod_tpc = 0;
+        static int timesize = 128;
+        std::string data_basedir{};
+        std::string fw_file{};
 
-        static int a_id;
-        static int timesize = config["readout_windows"]["timesize"].get<int>();
+        try {
+            imod_xmit = config["crate"]["xmit_slot"].get<int>();
+            imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last SiPM slot (closest to xmit)
+            imod_st2  = config["crate"]["last_charge_slot"].get<int>();  //st2 corresponds to last TPC slot (farthest to XMIT)
+            imod_tpc  = config["crate"]["charge_fem_slot"].get<int>();  // tpc slot closest to XMIT
+            timesize = config["readout_windows"]["timesize"].get<int>();
+            data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
+            fw_file = data_basedir + "/" + config["charge_fem"]["fpga_bitfile"].get<std::string>();
+        } catch (const std::exception &e) {
+            LOG_ERROR(logger_, "Charge FEM failure to get config with error {}", e.what());
+            return TpcReadoutMonitor::ErrorBits::chargefem_get_config;
+        }
 
-        const auto data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
-        std::string fw_file = data_basedir + "/" + config["charge_fem"]["fpga_bitfile"].get<std::string>();
 
         ///////////////////////////  BOOT CHARGE FEM //////////////////////////////////////////
 
@@ -85,7 +97,7 @@ namespace charge_fem {
 
         // imod_xmit = imod_xmit - 1;
 
-        LOG_DEBUG(logger_, "LIGHT FEB booting done.. \n");
+        LOG_DEBUG(logger_, "CHARGE FEB booting done.. \n");
 
         /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ CHARGE FEM SETUP  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
@@ -494,7 +506,7 @@ namespace charge_fem {
             LOG_DEBUG(logger_, "----------------------------\n");
         }
 
-        return true;
+        return 0x0;
     }
 
     std::vector<uint32_t> ChargeFem::GetStatus() {
