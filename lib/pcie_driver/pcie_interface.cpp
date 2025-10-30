@@ -264,6 +264,9 @@ namespace pcie_int {
         uint32_t iprint = 0;
         uint32_t i = 0;
         uint32_t j = 0;
+        struct timespec req;
+        req.tv_sec = 0; // No whole seconds for short delays
+        req.tv_nsec = 10;
 
         if (mode == 1) {
             for (i = 0; i < nword; i++) {
@@ -342,7 +345,7 @@ namespace pcie_int {
             u32Data = dma_tr1; //0x00100000;
             WDC_WriteAddr32(hDev, dwAddrSpace, dwOffset, u32Data);
             // works in standalone script
-            usleep(50);
+            //usleep(50);
             for (i = 0; i < 20000; i++)
             {
                 dwAddrSpace = 2;
@@ -354,6 +357,7 @@ namespace pcie_int {
                     std::cout << "DMA complete: " << i << std::endl;
                 if ((u32Data & dma_in_progress) == 0)
                     break;
+                nanosleep(&req, NULL);
             }
             WDC_DMASyncIo(buffer_info_struct_send_->dma_buff);
         }
