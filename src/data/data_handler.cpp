@@ -164,6 +164,7 @@ namespace data_handler {
     void DataHandler::CollectData(pcie_int::PCIeInterface *pcie_interface) {
 
         auto write_thread = std::thread(&DataHandler::DataWrite, this);
+        //auto write_thread = std::thread(&DataHandler::FastDataWrite, this);
         auto read_thread = std::thread(&DataHandler::ReadoutDMARead, this, pcie_interface);
 
         // Pin these threads to the specified core
@@ -199,6 +200,39 @@ namespace data_handler {
         trigger_thread.join();
         LOG_DEBUG(logger_, "trigger thread joined... \n");
         LOG_INFO(logger_, "Read, Write and Trigger threads joined... \n");
+    }
+
+    void DataHandler::FastDataWrite() {
+        LOG_INFO(logger_, "Fast Read thread start! \n");
+
+        std::string name = write_file_name_  + std::to_string(file_count_.load()) + ".dat";
+        // 0644 user, group and others read/write permissions
+        fd_ = open(name.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd_ == -1) {
+            LOG_ERROR(logger_, "Failed to open file {} with error {} aborting run! \n", name, std::string(strerror(errno)));
+        }
+
+        std::array<uint32_t, DATABUFFSIZE> word_arr{};
+        while (!stop_write_.load()) {
+            while (data_queue_.read(word_arr)) {
+                write(fd_, word_arr.data(), word_arr.size()*sizeof(uint32_t));
+            } // read buffer loop
+        } // run loop
+
+        // Write any remaining full events in the buffer to file before closing
+        while (!data_queue_.isEmpty()) {
+            data_queue_.read(word_arr);
+            write(fd_, word_arr.data(), word_arr.size()*sizeof(uint32_t));
+        }
+
+        LOG_INFO(logger_, "Ended data write and closing file..\n");
+        // Make sure all data is flushed to file before closing
+        if(fsync(fd_) == -1) {
+            LOG_ERROR(logger_, "Failed to sync data file with error: {} \n", std::string(strerror(errno)));
+        }
+        if(close(fd_) == -1) {
+            LOG_ERROR(logger_, "Failed to close data file with error: {} \n", std::string(strerror(errno)));
+        }
     }
 
     void DataHandler::DataWrite() {
@@ -587,7 +621,7 @@ namespace data_handler {
 
         // while(is_running_.load()) {
         while(is_running_.load()) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(2));
+         std::this_thread::sleep_for(std::chrono::milliseconds(2000));
          pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &trig_data_ctr);
          trig_data_ctr = (trig_data_ctr>>32) & 0xffffff;
          if( (trig_data_ctr_ - trig_data_ctr) < 16 ) {

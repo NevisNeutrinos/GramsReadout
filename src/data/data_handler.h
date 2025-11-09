@@ -38,6 +38,7 @@ private:
     // data_monitor::DataMonitor &metrics_;
     std::shared_ptr<data_monitor::DataMonitor> metrics_;
 
+    void FastDataWrite();
     void DataWrite();
     void ReadoutDMARead(pcie_int::PCIeInterface *pcie_interface);
     void ReadoutViaController(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers);
@@ -82,9 +83,11 @@ private:
     * writes are larger and therefore more efficient (see `EVENTCHUNK` above).
     */
     // Full setup 1 charge FEM 100k and 3 charge FEM 231k
+    // Set this for ~3 event sizes or 900kB DMA buffer equivalent. The config will allocate the DMA buffer
+    // and set how much of the ring buffer to use
     constexpr static size_t EVENTSIZE = 231000; // in bytes
     constexpr static size_t DMABUFFSIZE = static_cast<size_t>(1.3 * EVENTSIZE);
-    constexpr static size_t DATABUFFSIZE = (DMABUFFSIZE / sizeof(uint32_t)); //+ 2 * sizeof(uint32_t);
+    constexpr static size_t DATABUFFSIZE = (DMABUFFSIZE / sizeof(uint32_t));
     constexpr static size_t EVENTBUFFSIZE = DATABUFFSIZE * EVENTCHUNK;
 
     static_assert((DMABUFFSIZE % sizeof(uint32_t)) == 0, "DataHandler DMABUFFSIZE must be a multiple of 4!");
