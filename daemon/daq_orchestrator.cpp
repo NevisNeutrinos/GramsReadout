@@ -310,6 +310,7 @@ void GetComputerStatus(quill::Logger *logger) {
 
 void SendStatus(std::unique_ptr<TCPConnection> &status_client_ptr, quill::Logger *logger) {
     while (g_status_running.load()) {
+        QUILL_LOG_INFO(logger, "Sending status...");
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         GetComputerStatus(logger); // returns vector of 0's on failure
         auto status = g_daq_monitor.serialize();
@@ -536,7 +537,7 @@ int main() {
 
     // 3. Initialize ASIO and Controller
     asio::io_context io_context;
-    size_t num_io_ctx_threads = 3;
+    size_t num_io_ctx_threads = NUM_DAQ * 2 + 2; // one thread for each link (2 links/DAQ + Orchestrator)
     std::thread daq_thread;
     std::unique_ptr<TCPConnection> command_client_ptr;
     std::unique_ptr<TCPConnection> status_client_ptr;
