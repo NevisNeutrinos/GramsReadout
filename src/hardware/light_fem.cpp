@@ -142,7 +142,7 @@ namespace light_fem {
         }
 
         LOG_DEBUG(logger_, "\nReadout parameter definitions:\n");
-        LOG_DEBUG(logger_, "\nThreshold for discr 0 = {} ADC counts\n", threshold0);
+        //LOG_DEBUG(logger_, "\nThreshold for discr 0 = {} ADC counts\n", threshold0);
 
 
         // if ((mode == 3) || (mode == 5) || (mode == 7))

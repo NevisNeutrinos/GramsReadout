@@ -156,24 +156,34 @@ void GetCoreDiskTemp() {
     try {
         int disk = 1;
         std::ifstream hwmon("/sys/class/hwmon/hwmon1/temp" + std::to_string(disk) + "_input");
-        if (!hwmon.is_open()) { std::cerr << "Could not open hwmon" << std::endl; }
+        if (!hwmon.is_open()) {
+            std::cerr << "Could not open hwmon" << std::endl;
+            g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::cpu_temp_status);
+            return;
+        }
         int tempMilli;
         hwmon >> tempMilli;
         // core_disk_temp.at(NUM_CPUS) = static_cast<int>(tempMilli / 1000.0);
         g_daq_monitor.setDiskTemp(static_cast<int>(tempMilli / 1000.0));
     } catch (const std::exception& e) {
         std::cerr << "FATAL: Failed to read Disk temp" << std::endl;
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::cpu_temp_status);
     }
     // Read CPU temperatures
-    for (int i = 0; i < NUM_CPUS; ++i) {
+    for (int i = 0; i < static_cast<int>(NUM_CPUS); ++i) {
         try {
             std::ifstream hwmon("/sys/class/hwmon/hwmon2/temp" + std::to_string(i+1) + "_input");
-            if (!hwmon.is_open()) { std::cerr << "Could not open hwmon" << std::endl; }
+            if (!hwmon.is_open()) {
+                std::cerr << "Could not open hwmon" << std::endl;
+                g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::disk_temp_status);
+                continue;
+            }
             int tempMilli;
             hwmon >> tempMilli;
             core_temp.at(i) = static_cast<int>(tempMilli / 1000.0);
         } catch (const std::exception& e) {
             std::cerr << "FATAL: Failed to read CPU temp" << std::endl;
+            g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::disk_temp_status);
         }
     }
     g_daq_monitor.setCpuTemp(core_temp);
@@ -199,6 +209,7 @@ void GetMemoryStats(quill::Logger *logger) {
         }
     } catch (std::exception& e) {
         QUILL_LOG_ERROR(logger, "Error getting memory stats: {}", e.what());
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::memory_usage_status);
     }
 }
 
@@ -209,6 +220,8 @@ void GetCpuStats(quill::Logger *logger) {
     if (!cpu_stats) {
         g_daq_monitor.setCpuUsage(0);
         QUILL_LOG_ERROR(logger, "Error getting CPU stats: {}", strerror(errno));
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::cpu_usage_status);
+        return;
     }
     double total_cpu1 = cpu_stats->user + cpu_stats->nice;
     double cpu_idle1 = cpu_stats->idle;
@@ -239,6 +252,7 @@ void GetCpuStats(quill::Logger *logger) {
         }
     } catch (std::exception& e) {
         QUILL_LOG_ERROR(logger, "Error getting memory stats: {}", e.what());
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::cpu_usage_status);
     }
 }
 
@@ -256,6 +270,7 @@ void GetComputerStatus(quill::Logger *logger) {
             g_daq_monitor.setTpcDisk(free_space / GB_divisor);
         } else {
             QUILL_LOG_ERROR(logger, "Failed to get data disk space with error {}", strerror(errno));
+            g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::disk_free_status);
         }
         struct statfs tof_data_disk_info{};
         if (statfs((data_basedir + "/tof_data").c_str(), &tof_data_disk_info) == 0) {
@@ -263,6 +278,7 @@ void GetComputerStatus(quill::Logger *logger) {
             g_daq_monitor.setTofDisk(free_space / GB_divisor);
         } else {
             QUILL_LOG_ERROR(logger, "Failed to get TOF data disk space with error {}", strerror(errno));
+            g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::disk_free_status);
         }
         struct statfs main_disk_info{};
         if (statfs("/", &main_disk_info) == 0) {
@@ -270,6 +286,7 @@ void GetComputerStatus(quill::Logger *logger) {
             g_daq_monitor.setSysDisk(free_space / GB_divisor);
         } else {
             QUILL_LOG_ERROR(logger, "Failed to get main disk space with error {}", strerror(errno));
+            g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::disk_free_status);
         }
 
        // Initialize libstatgrab
@@ -281,10 +298,13 @@ void GetComputerStatus(quill::Logger *logger) {
             sg_shutdown();
         } else {
             QUILL_LOG_ERROR(logger, "Failed to Init libstatgrab with error code {}", strerror(errno));
+            g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::cpu_usage_status);
+            g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::memory_usage_status);
         }
         GetCoreDiskTemp();
     } catch (const std::exception& e) {
         QUILL_LOG_ERROR(logger, "Failed to get disk space with exception: {}", e.what());
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::disk_free_status);
     }
 }
 
@@ -356,8 +376,10 @@ void TpcRunController(DAQProcess<controller::Controller> &daq_process, quill::Lo
         }
     } catch (const std::exception& e) {
         QUILL_LOG_CRITICAL(logger, "Exception during Controller initialization phase: {}", e.what());
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::start_tpc_daq);
     } catch (...) {
         QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::start_tpc_daq);
     }
     if (daq_process.daq_ptr) {
         QUILL_LOG_DEBUG(logger, "Resetting controller pointer");
@@ -393,7 +415,7 @@ void ShutdownComputer() {
     int ret = std::system("systemctl shutdown");
     if (ret != 0) {
         std::cerr << "Shutdown command failed with code: " << ret << "\n";
-        // FIXME raise error flag here
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::shutdown_computer);
     }
 }
 
@@ -402,7 +424,7 @@ void RebootComputer() {
     int ret = std::system("systemctl reboot");
     if (ret != 0) {
         std::cerr << "Reboot command failed with code: " << ret << "\n";
-        // FIXME raise error flag here
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::reboot_computer);
     }
 }
 
@@ -411,13 +433,14 @@ void InitPcieDriver() {
     auto readout_basedir = std::string(std::getenv("TPC_DAQ_BASEDIR"));
     if (readout_basedir.data() == nullptr) {
         std::cerr << "Could not find env variable TPC_DAQ_BASEDIR " << std::endl;
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::init_pcie);
         return;
     }
 
     int ret = std::system((readout_basedir + "/scripts/setup_windriver.sh").c_str());
     if (ret != 0) {
         std::cerr << "PCIe Init failed with code: " << ret << "\n";
-        // FIXME raise error flag here
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::init_pcie);
     }
 }
 
@@ -453,12 +476,12 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
             }
             case to_u16(CommunicationCodes::ORC_Boot_All_DAQ): { // start DAQ processes
                 StartDaqProcess(tpc_controller_daq, logger, io_ctx);
-                g_daq_monitor.setTpcDaq();
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc);
                 break;
             }
             case to_u16(CommunicationCodes::ORC_Shutdown_All_DAQ): { // stop DAQ processes
                 StopDaqProcess(tpc_controller_daq, logger);
-                g_daq_monitor.unsetTpcDaq();
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
                 break;
             }
             case to_u16(CommunicationCodes::ORC_Stop_Computer_Status): {
