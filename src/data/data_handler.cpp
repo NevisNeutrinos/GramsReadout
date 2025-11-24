@@ -265,13 +265,12 @@ namespace data_handler {
             while (data_queue_.read(word_arr)) {
                 auto now = std::chrono::high_resolution_clock::now();
                 auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start);
-                if (elapsed.count() >= 4) {
+                if (elapsed.count() >= 1) {
                     const size_t delta_evts = local_event_count - prev_event_count;
                     metrics_->EventDiff(delta_evts);
                     event_diff_.store(delta_evts);
                     prev_event_count = local_event_count;
                     start = now;
-                    metrics_->LoadMetrics();
                 }
                 for (size_t i = 0; i < DATABUFFSIZE; i++) {
                     word = word_arr[i];

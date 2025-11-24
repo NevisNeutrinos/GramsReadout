@@ -88,7 +88,7 @@ private:
     constexpr static size_t EVENTSIZE = 231000; // in bytes
     constexpr static size_t DMABUFFSIZE = static_cast<size_t>(1.3 * EVENTSIZE);
     constexpr static size_t DATABUFFSIZE = (DMABUFFSIZE / sizeof(uint32_t));
-    constexpr static size_t EVENTBUFFSIZE = DATABUFFSIZE * EVENTCHUNK;
+    constexpr static size_t EVENTBUFFSIZE = 2 * DATABUFFSIZE * EVENTCHUNK; // make it twice the expected charge event size to account for light ROIs
 
     static_assert((DMABUFFSIZE % sizeof(uint32_t)) == 0, "DataHandler DMABUFFSIZE must be a multiple of 4!");
 
