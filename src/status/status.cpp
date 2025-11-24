@@ -67,10 +67,13 @@ using json = nlohmann::json;
     }
 
     int32_t Status::GetBoardStatus(int32_t board_number, pcie_int::PCIeInterface *pcie_interface) {
+        //std::vector<int32_t> status;
         auto status = GetFemStatus(board_number, pcie_interface);
         if (status.empty()) return 0;
         // We care about the 16b status word which is the upper 16b of the 32b word
-        return (status.at(0) >> 16) & 0xFFFF;
+        // We want all 32b please..
+        // return (status.at(0) >> 16) & 0xFFFF;
+        return status.at(0) & 0x7FFFFFFF;
     }
 
     std::vector<uint32_t> Status::GetFemStatus(uint32_t board_number, pcie_int::PCIeInterface *pcie_interface) {
