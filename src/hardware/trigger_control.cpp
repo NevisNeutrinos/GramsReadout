@@ -87,6 +87,18 @@ namespace trig_ctrl {
         k = 1;
         i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
+        // Delays for beam gates
+        buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_delay1_size)+((0x0 & 0xFF) << 16); 
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+                                                                                                                 
+        buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_delay2_size)+((0x0 & 0xFF) << 16); 
+        i = 1;
+        k = 1;
+        i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
+
+
         // Set prescale for triggers 0-8
         imod=trigger_module_;
         constexpr uint32_t trig_prescale_offset = hw_consts::mb_trig_prescale0;
@@ -104,15 +116,6 @@ namespace trig_ctrl {
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
-            //        fprintf(outinfo,"trig_mask1 = 0x%x\n",mask1);
-
-
-            // imod = trigger_module_;
-            // buffers.buf_send[0] = (imod << 11) + (hw_consts::mb_trig_prescale1)+(0x0<<16); //set prescale1 0
-            // //        fprintf(outinfo,"trig_prescale1 = 0x%x\n",0x0);
-            // i = 1;
-            // k = 1;
-            // i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);
 
             imod=trigger_module_;
             buffers.buf_send[0]=(imod<<11)+(hw_consts::mb_trig_mask8)+((mask8 & 0xFF) << 16);
