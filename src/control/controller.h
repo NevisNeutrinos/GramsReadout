@@ -21,7 +21,6 @@
 #include "tpc_configs.h"
 #include "communication_codes.h"
 #include "tpc_readout_monitor.h"
-#include "data_monitor.h"
 
 
 namespace controller {
@@ -116,13 +115,6 @@ namespace controller {
         uint32_t run_id_;
         std::atomic_bool is_running_;
         std::atomic_bool run_status_;
-
-        std::unique_ptr<zmq::context_t> context_;
-        std::unique_ptr<zmq::socket_t> socket_;
-        void StartMonitoring();
-        void ShutdownMonitoring();
-        template<typename T>
-        void SendMetrics(T &data, size_t size);
         void  GetEnvVariables();
 
         // data_monitor::DataMonitor &metrics_;

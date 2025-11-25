@@ -6,7 +6,6 @@
 #define DATA_HANDLER_H
 
 #include "pcie_control.h"
-#include "./../lib/monitoring/data_monitor.h"
 #include <atomic>
 #include <cstdio>
 #include <map>
@@ -34,9 +33,6 @@ public:
 
 private:
     trig_ctrl::TriggerControl trigger_{};
-    // The metrics class
-    // data_monitor::DataMonitor &metrics_;
-    std::shared_ptr<data_monitor::DataMonitor> metrics_;
 
     void FastDataWrite();
     void DataWrite();

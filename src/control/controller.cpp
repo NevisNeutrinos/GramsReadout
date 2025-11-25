@@ -17,7 +17,6 @@ namespace controller {
         command_client_(io_context, ip_address, command_port, is_server, true, false),
         status_client_(status_io_context, ip_address, status_port, is_server, false, true),
         is_configured_(false),
-        enable_monitoring_(false),
         run_id_(0),
         is_running_(is_running),
         run_status_(false) {
@@ -48,10 +47,6 @@ namespace controller {
 
         LOG_DEBUG(logger_, "Set-Up config dump: {} \n", setup_config_.dump());
 
-        // const bool enable_metrics = setup_config_["data_handler"]["enable_metrics"].get<bool>();
-        enable_monitoring_ = setup_config_["controller"]["enable_monitoring"].get<bool>();
-        // metrics_->EnableMonitoring(enable_metrics);
-
         data_handler_ = std::make_unique<data_handler::DataHandler>();
         pcie_ctrl_ = std::make_unique<pcie_control::PcieControl>();
         xmit_ctrl_ = std::make_unique<xmit_control::XmitControl>();
@@ -63,10 +58,6 @@ namespace controller {
         buffers_ = std::make_unique<pcie_int::PcieBuffers>();
 
         LOG_INFO(logger_, "Initialized Controller \n");
-        if (enable_monitoring_) {
-            LOG_INFO(logger_, "Starting Monitoring \n");
-            StartMonitoring();
-        }
     }
 
     Controller::~Controller() {
@@ -86,11 +77,6 @@ namespace controller {
         pcie_ctrl_.reset();
         pcie_interface_.reset();
         buffers_.reset();
-
-        if (enable_monitoring_) {
-            LOG_INFO(logger_, "Starting Monitoring \n");
-            ShutdownMonitoring();
-        }
 
         LOG_INFO(logger_, "Destructed all hardware \n");
         // End logging session and close file
@@ -113,29 +99,6 @@ namespace controller {
         }
         std::cout << "Readout base directory: " << readout_basedir_ << std::endl;
         std::cout << "Data base directory: " << data_basedir_ << std::endl;
-    }
-
-    void Controller::ShutdownMonitoring() {
-        std::cout << "Destructing metrics.. " << std::endl;
-        constexpr int linger_value = 0;
-        // Discard any lingering messages so we can close the socket
-        socket_->setsockopt(ZMQ_LINGER, &linger_value, sizeof(linger_value));
-        socket_->close();
-        context_->close();
-        std::cout << "Closed metric socket.. " << std::endl;
-    }
-
-    void Controller::StartMonitoring() {
-        context_ = std::make_unique<zmq::context_t>(1); // Single I/O thread context
-        socket_ = std::make_unique<zmq::socket_t>(*context_, ZMQ_PUSH); // PUSH socket type
-        socket_->connect("tcp://localhost:1750"); // Connect to the given endpoint
-    }
-
-    template<typename T>
-    void Controller::SendMetrics(T &data, const size_t size) {
-        zmq::message_t message(size);
-        memcpy(message.data(), data.data(), size); // Copy counter to message data
-        socket_->send(message, zmq::send_flags::none); // Send the message
     }
 
     bool Controller::PersistRunId() {
@@ -267,6 +230,7 @@ namespace controller {
             auto& prescales = tpc_configs_.getPrescale();
             // element 2 is the light trigger
             prescales.at(1) = tpc_configs_.getLightTrigPrescale();
+            prescales.at(7) = tpc_configs_.getLightTrigPrescale();
             config["trigger"]["prescale"] = prescales;
 
             // const auto& prescales = tpc_configs_.getPrescale();
@@ -322,6 +286,7 @@ namespace controller {
             config_["light_fem"]["channel_thresh1"] = channel_thresh1;
             // element 2 is the light trigger
             config_["trigger"]["prescale"].at(1) = config_["trigger"]["light_trig_prescale"];
+            config_["trigger"]["prescale"].at(7) = config_["trigger"]["light_trig_prescale"];
         }
 
         // Add the setup config to this so we only have to pass around a single config object
@@ -420,11 +385,6 @@ namespace controller {
             if (!print_status_) {
                 auto tmp_vec = tpc_readout_monitor_.serialize();
                 status_client_.WriteSendBuffer(to_u16(CommunicationCodes::COL_Hardware_Status), tmp_vec);
-                // Get the same metrics but in json string form
-                if (enable_monitoring_) { // for MQTT direct tests, not for flight
-                    auto msg = status_->JsonHandlerStatus(data_handler_.get());
-                    SendMetrics(msg, msg.size());
-                }
             } else {
                 tpc_readout_monitor_.print();
             }

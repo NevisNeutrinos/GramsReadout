@@ -19,7 +19,6 @@ namespace data_handler {
 
     // FIXME, make queue size configurable
     DataHandler::DataHandler() :
-        metrics_(data_monitor::DataMonitor::GetInstance()),
         data_queue_(400),
         trigger_queue_(100),
         num_events_(0),
@@ -33,7 +32,6 @@ namespace data_handler {
 
     DataHandler::~DataHandler() {
         std::cout << "Running DataHandler Destructor" << std::endl;
-        metrics_.reset();
     }
 
     std::map<std::string, size_t> DataHandler::GetMetrics() {
@@ -111,7 +109,6 @@ namespace data_handler {
             trigger_module_ = config["crate"]["trig_slot"].get<int>();
             software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
             num_events_ = config["data_handler"]["num_events"].get<size_t>();
-            metrics_->DmaSize(DMABUFFSIZE);
             // const size_t subrun = config["data_handler"]["subrun"].get<size_t>();
             run_number_ = config["data_handler"]["subrun"].get<size_t>();
             std::string trig_src = config["trigger"]["trigger_source"].get<std::string>();
@@ -157,7 +154,6 @@ namespace data_handler {
         }
 
         LOG_INFO(logger_, "Switched to file: {} fd={}\n", name, fd_);
-        metrics_->NumFiles(file_count_.load());
         return true;
     }
 
@@ -267,7 +263,6 @@ namespace data_handler {
                 auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start);
                 if (elapsed.count() >= 1) {
                     const size_t delta_evts = local_event_count - prev_event_count;
-                    metrics_->EventDiff(delta_evts);
                     event_diff_.store(delta_evts);
                     prev_event_count = local_event_count;
                     start = now;
@@ -304,10 +299,7 @@ namespace data_handler {
                             SwitchWriteFile();
                         }
                         num_recv_mB_.store(num_recv_bytes / 1000000);
-                        metrics_->EventSize(num_words);
                         num_event_chunk_words_.store(num_words);
-                        metrics_->BytesReceived(num_recv_bytes);
-                        metrics_->NumEvents(local_event_count);
                         event_start = false; num_words = 0; event_words = 0; event_chunk = 0;
                     }
                 } // word loop
@@ -335,7 +327,6 @@ namespace data_handler {
 
     void DataHandler::ReadoutDMARead(pcie_int::PCIeInterface *pcie_interface) {
 
-        metrics_->IsRunning(is_running_);
         bool idebug = false;
         bool is_first_event = true;
         static uint32_t iv, r_cs_reg;
@@ -447,7 +438,6 @@ namespace data_handler {
                 }
             } // end dma loop
             dma_loops += 1;
-            metrics_->DmaLoops(dma_loops);
         } // end loop over events
 
         LOG_DEBUG(logger_, "Stopping triggers..\n");
@@ -774,9 +764,6 @@ namespace data_handler {
 
         // Double check the buffer is emptied
         while (!data_queue_.isEmpty()) data_queue_.popFront();
-
-        // Reset the metrics
-        metrics_->ResetMetrics();
 
         run_number_ = run_number;
         write_file_name_ = data_basedir_ + "/readout_data/pGRAMS_bin_" + std::to_string(run_number_) + "_";
