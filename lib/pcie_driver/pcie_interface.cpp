@@ -87,7 +87,7 @@ namespace pcie_int {
         is_initialized_ = false;
     }
 
-    uint32_t PCIeInterface::InitPCIeDevices(uint32_t dev1, uint32_t dev2) {
+    uint32_t PCIeInterface::InitPCIeDevices(uint32_t dev1, uint32_t dev2, int slot_id_0, int slot_id_1) {
 
         // If the PCIe hardware is already initialized we don't, and should not, initialize it again!
         if (is_initialized_) {
@@ -104,8 +104,8 @@ namespace pcie_int {
 
         constexpr uint32_t vendor_id = GRAMSREADOUT_DEFAULT_VENDOR_ID;
 
-        dev_handle_1 = GRAMSREADOUT_DeviceOpen(vendor_id, dev1);
-        dev_handle_2 = GRAMSREADOUT_DeviceOpen(vendor_id, dev2);
+        dev_handle_1 = GRAMSREADOUT_DeviceOpen(vendor_id, dev1, slot_id_0);
+        dev_handle_2 = GRAMSREADOUT_DeviceOpen(vendor_id, dev2, slot_id_1);
 
         if (!dev_handle_1 || !dev_handle_2) {
             std::cout << "Dev Handle 1: " << dev_handle_1 << " Dev Handle 2: " << dev_handle_2 << std::endl;

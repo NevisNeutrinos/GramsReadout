@@ -43,7 +43,7 @@ public:
 
     // Initialize both devices, there should always be two since
     // we assume this is for the Nevis electronics readout.
-    uint32_t InitPCIeDevices(uint32_t dev1, uint32_t dev2);
+    uint32_t InitPCIeDevices(uint32_t dev1, uint32_t dev2, int slot_id_0, int slot_id_1);
 
     bool PCIeDeviceConfigure();
 

@@ -143,13 +143,32 @@ DWORD GRAMSREADOUT_LibUninit(void)
 /* -----------------------------------------------
     Device open/close
    ----------------------------------------------- */
+/* */
+/* Find and open a PCI device
+ *  Adding this to handle slot numbers for the case when the ID
+ * of the PCIe cards are the same.
+ * */
+WDC_DEVICE_HANDLE WDC_DIAG_DeviceFindAndOpenSlot(DWORD dwVendorId,
+    DWORD dwDeviceId, PCHAR pcKpName, const DWORD dwDevCtxSize, DWORD slotNumber)
+{
+    WD_PCI_SLOT slot;
+
+    /* Find device */
+    // Default to slot 1 (not committing slot number version to maintain compatibility)
+    if (!WDC_DIAG_DeviceFind(dwVendorId, dwDeviceId, &slot))
+        return NULL;
+
+    /* Open a device handle */
+    return WDC_DIAG_DeviceOpen(&slot, pcKpName, dwDevCtxSize);
+}
+
 /* Open a device handle */
-WDC_DEVICE_HANDLE GRAMSREADOUT_DeviceOpen(DWORD dwVendorId, DWORD dwDeviceId)
+WDC_DEVICE_HANDLE GRAMSREADOUT_DeviceOpen(DWORD dwVendorId, DWORD dwDeviceId, DWORD slotNumber)
 {
     WDC_DEVICE_HANDLE hDev;
 
-    hDev = WDC_DIAG_DeviceFindAndOpen(dwVendorId,
-        dwDeviceId, KP_GRAMSREADOUT_DRIVER_NAME, sizeof(GRAMSREADOUT_DEV_CTX));
+    hDev = WDC_DIAG_DeviceFindAndOpenSlot(dwVendorId, dwDeviceId, KP_GRAMSREADOUT_DRIVER_NAME,
+                                          sizeof(GRAMSREADOUT_DEV_CTX), slotNumber);
 
     if (!hDev || !DeviceValidate((PWDC_DEVICE)hDev))
         goto Error;

@@ -321,7 +321,15 @@ namespace controller {
         // Connect to the PCIe bus handle
         const int device_id_0 = config_["controller"]["device_id_0"].get<int>();
         const int device_id_1 = config_["controller"]["device_id_1"].get<int>();
-        uint32_t ret = pcie_interface_->InitPCIeDevices(device_id_0, device_id_1);
+        int slot_id_0 = 1, slot_id_1 = 1;
+        if (config_["controller"].contains("slot_id_0") && config_["controller"].contains("slot_id_1")) {
+            if ((config_["controller"]["slot_id_0"].get<int>() > 0) || (config_["controller"]["slot_id_1"].get<int>() > 0)) {
+                slot_id_0 = config_["controller"]["slot_id_0"].get<int>();
+                slot_id_1 = config_["controller"]["slot_id_1"].get<int>();
+            }
+        }
+        LOG_INFO(logger_, "Configuring slot ID 0={} 1={}", slot_id_0, slot_id_1);
+        uint32_t ret = pcie_interface_->InitPCIeDevices(device_id_0, device_id_1, slot_id_0, slot_id_1);
         if (ret != 0x0) {
             LOG_ERROR(logger_, "PCIe device initialization failed!");
             tpc_readout_monitor_.setErrorBitWord(ret);

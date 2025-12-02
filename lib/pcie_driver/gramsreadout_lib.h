@@ -101,7 +101,9 @@ DWORD GRAMSREADOUT_LibUninit(void);
     Device open/close
    ----------------------------------------------- */
 /* Open a device handle */
-WDC_DEVICE_HANDLE GRAMSREADOUT_DeviceOpen(DWORD dwVendorId, DWORD dwDeviceId);
+WDC_DEVICE_HANDLE WDC_DIAG_DeviceFindAndOpenSlot(DWORD dwVendorId, DWORD dwDeviceId,
+                                                 PCHAR pcKpName, const DWORD dwDevCtxSize, DWORD slotNumber);
+WDC_DEVICE_HANDLE GRAMSREADOUT_DeviceOpen(DWORD dwVendorId, DWORD dwDeviceId, DWORD slotNumber);
 /* Close a device handle */
 BOOL GRAMSREADOUT_DeviceClose(WDC_DEVICE_HANDLE hDev);
 

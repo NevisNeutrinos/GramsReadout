@@ -92,7 +92,8 @@ int main() {
 
     uint32_t dev1 = 5;
     uint32_t dev2 = 4;
-    if (!pcie_interface.InitPCIeDevices(dev1, dev2)) {
+    // Setting the slot ID to 1 essentially ignores it
+    if (!pcie_interface.InitPCIeDevices(dev1, dev2, 1, 1)) {
         std::cerr << "PCIe device initialization failed!" << std::endl;
         return 1;
     }
