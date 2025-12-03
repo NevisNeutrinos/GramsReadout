@@ -266,7 +266,7 @@ namespace pcie_int {
         uint32_t j = 0;
         struct timespec req;
         req.tv_sec = 0; // No whole seconds for short delays
-        req.tv_nsec = 10;
+        req.tv_nsec = 25;
 
         if (mode == 1) {
             for (i = 0; i < nword; i++) {
