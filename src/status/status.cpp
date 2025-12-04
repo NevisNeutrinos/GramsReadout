@@ -31,11 +31,13 @@ using json = nlohmann::json;
 
         // Collect the data handler metrics
         tpc_monitor.setNumEvents(data_handler_metrics_["num_events"]);
-        tpc_monitor.setEventDiff(data_handler_metrics_["event_diff"]);
         tpc_monitor.setNumDmaLoops(data_handler_metrics_["num_dma_loops"]);
         tpc_monitor.setReceivedMbytes(data_handler_metrics_["mega_bytes_received"]);
         tpc_monitor.setAvgEventSize(data_handler_metrics_["event_size_words"]);
         tpc_monitor.setNumFiles(data_handler_metrics_["num_files"]);
+        tpc_monitor.setNumRwBufferOverflow(data_handler_metrics_["num_rw_buffer_overflow"]);
+        tpc_monitor.setStartMarker(data_handler_metrics_["event_start_markers"]);
+        tpc_monitor.setEndMarker(data_handler_metrics_["event_end_markers"]);
 
         std::vector<int32_t> status_vec;
         if (minimal_status) {

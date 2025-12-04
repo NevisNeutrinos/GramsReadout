@@ -117,6 +117,14 @@ private:
     std::atomic<size_t> num_recv_mB_ = 0;
     std::atomic<size_t> num_event_chunk_words_ = 0;
     std::atomic<size_t> event_diff_ = 0;
+    size_t prev_event_count_ = 0;
+    size_t prev_dma_loop_count_ = 0;
+    std::atomic<uint32_t> num_rw_buffer_overflow_ = 0;
+    std::atomic<size_t> event_start_markers_ = 0;
+    std::atomic<size_t> event_end_markers_ = 0;
+
+
+    std::atomic_bool read_write_buff_overflow_;
 
     // uint32_t data;
     // static unsigned long long u64Data;

@@ -25,6 +25,7 @@ namespace data_handler {
         num_dma_loops_(1),
         num_recv_bytes_(0),
         trig_data_ctr_(0),
+        read_write_buff_overflow_(false),
         file_count_(0),
         stop_write_(false) {
         logger_ = quill::Frontend::create_or_get_logger("readout_logger");
@@ -40,8 +41,15 @@ namespace data_handler {
         metrics["num_files"] = file_count_.load();
         metrics["num_dma_loops"] = dma_loop_count_.load();
         metrics["mega_bytes_received"] = num_recv_mB_.load();
-        metrics["event_diff"] = event_diff_.load();
+        // metrics["event_diff"] = event_count_.load() - prev_event_count_; //redundant
         metrics["event_size_words"] = num_event_chunk_words_.load();
+        metrics["num_rw_buffer_overflow"] = num_rw_buffer_overflow_.load();
+        metrics["event_start_markers"] = event_start_markers_.load();
+        metrics["event_end_markers"] = event_end_markers_.load();
+
+        // Since we poll the metrics every dt we can find the average rate
+        prev_event_count_ = event_count_.load();
+        prev_dma_loop_count_ = dma_loop_count_.load();
 
         return metrics;
     }
@@ -244,7 +252,6 @@ namespace data_handler {
         uint32_t word;
         std::array<uint32_t, DATABUFFSIZE> word_arr{};
         std::array<uint32_t, EVENTBUFFSIZE> word_arr_write{}; // event buffer, ~0.231MB/event
-        size_t prev_event_count = 0;
         bool event_start = false;
         size_t num_words = 0;
         size_t event_words = 0;
@@ -254,19 +261,11 @@ namespace data_handler {
         size_t num_recv_bytes = 0;
         size_t local_event_count = 0;
         event_count_.store(0);
-
-        auto start = std::chrono::high_resolution_clock::now();
+        event_start_markers_.store(0);
+        event_end_markers_.store(0);
 
         while (!stop_write_.load()) {
             while (data_queue_.read(word_arr)) {
-                auto now = std::chrono::high_resolution_clock::now();
-                auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - start);
-                if (elapsed.count() >= 1) {
-                    const size_t delta_evts = local_event_count - prev_event_count;
-                    event_diff_.store(delta_evts);
-                    prev_event_count = local_event_count;
-                    start = now;
-                }
                 for (size_t i = 0; i < DATABUFFSIZE; i++) {
                     word = word_arr[i];
                     if (num_words > word_arr_write.size()) {
@@ -278,10 +277,14 @@ namespace data_handler {
                     if (isEventStart(word)) {
                         if (event_start) num_words = 0; // Previous evt didn't finish, drop partial evt data
                         event_start = true; event_start_count++;
+                        event_start_markers_++;
                     }
                     else if (isEventEnd(word) && event_start) {
                         event_end_count++; event_start = false;
+                        event_end_markers_++;
                         event_chunk++;
+                        local_event_count++;
+                        event_count_.store(local_event_count);
                         event_words = num_words + 1; // add one for event end word
                     }
                     word_arr_write[num_words] = word;
@@ -289,8 +292,6 @@ namespace data_handler {
                     // num_recv_bytes += 4;
                     if (event_chunk == EVENTCHUNK) {
                         if ((local_event_count % 500) == 0) LOG_INFO(logger_, " **** Event: {} \n", local_event_count);
-                        local_event_count += event_chunk;
-                        event_count_.store(local_event_count);
                         const int write_bytes = write(fd_, word_arr_write.data(), num_words*sizeof(uint32_t));
                         if (write_bytes == -1) LOG_WARNING(logger_, "Failed write {} \n", std::string(strerror(errno)));
                         else num_recv_bytes += static_cast<size_t>(write_bytes);
@@ -299,7 +300,7 @@ namespace data_handler {
                             SwitchWriteFile();
                         }
                         num_recv_mB_.store(num_recv_bytes / 1000000);
-                        num_event_chunk_words_.store(num_words);
+                        num_event_chunk_words_.store(num_words / EVENTCHUNK);
                         event_start = false; num_words = 0; event_words = 0; event_chunk = 0;
                     }
                 } // word loop
@@ -337,11 +338,12 @@ namespace data_handler {
         static unsigned long long u64Data;
         static uint32_t *buffp_rec32;
         static std::array<uint32_t, DATABUFFSIZE> word_arr{};
-        size_t dma_loops = 0;
-        size_t num_buffer_full = 0;
 
         pcie_int::DMABufferHandle  pbuf_rec1;
         pcie_int::DMABufferHandle pbuf_rec2;
+
+        // Init the metric counters
+        dma_loop_count_.store(0);
 
          /*TPC DMA*/
         LOG_DEBUG(logger_, "Buffer 1 & 2 allocation size: {} \n", DMABUFFSIZE);
@@ -356,7 +358,7 @@ namespace data_handler {
         }
 
         while(is_running_.load() && event_count_.load() < num_events_) {
-            if (dma_loops % 500 == 0) LOG_INFO(logger_, "=======> DMA Loop [{}] \n", dma_loops);
+            if (dma_loop_count_.load() % 500 == 0) LOG_INFO(logger_, "=======> DMA Loop [{}] \n", dma_loop_count_.load());
             for (iv = 0; iv < 2; iv++) { // note: ndma_loop=1
                 static uint32_t dma_num = (iv % 2) == 0 ? 1 : 2;
                 buffp_rec32 = dma_num == 1 ? static_cast<uint32_t *>(pbuf_rec1) : static_cast<uint32_t *>(pbuf_rec2);
@@ -411,7 +413,8 @@ namespace data_handler {
                     std::memcpy(word_arr.data(), buffp_rec32, num_read);
                     data_queue_.write(word_arr);
                     if (data_queue_.isFull()) {
-                        num_buffer_full++;
+                        read_write_buff_overflow_.store(true);
+                        num_rw_buffer_overflow_++;
                         LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
                     }
                     ClearDmaOnAbort(pcie_interface, &u64Data, kDev2);
@@ -433,11 +436,12 @@ namespace data_handler {
                 std::memcpy(word_arr.data(), buffp_rec32, DMABUFFSIZE);
                 data_queue_.write(word_arr);
                 if (data_queue_.isFull()) {
-                    num_buffer_full++;
+                    read_write_buff_overflow_.store(true);
+                    num_rw_buffer_overflow_++;
                     LOG_ERROR(logger_, "Data read/write queue is full! This is unexpected! \n");
                 }
             } // end dma loop
-            dma_loops += 1;
+            dma_loop_count_++;
         } // end loop over events
 
         LOG_DEBUG(logger_, "Stopping triggers..\n");
@@ -451,7 +455,7 @@ namespace data_handler {
         LOG_DEBUG(logger_, "Stopping run and freeing pointer \n");
         stop_write_.store(true);
 
-        if (num_buffer_full > 0) LOG_WARNING(logger_, "Buffer full: [{}]\n", num_buffer_full);
+        if (num_rw_buffer_overflow_.load() > 0) LOG_WARNING(logger_, "Buffer full: [{}]\n", num_rw_buffer_overflow_.load());
 
         // Since the two PCIe buffer handles are scoped to this function, free the buffer before
         // they go out of scope
@@ -460,7 +464,7 @@ namespace data_handler {
             LOG_ERROR(logger_, "Failed freeing DMA buffers! \n");
         }
 
-        LOG_INFO(logger_, "Finished read with {} DMA loops \n", dma_loops);
+        LOG_INFO(logger_, "Finished read with {} DMA loops \n", dma_loop_count_.load());
     }
 
     void DataHandler::ReadoutViaController(pcie_int::PCIeInterface *pcie_interface, pcie_int::PcieBuffers *buffers) {
@@ -522,11 +526,15 @@ namespace data_handler {
                 for (size_t i = 0; i < 5; i++) pcie_int::PcieBuffers::read_array[i] = 0;
                 buffers->precv = pcie_int::PcieBuffers::read_array.data();
                 pcie_interface->PCIeRecvBuffer(kDev1, 0, 2, nword, 1, buffers->precv);
-                if (print) printf("receive data word = %x, %x, %x, %x, %x, %x\n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1], pcie_int::PcieBuffers::read_array[2], pcie_int::PcieBuffers::read_array[3], pcie_int::PcieBuffers::read_array[4], pcie_int::PcieBuffers::read_array[5]);
+                if (print) printf("receive data word = %x, %x, %x, %x, %x, %x\n",
+                    pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1], pcie_int::PcieBuffers::read_array[2],
+                    pcie_int::PcieBuffers::read_array[3], pcie_int::PcieBuffers::read_array[4], pcie_int::PcieBuffers::read_array[5]);
                 // For some reason the first read is garbage so read once before
                 // if (t < 5) continue;
 
-                if (print) printf("receive data word = %x, %x, %x, %x, %x, %x\n", pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1], pcie_int::PcieBuffers::read_array[2], pcie_int::PcieBuffers::read_array[3], pcie_int::PcieBuffers::read_array[4], pcie_int::PcieBuffers::read_array[5]);
+                if (print) printf("receive data word = %x, %x, %x, %x, %x, %x\n",
+                    pcie_int::PcieBuffers::read_array[0], pcie_int::PcieBuffers::read_array[1], pcie_int::PcieBuffers::read_array[2],
+                    pcie_int::PcieBuffers::read_array[3], pcie_int::PcieBuffers::read_array[4], pcie_int::PcieBuffers::read_array[5]);
                 if (print) {
                     printf(" header word %x \n",(pcie_int::PcieBuffers::read_array[0] & 0xFFFF));
                     uint32_t k = (pcie_int::PcieBuffers::read_array[0] >> 16) & 0xFFF;
