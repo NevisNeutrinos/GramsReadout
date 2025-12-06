@@ -6,6 +6,7 @@
 #include "tcp_protocol.h"
 #include "daq_comp_monitor.h"
 #include "communication_codes.h"
+#include "../ReadoutDataMonitor/src/common/data_monitor.h"
 
 #include <asio.hpp>
 #include "quill/Backend.h"
@@ -39,13 +40,17 @@
 // For simplicity, using constants here. Consider systemd Environment= directive.
 
 //const char* kControllerIp = "192.168.1.100";  // Readout software IP
-const char* kControllerIp = "127.0.0.1";  // Readout software IP
+const char* kControllerIp = "10.44.45.96";  // Readout software IP
 const uint16_t kControllerCommandPort = 50003; // Readout software port, for commands
 const uint16_t kControllerStatusPort = 50002; // Readout software port, for status
 
-const char* kDaemonIp = "127.0.0.1";  // Daemon software IP
+const char* kDaemonIp = "10.44.45.96";  // Daemon software IP
 const uint16_t kDaemonCommandPort = 50001; // Daemon software port, for commands
 const uint16_t kDaemonStatusPort = 50000; // Daemon software port, for status
+
+const char* kMonitorIp = "10.44.45.96";  // Daemon software IP
+const uint16_t kMonitorCommandPort = 50005; // Daemon software port, for commands
+const uint16_t kMonitorStatusPort = 50004; // Daemon software port, for status
 
 const size_t NUM_DAQ = 3; // Number of DAQ processes
 
@@ -388,6 +393,34 @@ void TpcRunController(DAQProcess<controller::Controller> &daq_process, quill::Lo
     }
 }
 
+void RunTpcMonitorController(DAQProcess<data_monitor::DataMonitor> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
+
+    try {
+        QUILL_LOG_DEBUG(logger, "Starting data monitor initialization...");
+        // FIXME add status io context
+        daq_process.daq_ptr = std::make_unique<data_monitor::DataMonitor>(io_context, kMonitorIp,
+                                                            kMonitorCommandPort, kMonitorStatusPort, false, true);
+
+        try {
+            daq_process.daq_ptr->SetRunning(true);
+        } catch (const std::exception& e) {
+            QUILL_LOG_CRITICAL(logger, "Exception in DataMonitor::Run(): {}", e.what());
+        } catch (...) {
+            QUILL_LOG_CRITICAL(logger, "Unknown exception in DataMonitor::Run()");
+        }
+    } catch (const std::exception& e) {
+        QUILL_LOG_CRITICAL(logger, "Exception during DataMonitor initialization phase: {}", e.what());
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::start_tpc_dm);
+    } catch (...) {
+        QUILL_LOG_CRITICAL(logger, "Unknown exception during DataMonitor initialization phase.");
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::start_tpc_dm);
+    }
+    if (daq_process.daq_ptr) {
+        QUILL_LOG_DEBUG(logger, "Resetting DataMonitor pointer");
+        daq_process.daq_ptr.reset();
+    }
+}
+
 template<typename DAQ>
 void StartDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger, asio::io_context &io_context) {
     if (daq_process.daq_thread.joinable()) {
@@ -457,9 +490,8 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     DAQProcess<controller::Controller> tpc_controller_daq;
     tpc_controller_daq.run_function = TpcRunController;
     /** TPC & SiPM Data Monitor Controller */
-    // DAQProcess<controller::Controller> tpc_monitor_controller_daq;
-    // tpc_monitor_controller_daq.use_io_ctx = true;
-    // tpc_monitor_controller_daq.run_function = RunTpcMonitorController;
+    DAQProcess<data_monitor::DataMonitor> tpc_monitor_controller_daq;
+    tpc_monitor_controller_daq.run_function = RunTpcMonitorController;
 
     while (g_running.load()) {
         QUILL_LOG_DEBUG(logger, "Waiting for command...");
@@ -475,12 +507,12 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 }
                 break;
             }
-            case to_u16(CommunicationCodes::ORC_Boot_All_DAQ): { // start DAQ processes
+            case to_u16(CommunicationCodes::ORC_Boot_All_DAQ): { // start DAQ processes TODO add monitor!
                 StartDaqProcess(tpc_controller_daq, logger, io_ctx);
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc);
                 break;
             }
-            case to_u16(CommunicationCodes::ORC_Shutdown_All_DAQ): { // stop DAQ processes
+            case to_u16(CommunicationCodes::ORC_Shutdown_All_DAQ): { // stop DAQ processes TODO add monitor!
                 StopDaqProcess(tpc_controller_daq, logger);
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
                 break;
@@ -503,6 +535,14 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
             } case to_u16(CommunicationCodes::ORC_Init_PCIe_Driver): {
                 QUILL_LOG_INFO(logger, "Initializing PCIe Driver!");
                 InitPcieDriver();
+                break;
+            } case to_u16(CommunicationCodes::ORC_Boot_Monitor): {
+                StartDaqProcess(tpc_monitor_controller_daq, logger, io_ctx);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor);
+                break;
+            } case to_u16(CommunicationCodes::ORC_Shutdown_Monitor): {
+                StopDaqProcess(tpc_monitor_controller_daq, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
                 break;
             }
             // TODO add case for booting _all_ DAQ (status msg shows if they are running)
@@ -534,6 +574,7 @@ int main() {
     QUILL_LOG_INFO(logger, "Daemon IP: {}, Cmd Port: [{}], Status Port: [{}]", kDaemonIp, kDaemonCommandPort, kDaemonStatusPort);
     QUILL_LOG_INFO(logger, "Controller IP: {}, Cmd Port: [{}], Status Port: [{}]", kControllerIp,
                                                                         kControllerCommandPort, kControllerStatusPort);
+    QUILL_LOG_INFO(logger, "Data Monitor IP: {}, Cmd Port: [{}], Status Port: [{}]", kMonitorIp, kMonitorCommandPort, kMonitorStatusPort);
 
     // 3. Initialize ASIO and Controller
     asio::io_context io_context;

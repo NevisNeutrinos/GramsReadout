@@ -10,3 +10,6 @@
 [submodule "PGramsCommCodec"]
 	path = PGramsCommCodec
 	url = https://github.com/NevisNeutrinos/PGramsCommCodec.git
+[submodule "ReadoutDataMonitor"]
+	path = ReadoutDataMonitor
+	url = https://github.com/NevisNeutrinos/ReadoutDataMonitor.git
