@@ -18,6 +18,15 @@ add_subdirectory(networking)
 add_subdirectory(PGramsCommCodec)
 add_subdirectory(ReadoutDataMonitor)
 
+set(TOFLIB_INCLUDE_DIR $ENV{HOME}/tof_readout/include)
+set(TOFLIB_LIBRARY $ENV{HOME}/tof_readout/dev/grams-tof-library/00build/00install/lib/libGramsTofDaqdLib.so)
+if (EXISTS "${TOFLIB_INCLUDE_DIR}/")
+    message(STATUS "Found TOF DAQ headers at ${TOFLIB_INCLUDE_DIR}")
+    message(STATUS "Found TOF DAQ library at ${TOFLIB_LIBRARY}")
+else ()
+    message(STATUS "Could not find TOF DAQ library!")
+endif ()
+
 include_directories(/usr/include)
 include_directories(networking
                     src/control
@@ -98,6 +107,8 @@ add_executable(daq_orchestrator daemon/daq_orchestrator.cpp)
 
 target_compile_definitions(daq_orchestrator PUBLIC
         -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
+
+#target_include_directories()
 
 target_link_libraries(daq_orchestrator PRIVATE
         gramsreadout

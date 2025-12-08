@@ -70,7 +70,7 @@ DaqCompMonitor g_daq_monitor{};
 // --- Struct for DAQ processes ---
 template <typename DAQ>
 struct DAQProcess {
-        std::unique_ptr<DAQ> daq_ptr;
+        std::unique_ptr<DAQ> daq_ptr{};
         std::thread daq_thread;
         std::function<void(DAQProcess &daq_process, quill::Logger *logger, asio::io_context &io_context)> run_function;
     };
@@ -340,6 +340,7 @@ void JoinThread(std::thread &thread, quill::Logger *logger) {
 
 bool WaitForThreadJoin(std::thread & thread, quill::Logger *logger) {
     // Join thread with increasing aggressiveness if thread does not join within 2s..
+    // FIXME add try except
     auto fut = std::async(std::launch::async, [&] { JoinThread(thread, logger); });
 
     if (fut.wait_for(std::chrono::seconds(5)) == std::future_status::timeout) {
@@ -440,7 +441,31 @@ void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger) {
         daq_process.daq_ptr.reset(nullptr);
         QUILL_LOG_DEBUG(logger, "Stopped DAQ process..");
     } else {
-        LOG_WARNING(logger, "DAQ process not running!");
+        QUILL_LOG_WARNING(logger, "DAQ process not running!");
+    }
+}
+
+/*
+ * FIXME Add the TOF BOOT / SHUTDOWN functions here
+ */
+
+void StartTofProcess(std::unique_ptr<auto> &tof_ptr, std::thread &tof_thread, quill::Logger *logger) {
+    if (tof_thread.joinable()) {
+        LOG_WARNING(logger, "TOF DAQ controller already running!");
+        return;
+    }
+    QUILL_LOG_DEBUG(logger, "Starting Control thread");
+    // tof_thread = std::thread([&]() {tof_ptr->FUNC(); });
+}
+
+void StopTofProcess(std::unique_ptr<auto> &tof_ptr, std::thread &tof_thread, quill::Logger *logger) {
+    if (tof_ptr) {
+        // What the TOF needs before shutdown
+        WaitForThreadJoin(tof_thread, logger);
+        tof_ptr.reset(nullptr);
+        QUILL_LOG_DEBUG(logger, "Stopped TOF DAQ process..");
+    } else {
+        QUILL_LOG_WARNING(logger, "TOF DAQ process not running!");
     }
 }
 
@@ -483,6 +508,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
 
     // DAQ process threads
     std::vector<std::thread> daq_worker_threads;
+    std::thread tof_thread;
     std::thread status_thread;
 
     // DAQ Processes
@@ -492,6 +518,8 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     /** TPC & SiPM Data Monitor Controller */
     DAQProcess<data_monitor::DataMonitor> tpc_monitor_controller_daq;
     tpc_monitor_controller_daq.run_function = RunTpcMonitorController;
+    /** FIXME add TOF DAQ Controller */
+    // std::unique_ptr<TOF> tof_ptr{};
 
     while (g_running.load()) {
         QUILL_LOG_DEBUG(logger, "Waiting for command...");
@@ -515,6 +543,17 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
             case to_u16(CommunicationCodes::ORC_Shutdown_All_DAQ): { // stop DAQ processes TODO add monitor!
                 StopDaqProcess(tpc_controller_daq, logger);
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
+                break;
+            }
+            case to_u16(CommunicationCodes::ORC_Boot_Tof_Daq): { // FIXME add TOF
+                // StartTofProcess(std::unique_ptr<auto> &tof_ptr, std::thread &tof_thread, quill::Logger *logger)
+                QUILL_LOG_INFO(logger, "Booted TOF DAQ...");
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof);
+                break;
+            } case to_u16(CommunicationCodes::ORC_Shutdown_Tof_Daq): { // FIXME add TOF
+                // StartTofProcess(std::unique_ptr<auto> &tof_ptr, std::thread &tof_thread, quill::Logger *logger)
+                QUILL_LOG_INFO(logger, "Shutdown TOF DAQ...");
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
                 break;
             }
             case to_u16(CommunicationCodes::ORC_Stop_Computer_Status): {
@@ -556,6 +595,8 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     QUILL_LOG_INFO(logger, "Run Daemon stopped, shutting it all down!");
     g_status_running.store(false);
     StopDaqProcess(tpc_controller_daq, logger);
+    StopDaqProcess(tpc_monitor_controller_daq, logger);
+    // StopTofProcess(tof_ptr, tof_thread, logger); // FIXME add TOF
     WaitForThreadJoin(status_thread, logger);
 }
 
