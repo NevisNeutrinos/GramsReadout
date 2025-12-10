@@ -1,0 +1,117 @@
+cmake_minimum_required(VERSION 3.15)
+project(GramsReadout)
+
+set(CMAKE_CXX_STANDARD 17)
+# set(CMAKE_BUILD_TYPE Debug)
+
+# Enable pedantic compile mode
+add_compile_options(-Wall -Wextra -pedantic)
+
+# For Grafana metrics
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZeroMQ REQUIRED libzmq)
+
+# Submodules / libraries
+add_subdirectory(quill)
+add_subdirectory(lib/pcie_driver)
+add_subdirectory(networking)
+add_subdirectory(PGramsCommCodec)
+add_subdirectory(ReadoutDataMonitor)
+
+# TOF DAQ
+if(NOT DEFINED ENV{GLIB})
+    message(FATAL_ERROR "Environment variable GLIB is not set! Please set it to the TOF library install directory, e.g.:\n"
+                        "  export GLIB=\$HOME/work/source/grams-tof-library/00build/00install")
+endif()
+
+set(TOFLIB_INSTALL $ENV{GLIB})
+message(STATUS "Using TOF library install dir: ${TOFLIB_INSTALL}")
+
+find_package(fmt REQUIRED PATHS "${TOFLIB_INSTALL}/lib/cmake/fmt" NO_DEFAULT_PATH)
+set(CMAKE_PREFIX_PATH "${TOFLIB_INSTALL}" ${CMAKE_PREFIX_PATH})
+find_package(GramsTofLibrary REQUIRED)
+include_directories(${GramsTofLibrary_INCLUDE_DIRS})
+
+# -----------------------------
+# Windriver (WD) setup
+# -----------------------------
+if(DEFINED ENV{WD_BASEDIR})
+    set(WD_INCLUDE_DIR "$ENV{WD_BASEDIR}/include")
+    set(WD_LIB_DIR "$ENV{WD_BASEDIR}/lib")
+    message(STATUS "Using Windriver include dir: ${WD_INCLUDE_DIR}")
+    message(STATUS "Using Windriver lib dir: ${WD_LIB_DIR}")
+else()
+    message(FATAL_ERROR "WD_BASEDIR environment variable not set!")
+endif()
+
+# Compiler include directories
+include_directories(
+    /usr/include
+    networking
+    src/control
+    src/hardware
+    src/status
+    lib/pcie_driver
+    lib/folly
+    lib/nlohmann_json
+    PGramsCommCodec/include
+    ReadoutDataMonitor/src/common
+    ReadoutDataMonitor/src/monitor_algs
+    ReadoutDataMonitor/readout_decoder/src
+    ${GramsTofLibrary_INCLUDE_DIRS}
+    ${WD_INCLUDE_DIR} 
+)
+
+# Link directories (for linker to find libraries)
+link_directories(
+    ${WD_LIB_DIR} 
+)
+
+# -----------------------------
+# Source files
+# -----------------------------
+file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp)
+file(GLOB_RECURSE DATA_HANDLER_SRC src/data/*.cpp)
+file(GLOB_RECURSE HARDWARE_SRC src/hardware/*.cpp)
+file(GLOB_RECURSE STATUS_SRC src/status/*.cpp)
+file(GLOB NETWORK_SRC networking/tcp*.cpp)
+file(GLOB METRIC_SRC PGramsCommCodec/src/*.cpp)
+file(GLOB DATAMONITOR_CM_SRC ReadoutDataMonitor/src/common/*.cpp)
+file(GLOB DATAMONITOR_MA_SRC ReadoutDataMonitor/src/monitor_algs/*.cpp)
+file(GLOB DATAMONITOR_DEC_SRC ReadoutDataMonitor/readout_decoder/src/*.cpp)
+
+# -----------------------------
+# Main executable
+# -----------------------------
+add_executable(GramsReadout main.cpp
+        ${CONTROL_SRC}
+        ${DATA_HANDLER_SRC}
+        ${HARDWARE_SRC}
+        ${STATUS_SRC}
+        ${NETWORK_SRC}
+        ${METRIC_SRC})
+
+target_compile_definitions(GramsReadout PUBLIC
+        -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
+
+target_link_libraries(GramsReadout PRIVATE
+        quill::quill
+        pcie_lib
+        wdapi1630
+)
+
+# -----------------------------
+# PcieReadWrite test
+# -----------------------------
+add_executable(PcieReadWrite tests/pcie_read_write.cpp)
+target_link_libraries(PcieReadWrite PRIVATE
+        pcie_lib
+        wdapi1630
+)
+
+# -----------------------------
+# Runtime reminder
+# -----------------------------
+message(STATUS "Remember to set LD_LIBRARY_PATH at runtime:")
+message(STATUS "  export LD_LIBRARY_PATH=$ENV{WD_BASEDIR}/lib:\$LD_LIBRARY_PATH")
+

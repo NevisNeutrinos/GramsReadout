@@ -8,6 +8,8 @@
 #include "communication_codes.h"
 #include "../ReadoutDataMonitor/src/common/data_monitor.h"
 
+#include "FlightOps/GRAMS_TOF_DAQController.h"
+
 #include <asio.hpp>
 #include "quill/Backend.h"
 #include "quill/Frontend.h"
@@ -40,15 +42,18 @@
 // For simplicity, using constants here. Consider systemd Environment= directive.
 
 //const char* kControllerIp = "192.168.1.100";  // Readout software IP
-const char* kControllerIp = "10.44.45.96";  // Readout software IP
+//const char* kControllerIp = "10.44.45.96";  // Readout software IP
+const char* kControllerIp = "127.0.0.1";  // Readout software IP
 const uint16_t kControllerCommandPort = 50003; // Readout software port, for commands
 const uint16_t kControllerStatusPort = 50002; // Readout software port, for status
 
-const char* kDaemonIp = "10.44.45.96";  // Daemon software IP
+//const char* kDaemonIp = "10.44.45.96";  // Daemon software IP
+const char* kDaemonIp = "127.0.0.1";  // Daemon software IP
 const uint16_t kDaemonCommandPort = 50001; // Daemon software port, for commands
 const uint16_t kDaemonStatusPort = 50000; // Daemon software port, for status
 
-const char* kMonitorIp = "10.44.45.96";  // Daemon software IP
+//const char* kMonitorIp = "10.44.45.96";  // Daemon software IP
+const char* kMonitorIp = "127.0.0.1";  // Daemon software IP
 const uint16_t kMonitorCommandPort = 50005; // Daemon software port, for commands
 const uint16_t kMonitorStatusPort = 50004; // Daemon software port, for status
 
@@ -58,6 +63,7 @@ const size_t NUM_DAQ = 3; // Number of DAQ processes
 namespace pgrams::orchestrator { // Use anonymous namespace for internal linkage
 
 using namespace communication;
+using TOF_ControllerPtr = std::unique_ptr<GRAMS_TOF_DAQController>;
 
 std::atomic_bool g_running(true);
 std::atomic_bool g_status_running(false);
@@ -445,29 +451,71 @@ void StopDaqProcess(DAQProcess<DAQ> &daq_process, quill::Logger *logger) {
     }
 }
 
-/*
- * FIXME Add the TOF BOOT / SHUTDOWN functions here
- */
 
-void StartTofProcess(std::unique_ptr<auto> &tof_ptr, std::thread &tof_thread, quill::Logger *logger) {
+void StartTofProcess(TOF_ControllerPtr &tof_ptr, std::thread &tof_thread, quill::Logger *logger) {
     if (tof_thread.joinable()) {
-        LOG_WARNING(logger, "TOF DAQ controller already running!");
-        return;
+       LOG_WARNING(logger, "GRAMS TOF DAQ controller already running!");
+       return;
     }
-    QUILL_LOG_DEBUG(logger, "Starting Control thread");
-    // tof_thread = std::thread([&]() {tof_ptr->FUNC(); });
+    QUILL_LOG_DEBUG(logger, "Starting GRAMS TOF DAQ Control thread");
+
+    // --- 1. Define Configuration  ---
+    GRAMS_TOF_DAQController::Config config;
+    //config.noFpgaMode = false;         // Enable FPGA interaction
+    config.noFpgaMode = true;         // Diable FPGA interaction 
+    config.commandListenPort = 50007;
+    config.eventTargetPort = 50006;
+    config.remoteEventHub = "127.0.0.1";
+    config.configFile = "";
+
+    if (config.configFile.empty()) {
+        if (!GRAMS_TOF_Config::loadDefaultConfig()) {
+            throw std::runtime_error("Configuration file not specified and default GLIB path failed to load.");
+        } else config.configFile =  GRAMS_TOF_Config::instance().getConfigFilePath();
+    }
+
+    try {
+        // --- 2. Create and Initialize the Controller ---
+        tof_ptr = std::make_unique<GRAMS_TOF_DAQController>(config);
+
+        if (!tof_ptr->initialize()) {
+            LOG_ERROR(logger, "GRAMS TOF DAQ Controller initialization failed!");
+            tof_ptr.reset(nullptr); // Clear the pointer on failure
+            return;
+        }
+
+        // --- 3. Start the execution thread ---
+        // The thread executes the GRAMS_TOF_DAQController::run() method.
+        tof_thread = std::thread([&]() { 
+            tof_ptr->run(); 
+        });
+
+        QUILL_LOG_INFO(logger, "GRAMS TOF DAQ Controller thread successfully started.");
+
+    } catch (const std::exception& e) {
+        LOG_ERROR(logger, "Failed to start GRAMS TOF DAQ Controller: {}", e.what());
+        tof_ptr.reset(nullptr);
+    }
 }
 
-void StopTofProcess(std::unique_ptr<auto> &tof_ptr, std::thread &tof_thread, quill::Logger *logger) {
+
+void StopTofProcess(TOF_ControllerPtr &tof_ptr, std::thread &tof_thread, quill::Logger *logger) {
     if (tof_ptr) {
-        // What the TOF needs before shutdown
+        // --- 1. Signal the Controller to Stop ---
+        QUILL_LOG_DEBUG(logger, "Signaling GRAMS TOF DAQ process to stop...");
+        tof_ptr->stop();
+
+        // --- 2. Wait for the Thread to Exit ---
         WaitForThreadJoin(tof_thread, logger);
+
+        // --- 3. Clean up the pointer ---
         tof_ptr.reset(nullptr);
-        QUILL_LOG_DEBUG(logger, "Stopped TOF DAQ process..");
+        QUILL_LOG_DEBUG(logger, "Stopped GRAMS TOF DAQ process and cleaned up resources.");
     } else {
-        QUILL_LOG_WARNING(logger, "TOF DAQ process not running!");
+        QUILL_LOG_WARNING(logger, "GRAMS TOF DAQ process not running!");
     }
 }
+
 
 void ShutdownComputer() {
     // Call systemd's shutdown command (graceful, syncs filesystems automatically)
@@ -519,7 +567,7 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
     DAQProcess<data_monitor::DataMonitor> tpc_monitor_controller_daq;
     tpc_monitor_controller_daq.run_function = RunTpcMonitorController;
     /** FIXME add TOF DAQ Controller */
-    // std::unique_ptr<TOF> tof_ptr{};
+    TOF_ControllerPtr g_tof_ptr{};
 
     while (g_running.load()) {
         QUILL_LOG_DEBUG(logger, "Waiting for command...");
@@ -546,12 +594,12 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 break;
             }
             case to_u16(CommunicationCodes::ORC_Boot_Tof_Daq): { // FIXME add TOF
-                // StartTofProcess(std::unique_ptr<auto> &tof_ptr, std::thread &tof_thread, quill::Logger *logger)
+                StartTofProcess(g_tof_ptr, tof_thread, logger);
                 QUILL_LOG_INFO(logger, "Booted TOF DAQ...");
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof);
                 break;
             } case to_u16(CommunicationCodes::ORC_Shutdown_Tof_Daq): { // FIXME add TOF
-                // StartTofProcess(std::unique_ptr<auto> &tof_ptr, std::thread &tof_thread, quill::Logger *logger)
+                StopTofProcess(g_tof_ptr, tof_thread, logger);
                 QUILL_LOG_INFO(logger, "Shutdown TOF DAQ...");
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
                 break;
