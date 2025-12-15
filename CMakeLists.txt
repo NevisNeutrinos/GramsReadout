@@ -11,6 +11,7 @@ add_compile_options(-Wall -Wextra -pedantic)
 # For Grafana metrics
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZeroMQ REQUIRED libzmq)
+find_package(Boost REQUIRED COMPONENTS python3 regex)
 
 add_subdirectory(quill)
 add_subdirectory(lib/pcie_driver)
@@ -39,6 +40,7 @@ else()
     message(FATAL_ERROR "WD_BASEDIR environment variable not set!")
 endif()
 
+include_directories(/home/sabertooth2/asio-1.30.2/include)
 include_directories(/usr/include)
 include_directories(networking
                     src/control
@@ -132,6 +134,7 @@ target_include_directories(daq_orchestrator PRIVATE
         ${TOFLIB_INSTALL}/include/rawdata
         ${TOFLIB_INSTALL}/include/scripts_c
         ${TOFLIB_INSTALL}/include/shota
+        ${Boost_INCLUDE_DIRS}
 )
 target_link_directories(daq_orchestrator PRIVATE
     ${TOFLIB_INSTALL}/lib
@@ -147,6 +150,7 @@ target_link_libraries(daq_orchestrator PRIVATE
         pcie_lib
         statgrab
         GramsTofFlightOpsLib
+        ${Boost_LIBRARIES}
 )
 
 # Define the installation location for the daemon
