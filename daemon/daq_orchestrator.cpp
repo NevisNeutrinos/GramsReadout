@@ -325,7 +325,7 @@ void SendStatus(std::unique_ptr<TCPConnection> &status_client_ptr, quill::Logger
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         GetComputerStatus(logger); // returns vector of 0's on failure
         auto status = g_daq_monitor.serialize();
-        status_client_ptr->WriteSendBuffer(0x20, status);
+        status_client_ptr->WriteSendBuffer(to_u16(CommunicationCodes::ORC_Hardware_Status), status);
     }
 }
 
