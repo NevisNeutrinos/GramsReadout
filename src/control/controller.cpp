@@ -181,7 +181,7 @@ namespace controller {
         return true;
     }
 
-    json Controller::SetConfigFromComm(json& config, const std::vector<int32_t> &config_vec, size_t skip_words) {
+    json Controller::SetConfigFromComm(json& config, const std::vector<uint32_t> &config_vec, size_t skip_words) {
         try {
             tpc_configs_.deserialize(config_vec.begin()+skip_words, config_vec.end());
             LOG_INFO(logger_, "Config serialized.. {} params \n", config_vec.size());
@@ -249,7 +249,7 @@ namespace controller {
         return config;
     }
 
-    bool Controller::Configure(const std::vector<int32_t>& args) {
+    bool Controller::Configure(const std::vector<uint32_t>& args) {
 
         PersistRunId();
 
@@ -306,7 +306,7 @@ namespace controller {
         config_["data_handler"]["data_basedir"] = data_basedir_;
         config_["hardware"]["readout_basedir"] = readout_basedir_;
 
-        // int32_t subrun_number = args.at(0);
+        // uint32_t subrun_number = args.at(0);
         config_["data_handler"]["subrun"] = run_id_;
         LOG_INFO(logger_, "Configuring run number {}", run_id_);
 
@@ -369,7 +369,7 @@ namespace controller {
     void Controller::ReadStatus() {
         // This line essentially samples the metrics that are accumulating in the data handler
         status_->SetDataHandlerStatus(data_handler_.get());
-        // tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+        // tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
         status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
         if (!print_status_) {
             // Construct and send a status packet
@@ -388,7 +388,7 @@ namespace controller {
         while (run_status_) {
             std::this_thread::sleep_for(std::chrono::seconds(2));
             status_->SetDataHandlerStatus(data_handler_.get());
-            // tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+            // tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
             if (!print_status_) {
                 auto tmp_vec = tpc_readout_monitor_.serialize();
@@ -485,19 +485,19 @@ namespace controller {
             LOG_INFO(logger_, " \n State [Idle] \n");
             bool status = is_configured_ ? true : Configure(command.arguments);
             if (status) current_state_ = State::kConfigured;
-            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+            tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             return status;
         } if (command.command == CommunicationCodes::COL_Start_Run && current_state_ == State::kConfigured) {
             LOG_INFO(logger_, " \n State [Configure] \n ");
             current_state_ = State::kRunning;
             StartRun();
-            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+            tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             return true;
         } if (command.command == CommunicationCodes::COL_Stop_Run && current_state_ == State::kRunning) {
             LOG_INFO(logger_, " \n State [Running] \n");
             current_state_ = State::kStopped;
             StopRun();
-            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+            tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             return true;
         } if (command.command == CommunicationCodes::COL_Reset_Run && current_state_ == State::kStopped) {
             LOG_INFO(logger_, " \n State [Stopped] \n");
@@ -505,7 +505,7 @@ namespace controller {
             // is_configured_ = false;
             // current_state_ = State::kIdle;
             current_state_ = State::kConfigured;
-            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+            tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             return true;
         }
 
@@ -514,12 +514,12 @@ namespace controller {
             if (is_configured_) ReadStatus();
             else LOG_WARNING(logger_, "Cant read status before configuration!\n");
             // don't change from the previous state
-            tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+            tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             return true;
         }
         LOG_INFO(logger_, "Invalid command or transition from state: {}", GetStateName());
         // metrics_->ControllerState(static_cast<int>(current_state_));
-        tpc_readout_monitor_.setReadoutState(static_cast<int32_t>(current_state_));
+        tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
         return false;
     }
 

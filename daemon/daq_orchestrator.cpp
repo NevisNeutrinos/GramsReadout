@@ -162,7 +162,7 @@ void SetupLogging() {
 
 void GetCoreDiskTemp() {
 
-    std::array<int32_t, NUM_CPUS> core_temp{};
+    std::array<uint32_t, NUM_CPUS> core_temp{};
     // Read disk temperature
     try {
         int disk = 1;
@@ -214,7 +214,7 @@ void GetMemoryStats(quill::Logger *logger) {
             const size_t used_memory_bytes = total_memory_bytes - free_memory_bytes;
             const double memory_usage = (total_memory_bytes > 0) ?
                         (100.0 * static_cast<double>(used_memory_bytes) / total_memory_bytes) : 0.0;
-            g_daq_monitor.setMemoryUsage(static_cast<int32_t>(memory_usage));
+            g_daq_monitor.setMemoryUsage(static_cast<uint32_t>(memory_usage));
         } else {
             QUILL_LOG_WARNING(logger, "No memory stats available!");
         }
@@ -257,7 +257,7 @@ void GetCpuStats(quill::Logger *logger) {
             QUILL_LOG_DEBUG(logger, "Total total/idle diff {}/{}", total_cpu_diff, cpu_idle_diff);
             double cpu_usage = ((total_cpu_diff + total_cpu_diff) > 0) ?
                                 (100.0 * total_cpu_diff / (total_cpu_diff + cpu_idle_diff)) : 0.0;
-            g_daq_monitor.setCpuUsage(static_cast<int32_t>(cpu_usage));
+            g_daq_monitor.setCpuUsage(static_cast<uint32_t>(cpu_usage));
         } else {
             QUILL_LOG_WARNING(logger, "No memory stats available!");
         }

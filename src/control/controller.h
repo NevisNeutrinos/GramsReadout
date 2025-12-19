@@ -87,7 +87,7 @@ namespace controller {
         Controller& operator=(const Controller&) = delete;
 
         // State machine functions
-        bool Configure(const std::vector<int32_t>& args);
+        bool Configure(const std::vector<uint32_t>& args);
         bool StartRun();
         bool StopRun();
         bool GetStatus();
@@ -100,7 +100,7 @@ namespace controller {
         json LoadConfig(const std::string &config_file);
         bool PersistRunId();
         bool JoinDataThread();
-        json SetConfigFromComm(json& config, const std::vector<int32_t> &config_vec, size_t skip_words);
+        json SetConfigFromComm(json& config, const std::vector<uint32_t> &config_vec, size_t skip_words);
 
         // TCPConnection tcp_connection_;
         TCPConnection command_client_;
