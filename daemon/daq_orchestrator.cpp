@@ -42,18 +42,18 @@
 // For simplicity, using constants here. Consider systemd Environment= directive.
 
 //const char* kControllerIp = "192.168.1.100";  // Readout software IP
-//const char* kControllerIp = "10.44.45.96";  // Readout software IP
-const char* kControllerIp = "127.0.0.1";  // Readout software IP
+const char* kControllerIp = "192.168.100.100";  // Readout software IP
+//const char* kControllerIp = "127.0.0.1";  // Readout software IP
 const uint16_t kControllerCommandPort = 50003; // Readout software port, for commands
 const uint16_t kControllerStatusPort = 50002; // Readout software port, for status
 
-//const char* kDaemonIp = "10.44.45.96";  // Daemon software IP
-const char* kDaemonIp = "127.0.0.1";  // Daemon software IP
+const char* kDaemonIp = "192.168.100.100";  // Daemon software IP
+//const char* kDaemonIp = "127.0.0.1";  // Daemon software IP
 const uint16_t kDaemonCommandPort = 50001; // Daemon software port, for commands
 const uint16_t kDaemonStatusPort = 50000; // Daemon software port, for status
 
-//const char* kMonitorIp = "10.44.45.96";  // Daemon software IP
-const char* kMonitorIp = "127.0.0.1";  // Daemon software IP
+const char* kMonitorIp = "192.168.100.100";  // Daemon software IP
+//const char* kMonitorIp = "127.0.0.1";  // Daemon software IP
 const uint16_t kMonitorCommandPort = 50005; // Daemon software port, for commands
 const uint16_t kMonitorStatusPort = 50004; // Daemon software port, for status
 
@@ -410,6 +410,7 @@ void RunTpcMonitorController(DAQProcess<data_monitor::DataMonitor> &daq_process,
 
         try {
             daq_process.daq_ptr->SetRunning(true);
+            daq_process.daq_ptr->Run();
         } catch (const std::exception& e) {
             QUILL_LOG_CRITICAL(logger, "Exception in DataMonitor::Run(): {}", e.what());
         } catch (...) {
@@ -465,7 +466,7 @@ void StartTofProcess(TOF_ControllerPtr &tof_ptr, std::thread &tof_thread, quill:
     config.noFpgaMode = true;         // Diable FPGA interaction 
     config.commandListenPort = 50007;
     config.eventTargetPort = 50006;
-    config.remoteEventHub = "127.0.0.1";
+    config.remoteEventHub = "192.168.100.100";
     config.configFile = "";
 
     if (config.configFile.empty()) {
