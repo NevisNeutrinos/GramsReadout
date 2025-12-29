@@ -39,9 +39,9 @@ using json = nlohmann::json;
         tpc_monitor.setStartMarker(data_handler_metrics_["event_start_markers"]);
         tpc_monitor.setEndMarker(data_handler_metrics_["event_end_markers"]);
 
-        std::vector<int32_t> status_vec;
+        std::vector<uint32_t> status_vec;
         if (minimal_status) {
-             int32_t status_res = 0;
+             uint32_t status_res = 0;
              bool is_fem = false;
              for (size_t b = 0; b < boards.size(); b++) {
                  bool res = GetMinimalStatus(boards.at(b), pcie_interface, is_fem);
@@ -68,8 +68,8 @@ using json = nlohmann::json;
         return CheckXmitStatus(status);
     }
 
-    int32_t Status::GetBoardStatus(int32_t board_number, pcie_int::PCIeInterface *pcie_interface) {
-        //std::vector<int32_t> status;
+    uint32_t Status::GetBoardStatus(uint32_t board_number, pcie_int::PCIeInterface *pcie_interface) {
+        //std::vector<uint32_t> status;
         auto status = GetFemStatus(board_number, pcie_interface);
         if (status.empty()) return 0;
         // We care about the 16b status word which is the upper 16b of the 32b word

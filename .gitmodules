@@ -1,16 +1,16 @@
 [submodule "quill"]
     path = quill
-    url = git@github.com:odygrd/quill.git
+    url = https://github.com/odygrd/quill.git
 
 [submodule "networking"]
     path = networking
-    url = git@github.com:NevisNeutrinos/networking.git
+    url = https://github.com/NevisNeutrinos/networking.git
 
 [submodule "PGramsCommCodec"]
     path = PGramsCommCodec
-    url = git@github.com:NevisNeutrinos/PGramsCommCodec.git
+    url = https://github.com/NevisNeutrinos/PGramsCommCodec.git
 
 [submodule "ReadoutDataMonitor"]
     path = ReadoutDataMonitor
-    url = git@github.com:NevisNeutrinos/ReadoutDataMonitor.git
+    url = https://github.com/NevisNeutrinos/ReadoutDataMonitor.git
 

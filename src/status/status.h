@@ -21,7 +21,7 @@ public:
     ~Status() = default;
 
     bool GetMinimalStatus(uint32_t board_number, pcie_int::PCIeInterface *pcie_interface, bool is_fem);
-    int32_t GetBoardStatus(int32_t board_number, pcie_int::PCIeInterface *pcie_interface);
+    uint32_t GetBoardStatus(uint32_t board_number, pcie_int::PCIeInterface *pcie_interface);
     void ReadStatus(TpcReadoutMonitor &tpc_monitor, const std::vector<int>& boards,
                     pcie_int::PCIeInterface *pcie_interface, bool minimal_status);
     void SetDataHandlerStatus(data_handler::DataHandler *data_handler);
@@ -37,7 +37,7 @@ private:
     bool print_status_;
     uint32_t fem_status_chip_ = 3;
     uint32_t fem_status_num_word_ = 1;
-    std::vector<int32_t> data_handler_status_vec_;
+    std::vector<uint32_t> data_handler_status_vec_;
     std::map<std::string, size_t> data_handler_metrics_{};
 
 };

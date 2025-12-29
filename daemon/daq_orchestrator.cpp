@@ -42,18 +42,18 @@
 // For simplicity, using constants here. Consider systemd Environment= directive.
 
 //const char* kControllerIp = "192.168.1.100";  // Readout software IP
-//const char* kControllerIp = "10.44.45.96";  // Readout software IP
-const char* kControllerIp = "127.0.0.1";  // Readout software IP
+const char* kControllerIp = "192.168.100.100";  // Readout software IP
+//const char* kControllerIp = "127.0.0.1";  // Readout software IP
 const uint16_t kControllerCommandPort = 50003; // Readout software port, for commands
 const uint16_t kControllerStatusPort = 50002; // Readout software port, for status
 
-//const char* kDaemonIp = "10.44.45.96";  // Daemon software IP
-const char* kDaemonIp = "127.0.0.1";  // Daemon software IP
+const char* kDaemonIp = "192.168.100.100";  // Daemon software IP
+//const char* kDaemonIp = "127.0.0.1";  // Daemon software IP
 const uint16_t kDaemonCommandPort = 50001; // Daemon software port, for commands
 const uint16_t kDaemonStatusPort = 50000; // Daemon software port, for status
 
-//const char* kMonitorIp = "10.44.45.96";  // Daemon software IP
-const char* kMonitorIp = "127.0.0.1";  // Daemon software IP
+const char* kMonitorIp = "192.168.100.100";  // Daemon software IP
+//const char* kMonitorIp = "127.0.0.1";  // Daemon software IP
 const uint16_t kMonitorCommandPort = 50005; // Daemon software port, for commands
 const uint16_t kMonitorStatusPort = 50004; // Daemon software port, for status
 
@@ -162,7 +162,7 @@ void SetupLogging() {
 
 void GetCoreDiskTemp() {
 
-    std::array<int32_t, NUM_CPUS> core_temp{};
+    std::array<uint32_t, NUM_CPUS> core_temp{};
     // Read disk temperature
     try {
         int disk = 1;
@@ -214,7 +214,7 @@ void GetMemoryStats(quill::Logger *logger) {
             const size_t used_memory_bytes = total_memory_bytes - free_memory_bytes;
             const double memory_usage = (total_memory_bytes > 0) ?
                         (100.0 * static_cast<double>(used_memory_bytes) / total_memory_bytes) : 0.0;
-            g_daq_monitor.setMemoryUsage(static_cast<int32_t>(memory_usage));
+            g_daq_monitor.setMemoryUsage(static_cast<uint32_t>(memory_usage));
         } else {
             QUILL_LOG_WARNING(logger, "No memory stats available!");
         }
@@ -257,7 +257,7 @@ void GetCpuStats(quill::Logger *logger) {
             QUILL_LOG_DEBUG(logger, "Total total/idle diff {}/{}", total_cpu_diff, cpu_idle_diff);
             double cpu_usage = ((total_cpu_diff + total_cpu_diff) > 0) ?
                                 (100.0 * total_cpu_diff / (total_cpu_diff + cpu_idle_diff)) : 0.0;
-            g_daq_monitor.setCpuUsage(static_cast<int32_t>(cpu_usage));
+            g_daq_monitor.setCpuUsage(static_cast<uint32_t>(cpu_usage));
         } else {
             QUILL_LOG_WARNING(logger, "No memory stats available!");
         }
@@ -410,6 +410,7 @@ void RunTpcMonitorController(DAQProcess<data_monitor::DataMonitor> &daq_process,
 
         try {
             daq_process.daq_ptr->SetRunning(true);
+            daq_process.daq_ptr->Run();
         } catch (const std::exception& e) {
             QUILL_LOG_CRITICAL(logger, "Exception in DataMonitor::Run(): {}", e.what());
         } catch (...) {
@@ -465,7 +466,7 @@ void StartTofProcess(TOF_ControllerPtr &tof_ptr, std::thread &tof_thread, quill:
     config.noFpgaMode = true;         // Diable FPGA interaction 
     config.commandListenPort = 50007;
     config.eventTargetPort = 50006;
-    config.remoteEventHub = "127.0.0.1";
+    config.remoteEventHub = "192.168.100.100";
     config.configFile = "";
 
     if (config.configFile.empty()) {

@@ -237,7 +237,7 @@ namespace light_fem {
         LOG_DEBUG(logger_, "\nFEM STATUS:\n Data word = 0x{:X}, 0x{:X} \n", pcie_int::PcieBuffers::read_array[0],
                                                                             pcie_int::PcieBuffers::read_array[1]);
 
-        for (ik = 0; ik < 40; ik++)
+        for (ik = 0; ik < 36; ik++)
         {
             LOG_DEBUG(logger_, "Configuration for channel [{}] in progress...\n", ik);
             imod = imod_fem;
