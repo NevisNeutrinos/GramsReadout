@@ -5,8 +5,9 @@
 #include "controller.h"
 #include "tcp_protocol.h"
 #include "daq_comp_monitor.h"
-#include "communication_codes.h"
-#include "../ReadoutDataMonitor/src/common/data_monitor.h"
+#include "CommunicationCodes.hh"
+// #include "../ReadoutDataMonitor/src/common/data_monitor.h"
+#include "data_monitor.h"
 
 #include "FlightOps/GRAMS_TOF_DAQController.h"
 

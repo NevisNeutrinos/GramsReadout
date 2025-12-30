@@ -13,12 +13,6 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZeroMQ REQUIRED libzmq)
 find_package(Boost REQUIRED COMPONENTS python3 regex)
 
-add_subdirectory(quill)
-add_subdirectory(lib/pcie_driver)
-add_subdirectory(networking)
-add_subdirectory(PGramsCommCodec)
-add_subdirectory(ReadoutDataMonitor)
-
 if(NOT DEFINED ENV{GLIB})
     message(FATAL_ERROR "Environment variable GLIB is not set! Please set it to the TOF library install directory, e.g.:\n"
                         "  export GLIB=\$HOME/work/source/grams-tof-library/00build/00install")
@@ -40,7 +34,31 @@ else()
     message(FATAL_ERROR "WD_BASEDIR environment variable not set!")
 endif()
 
-include_directories(/home/sabertooth2/asio-1.30.2/include)
+# The Communication code definitions, use the shared one but fall back to local copy if shared is not found
+#set(PRIMARY_COMM_CODES "$ENV{BALLOON_BASE_DIR}/include")
+set(PRIMARY_COMM_CODES "") # force failure for now until comm codes updated
+set(FALLBACK_COMM_CODES "$ENV{TPC_DAQ_BASEDIR}/PGramsCommCodec/comm_codes")
+
+# Check if the primary file exists on the file system
+if(EXISTS "${PRIMARY_COMM_CODES}")
+    message(STATUS "Found primary Communication Code definitions: ${PRIMARY_COMM_CODES}")
+    include_directories("${PRIMARY_COMM_CODES}")
+else()
+    message(STATUS "Primary Communication Code definitions not found, falling back to local copy: ${FALLBACK_COMM_CODES}")
+    include_directories("${FALLBACK_COMM_CODES}")
+endif()
+
+file(GLOB ASIO_SEARCH_CUSTOM_PATH "$ENV{HOME}/asio*/include")
+find_path(ASIO_INCLUDE_DIR asio.hpp
+        HINTS ${ASIO_SEARCH_CUSTOM_PATH} NO_DEFAULT_PATH)
+
+if (ASIO_INCLUDE_DIR)
+    message(STATUS "[GramsReadout] Found ASIO: ${ASIO_INCLUDE_DIR}")
+    include_directories("${ASIO_INCLUDE_DIR}")
+else()
+    message(FATAL_ERROR "ASIO not found")
+endif()
+
 include_directories(/usr/include)
 include_directories(networking
                     src/control
@@ -59,6 +77,12 @@ include_directories(networking
 link_directories(
     ${WD_LIB_DIR}
 )
+
+add_subdirectory(quill)
+add_subdirectory(lib/pcie_driver)
+add_subdirectory(networking)
+add_subdirectory(PGramsCommCodec)
+add_subdirectory(ReadoutDataMonitor)
 
 file(GLOB_RECURSE CONTROL_SRC src/control/*.cpp)
 file(GLOB_RECURSE DATA_HANDLER_SRC src/data/*.cpp)

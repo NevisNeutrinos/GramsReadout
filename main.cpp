@@ -2,7 +2,7 @@
 #include <ctime>
 #include "src/control/controller.h"
 #include "networking/tcp_protocol.h"
-#include "communication_codes.h"
+#include "CommunicationCodes.hh"
 #include "quill/Backend.h"
 #include "quill/Frontend.h"
 #include "quill/LogMacros.h"
@@ -60,6 +60,7 @@ void PrintState(const std::string& state) {
 void Run(controller::Controller& ctrl) {
 
     quill::Logger* logger = quill::Frontend::create_or_get_logger("readout_logger");
+    logger->set_log_level(quill::LogLevel::Debug);
 
     Command cmd(0,0);
     while (true) {

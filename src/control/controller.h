@@ -19,7 +19,7 @@
 #include "xmit_control.h"
 #include "../status/status.h"
 #include "tpc_configs.h"
-#include "communication_codes.h"
+#include "CommunicationCodes.hh"
 #include "tpc_readout_monitor.h"
 
 
