@@ -37,6 +37,7 @@ namespace data_handler {
 
     std::map<std::string, size_t> DataHandler::GetMetrics() {
         std::map<std::string, size_t> metrics;
+        metrics["run_number"] = run_number_;
         metrics["num_events"] = event_count_.load();
         metrics["num_files"] = file_count_.load();
         metrics["num_dma_loops"] = dma_loop_count_.load();
@@ -719,7 +720,7 @@ namespace data_handler {
 
         LOG_INFO(logger_, "Opening PPS data file");
         std::ofstream pps_file;
-        std::string pps_file_name = "pps_data_run" + std::to_string(run_number_) + ".csv" ;
+        std::string pps_file_name = data_basedir_ + "/pps_data/pps_data_run" + std::to_string(run_number_) + ".csv" ;
         pps_file.open(pps_file_name);
         if (!pps_file.is_open()) {
             LOG_WARNING(logger_, "PPS file failed to open, only printing!");

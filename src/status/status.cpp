@@ -30,6 +30,7 @@ using json = nlohmann::json;
                             pcie_int::PCIeInterface *pcie_interface, bool minimal_status) {
 
         // Collect the data handler metrics
+        tpc_monitor.setRunNumber(data_handler_metrics_["run_number"]);
         tpc_monitor.setNumEvents(data_handler_metrics_["num_events"]);
         tpc_monitor.setNumDmaLoops(data_handler_metrics_["num_dma_loops"]);
         tpc_monitor.setReceivedMbytes(data_handler_metrics_["mega_bytes_received"]);
