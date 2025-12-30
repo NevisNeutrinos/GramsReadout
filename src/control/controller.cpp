@@ -181,7 +181,7 @@ namespace controller {
         return true;
     }
 
-    json Controller::SetConfigFromComm(json& config, const std::vector<uint32_t> &config_vec, size_t skip_words) {
+    json Controller::SetConfigFromComm(json& config, std::vector<uint32_t> &config_vec, size_t skip_words) {
         try {
             tpc_configs_.deserialize(config_vec.begin()+skip_words, config_vec.end());
             LOG_INFO(logger_, "Config serialized.. {} params \n", config_vec.size());
@@ -200,7 +200,7 @@ namespace controller {
             config["light_fem"]["pmt_delay_0"]              = tpc_configs_.getRoiDelay0();
             config["light_fem"]["pmt_delay_1"]              = tpc_configs_.getRoiDelay1();
 
-            std::vector<int> sipm_precount(NUM_LIGHT_CHANNELS, tpc_configs_.getRoiPrecount());
+            std::vector<int> sipm_precount(TOTAL_LIGHT_CHANNELS, tpc_configs_.getRoiPrecount());
             config["light_fem"]["pmt_precount"]             = sipm_precount;
             config["light_fem"]["pmt_window"]               = tpc_configs_.getRoiPeakWindow();
 
@@ -210,7 +210,7 @@ namespace controller {
 
             config["light_fem"]["sipm_words"]               = tpc_configs_.getNumRoiWords();
 
-            std::vector<int> sipm_deadtime(NUM_LIGHT_CHANNELS, tpc_configs_.getRoiDeadtime());
+            std::vector<int> sipm_deadtime(TOTAL_LIGHT_CHANNELS, tpc_configs_.getRoiDeadtime());
             config["light_fem"]["sipm_deadtime"]            = sipm_deadtime;
 
             config["light_fem"]["pmt_gate_size"]            = tpc_configs_.getPmtGateSize();
@@ -249,7 +249,7 @@ namespace controller {
         return config;
     }
 
-    bool Controller::Configure(const std::vector<uint32_t>& args) {
+    bool Controller::Configure(std::vector<uint32_t>& args) {
 
         PersistRunId();
 
@@ -276,13 +276,13 @@ namespace controller {
             }
         } else {
             // Not making these vectors for convenience but keeping them here in case it is needed
-            std::vector<int> sipm_precount(NUM_LIGHT_CHANNELS, config_["light_fem"]["pmt_precount"]);
+            std::vector<int> sipm_precount(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["pmt_precount"]);
             config_["light_fem"]["pmt_precount"] = sipm_precount;
-            std::vector<int> sipm_deadtime(NUM_LIGHT_CHANNELS, config_["light_fem"]["sipm_deadtime"]);
+            std::vector<int> sipm_deadtime(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["sipm_deadtime"]);
             config_["light_fem"]["sipm_deadtime"] = sipm_deadtime;
-            std::vector<int> channel_thresh0(NUM_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh0"]);
+            std::vector<int> channel_thresh0(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh0"]);
             config_["light_fem"]["channel_thresh0"] = channel_thresh0;
-            std::vector<int> channel_thresh1(NUM_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh1"]);
+            std::vector<int> channel_thresh1(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh1"]);
             config_["light_fem"]["channel_thresh1"] = channel_thresh1;
             // element 2 is the light trigger
             config_["trigger"]["prescale"].at(1) = config_["trigger"]["light_trig_prescale"];
@@ -478,7 +478,7 @@ namespace controller {
     }
 
     // Handle user commands
-    bool Controller::HandleCommand(const Command& command) {
+    bool Controller::HandleCommand(Command& command) {
         LOG_INFO(logger_, " \n Sending command: [{}] \n", command.command);
 
         if (command.command == CommunicationCodes::COL_Configure && current_state_ == State::kIdle) {
