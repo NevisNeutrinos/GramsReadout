@@ -42,21 +42,19 @@
 // Best practice: Load these from a config file or environment variables
 // For simplicity, using constants here. Consider systemd Environment= directive.
 
-//const char* kControllerIp = "192.168.1.100";  // Readout software IP
-const char* kControllerIp = "192.168.100.100";  // Readout software IP
-//const char* kControllerIp = "127.0.0.1";  // Readout software IP
-const uint16_t kControllerCommandPort = 50003; // Readout software port, for commands
-const uint16_t kControllerStatusPort = 50002; // Readout software port, for status
+const char* kHubIp = "192.168.100.100";  // Hub Computer IP
 
-const char* kDaemonIp = "192.168.100.100";  // Daemon software IP
-//const char* kDaemonIp = "127.0.0.1";  // Daemon software IP
+const uint16_t kControllerCommandPort = 50003; // TPC Readout software port, for commands
+const uint16_t kControllerStatusPort = 50002; // TPC Readout software port, for status
+
 const uint16_t kDaemonCommandPort = 50001; // Daemon software port, for commands
 const uint16_t kDaemonStatusPort = 50000; // Daemon software port, for status
 
-const char* kMonitorIp = "192.168.100.100";  // Daemon software IP
-//const char* kMonitorIp = "127.0.0.1";  // Daemon software IP
-const uint16_t kMonitorCommandPort = 50005; // Daemon software port, for commands
-const uint16_t kMonitorStatusPort = 50004; // Daemon software port, for status
+const uint16_t kMonitorCommandPort = 50005; // Data Monitor software port, for commands
+const uint16_t kMonitorStatusPort = 50004; // Data Monitor software port, for status
+
+const uint16_t kTofCommandPort = 50007; // TOF software port, for commands
+const uint16_t kTofStatusPort = 50006; // TOF software port, for status
 
 const size_t NUM_DAQ = 3; // Number of DAQ processes
 
@@ -374,7 +372,7 @@ void TpcRunController(DAQProcess<controller::Controller> &daq_process, quill::Lo
         QUILL_LOG_DEBUG(logger, "Starting controller initialization...");
         // FIXME add status io context
         daq_process.daq_ptr = std::make_unique<controller::Controller>(
-            io_context, io_context, kControllerIp,
+            io_context, io_context, kHubIp,
             kControllerCommandPort, kControllerStatusPort, false, true);
         if (!daq_process.daq_ptr->Init()) {
             QUILL_LOG_CRITICAL(logger, "Failed to initialize controller. Service will shut down.");
@@ -406,7 +404,7 @@ void RunTpcMonitorController(DAQProcess<data_monitor::DataMonitor> &daq_process,
     try {
         QUILL_LOG_DEBUG(logger, "Starting data monitor initialization...");
         // FIXME add status io context
-        daq_process.daq_ptr = std::make_unique<data_monitor::DataMonitor>(io_context, kMonitorIp,
+        daq_process.daq_ptr = std::make_unique<data_monitor::DataMonitor>(io_context, kHubIp,
                                                             kMonitorCommandPort, kMonitorStatusPort, false, true);
 
         try {
@@ -465,9 +463,9 @@ void StartTofProcess(TOF_ControllerPtr &tof_ptr, std::thread &tof_thread, quill:
     GRAMS_TOF_DAQController::Config config;
     //config.noFpgaMode = false;         // Enable FPGA interaction
     config.noFpgaMode = true;         // Diable FPGA interaction 
-    config.commandListenPort = 50007;
-    config.eventTargetPort = 50006;
-    config.remoteEventHub = "192.168.100.100";
+    config.commandListenPort = kTofCommandPort;
+    config.eventTargetPort = kTofStatusPort;
+    config.remoteEventHub = kHubIp;
     config.configFile = "";
 
     if (config.configFile.empty()) {
@@ -662,10 +660,10 @@ int main() {
     quill::Logger* logger = quill::Frontend::create_or_get_logger("readout_logger");
 
     QUILL_LOG_INFO(logger, "Connection service starting up...");
-    QUILL_LOG_INFO(logger, "Daemon IP: {}, Cmd Port: [{}], Status Port: [{}]", kDaemonIp, kDaemonCommandPort, kDaemonStatusPort);
-    QUILL_LOG_INFO(logger, "Controller IP: {}, Cmd Port: [{}], Status Port: [{}]", kControllerIp,
+    QUILL_LOG_INFO(logger, "Daemon IP: {}, Cmd Port: [{}], Status Port: [{}]", kHubIp, kDaemonCommandPort, kDaemonStatusPort);
+    QUILL_LOG_INFO(logger, "Controller IP: {}, Cmd Port: [{}], Status Port: [{}]", kHubIp,
                                                                         kControllerCommandPort, kControllerStatusPort);
-    QUILL_LOG_INFO(logger, "Data Monitor IP: {}, Cmd Port: [{}], Status Port: [{}]", kMonitorIp, kMonitorCommandPort, kMonitorStatusPort);
+    QUILL_LOG_INFO(logger, "Data Monitor IP: {}, Cmd Port: [{}], Status Port: [{}]", kHubIp, kMonitorCommandPort, kMonitorStatusPort);
 
     // 3. Initialize ASIO and Controller
     asio::io_context io_context;
@@ -702,8 +700,8 @@ int main() {
             );
         }
         QUILL_LOG_DEBUG(logger, "Starting control connection \n");
-        command_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonCommandPort, false, true, false);
-        status_client_ptr = std::make_unique<TCPConnection>(io_context, kDaemonIp, kDaemonStatusPort, false, false, true);
+        command_client_ptr = std::make_unique<TCPConnection>(io_context, kHubIp, kDaemonCommandPort, false, true, false);
+        status_client_ptr = std::make_unique<TCPConnection>(io_context, kHubIp, kDaemonStatusPort, false, false, true);
         daq_thread = std::thread([&]() { pgrams::orchestrator::DAQHandler(command_client_ptr, status_client_ptr, io_context, logger); });
 
     } catch (const std::exception& e) {
