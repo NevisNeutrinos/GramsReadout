@@ -34,7 +34,7 @@ namespace charge_fem {
         static int imod_st1 = 0;
         static int imod_st2 = 0;
         static int imod_tpc = 0;
-        static int timesize = 128;
+        static int drift_size = 128;
         std::string data_basedir{};
         std::string fw_file{};
 
@@ -43,7 +43,7 @@ namespace charge_fem {
             imod_st1  = config["crate"]["last_light_slot"].get<int>();  //st1 corresponds to last SiPM slot (closest to xmit)
             imod_st2  = config["crate"]["last_charge_slot"].get<int>();  //st2 corresponds to last TPC slot (farthest to XMIT)
             imod_tpc  = config["crate"]["charge_fem_slot"].get<int>();  // tpc slot closest to XMIT
-            timesize = config["readout_windows"]["timesize"].get<int>();
+            drift_size = config["readout_windows"]["drift_size"].get<int>();
             data_basedir = config["hardware"]["readout_basedir"].get<std::string>();
             fw_file = data_basedir + "/" + config["charge_fem"]["fpga_bitfile"].get<std::string>();
         } catch (const std::exception &e) {
@@ -314,7 +314,7 @@ namespace charge_fem {
             // set drift size
             ichip = 3;
             // set drift time size
-            buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_timesize, (timesize << 16));
+            buffers.buf_send[0] = ConstructSendWord(imod, ichip, hw_consts::mb_feb_timesize, (drift_size << 16));
             i = 1;
             k = 1;
             i = pcie_interface->PCIeSendBuffer(1, i, k, buffers.psend);

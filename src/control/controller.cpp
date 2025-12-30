@@ -200,7 +200,7 @@ namespace controller {
             config["light_fem"]["pmt_delay_0"]              = tpc_configs_.getRoiDelay0();
             config["light_fem"]["pmt_delay_1"]              = tpc_configs_.getRoiDelay1();
 
-            std::vector<int> sipm_precount(TOTAL_LIGHT_CHANNELS, tpc_configs_.getRoiPrecount());
+            std::vector<uint32_t> sipm_precount(TOTAL_LIGHT_CHANNELS, tpc_configs_.getRoiPrecount());
             config["light_fem"]["pmt_precount"]             = sipm_precount;
             config["light_fem"]["pmt_window"]               = tpc_configs_.getRoiPeakWindow();
 
@@ -210,7 +210,7 @@ namespace controller {
 
             config["light_fem"]["sipm_words"]               = tpc_configs_.getNumRoiWords();
 
-            std::vector<int> sipm_deadtime(TOTAL_LIGHT_CHANNELS, tpc_configs_.getRoiDeadtime());
+            std::vector<uint32_t> sipm_deadtime(TOTAL_LIGHT_CHANNELS, tpc_configs_.getRoiDeadtime());
             config["light_fem"]["sipm_deadtime"]            = sipm_deadtime;
 
             config["light_fem"]["pmt_gate_size"]            = tpc_configs_.getPmtGateSize();
@@ -225,6 +225,9 @@ namespace controller {
             config["trigger"]["trigger_source"]             = tpc_configs_.toTriggerSourceString(tpc_configs_.getTriggerSource());
             config["trigger"]["software_trigger_rate_hz"]   = tpc_configs_.getSoftwareTriggerRateHz();
             config["trigger"]["dead_time"]                  = tpc_configs_.getTpcDeadTime();
+
+            // drift length in 2MHz ticks
+            config["readout_windows"]["timesize"] = tpc_configs_.getDriftSize();
 
             // prescale (array → JSON array)
             auto& prescales = tpc_configs_.getPrescale();
@@ -253,7 +256,7 @@ namespace controller {
 
         PersistRunId();
 
-        if (args.size() < 1) {
+        if (args.empty()) {
             LOG_ERROR(logger_, "Wrong number of arguments! {}", args.size());
             return false;
         }
@@ -276,13 +279,13 @@ namespace controller {
             }
         } else {
             // Not making these vectors for convenience but keeping them here in case it is needed
-            std::vector<int> sipm_precount(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["pmt_precount"]);
+            std::vector<uint32_t> sipm_precount(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["pmt_precount"]);
             config_["light_fem"]["pmt_precount"] = sipm_precount;
-            std::vector<int> sipm_deadtime(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["sipm_deadtime"]);
+            std::vector<uint32_t> sipm_deadtime(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["sipm_deadtime"]);
             config_["light_fem"]["sipm_deadtime"] = sipm_deadtime;
-            std::vector<int> channel_thresh0(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh0"]);
+            std::vector<uint32_t> channel_thresh0(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh0"]);
             config_["light_fem"]["channel_thresh0"] = channel_thresh0;
-            std::vector<int> channel_thresh1(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh1"]);
+            std::vector<uint32_t> channel_thresh1(TOTAL_LIGHT_CHANNELS, config_["light_fem"]["channel_thresh1"]);
             config_["light_fem"]["channel_thresh1"] = channel_thresh1;
             // element 2 is the light trigger
             config_["trigger"]["prescale"].at(1) = config_["trigger"]["light_trig_prescale"];

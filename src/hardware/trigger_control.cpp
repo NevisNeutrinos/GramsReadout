@@ -27,7 +27,10 @@ namespace trig_ctrl {
         try {
             software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
             trigger_module_ = config["crate"]["trig_slot"].get<int>();
-            iframe_length = config["readout_windows"]["frame_length"].get<int>();
+            // iframe_length = config["readout_windows"]["frame_length"].get<int>();
+            // The frame size is calculated from timesize (timesize + 1) * 8 - 1
+            // This relation is from the fact, timesize is on 2MHz clock and framesize is on 16Mhz clock
+            iframe_length = ((config["readout_windows"]["drift_size"].get<int>() + 1) * 8) - 1;
             tpc_dead_time = config["trigger"]["dead_time"].get<int>();
             trig_src = config["trigger"]["trigger_source"].get<std::string>();
             prescale_vec_ = config["trigger"]["prescale"].get<std::vector<uint32_t>>();
