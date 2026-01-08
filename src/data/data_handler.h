@@ -85,6 +85,7 @@ private:
     constexpr static size_t DMABUFFSIZE = static_cast<size_t>(1.3 * EVENTSIZE);
     constexpr static size_t DATABUFFSIZE = (DMABUFFSIZE / sizeof(uint32_t));
     constexpr static size_t EVENTBUFFSIZE = 2 * DATABUFFSIZE * EVENTCHUNK; // make it twice the expected charge event size to account for light ROIs
+    size_t dma_buffer_config_size_; // must be <= DMABUFFSIZE and is configurable
 
     static_assert((DMABUFFSIZE % sizeof(uint32_t)) == 0, "DataHandler DMABUFFSIZE must be a multiple of 4!");
 
@@ -142,6 +143,23 @@ private:
     int fd_;
     quill::Logger* logger_;
 
+    // Struct to read PPS samples (this will be 20B + 4B padding)
+    struct PPSSample {
+        int64_t timestamp;
+        uint32_t pps_frame;
+        uint32_t pps_sample;
+        uint32_t pps_div;
+    };
+
+    // Struct to read PPS samples (this will be 48B and no padding)
+    struct TriggerSample {
+        uint64_t trig_ctr;
+        uint64_t trig_data_ctr;
+        uint64_t trig_frame;
+        uint64_t trig_sample;
+        uint64_t trig_sample_16MHz_remain;
+        uint64_t trig_sample_64MHz_remain;
+    };
 };
 
 } // data_handler

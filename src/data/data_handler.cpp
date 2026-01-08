@@ -600,11 +600,14 @@ namespace data_handler {
         unsigned long long trig_data_ctr;
         trig_data_ctr_ = 0xFFFFFF;
 
+        constexpr size_t TRIG_BUFFER_SIZE = 250;
+        std::array<TriggerSample, TRIG_BUFFER_SIZE> trig_sample_buffer;
+
         LOG_INFO(logger_, "Opening Trigger data file");
-        std::ofstream trigger_file;
+        // std::ofstream trigger_file;
         // std::string trigger_file_name = "trigger_data_run" + std::to_string(run_number_) + ".csv" ;
         std::string trigger_file_name = data_basedir_ + "/trigger_data/trigger_data_" + std::to_string(run_number_) + ".csv";
-        trigger_file.open(trigger_file_name);
+        std::ofstream trigger_file(trigger_file_name, std::ios::binary | std::ios::app);
         if (!trigger_file.is_open()) {
          LOG_WARNING(logger_, "Trigger file failed to open, only printing!");
         }
@@ -617,63 +620,81 @@ namespace data_handler {
 
         LOG_INFO(logger_, "Starting Trigger Read \n");
 
-        // while(is_running_.load()) {
-        while(is_running_.load()) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(2));
-         pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &trig_data_ctr);
-         trig_data_ctr = (trig_data_ctr>>32) & 0xffffff;
-         if( (trig_data_ctr_ - trig_data_ctr) < 16 ) {
-             if (!is_running_.load()) break;
-             continue;
+        size_t read_counter = 0;
+        while (is_running_.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &trig_data_ctr);
+            trig_data_ctr = (trig_data_ctr>>32) & 0xffffff;
+            if ( (trig_data_ctr_ - trig_data_ctr) < 16 ) {
+                if (!is_running_.load()) break;
+                continue;
+            }
+
+            if (trig_data_ctr < 1) {
+                LOG_ERROR(logger_, "Got 0 trigger data! \n");
+            }
+
+            unsigned long long trig_data0;
+            unsigned long long trig_data1;
+            pcie_interface->ReadReg64(kDev1, hw_consts::t2_tr_bar, 0x0, &trig_data0);
+            trig_data1 = trig_data0;
+            pcie_interface->ReadReg64(kDev1, hw_consts::t2_tr_bar, 0x0, &trig_data1);
+
+            uint64_t trig_ctr = (trig_data0 >> 40);
+            uint64_t trig_frame = ( ( ( (trig_data0 >> 32) & 0xff ) << 16 ) + ( (trig_data0 >> 16) & 0xffff ) );
+            uint64_t trig_sample = ( (trig_data0 >> 4) & 0xfff );
+            uint64_t trig_sample_remain_16MHz = ( (trig_data0 >> 1) & 0x7 );
+            uint64_t trig_sample_remain_64MHz = ( (trig_data1 >> 15) & 0x3 );
+
+            trig_sample_buffer[read_counter].trig_ctr = trig_ctr;
+            trig_sample_buffer[read_counter].trig_data_ctr = trig_data_ctr;
+            trig_sample_buffer[read_counter].trig_frame = trig_frame;
+            trig_sample_buffer[read_counter].trig_sample = trig_sample;
+            trig_sample_buffer[read_counter].trig_sample_16MHz_remain = trig_sample_remain_16MHz;
+            trig_sample_buffer[read_counter].trig_sample_64MHz_remain = trig_sample_remain_64MHz;
+            read_counter++;
+
+            // trigger_file << trig_ctr << ", " << trig_frame << ", " << trig_sample << ", "
+            //           << trig_sample_remain_16MHz << ", " << trig_sample_remain_64MHz << ", "
+            //           << trig_data_ctr << "\n";
+
+            if (read_counter >= TRIG_BUFFER_SIZE) {
+                trigger_file.write(reinterpret_cast<const char*>(trig_sample_buffer.data()),
+                               trig_sample_buffer.size() * sizeof(TriggerSample));
+                read_counter = 0;
+            }
+
+            if (debug) {
+                std::ostringstream msg;
+                msg << "\033[1;33;40m[ NEW TRIGGER ]\033[00m\n"
+                << " "
+                << " TrigBytes: " << trig_data_ctr
+                << " Trig: "   << trig_ctr
+                << " Frame: "  << trig_frame
+                << " Sample: " << trig_sample
+                << " Remine (16MHz): " << trig_sample_remain_16MHz
+                << " Remine (64MHz): " << trig_sample_remain_64MHz
+                << "\n"
+                << " "
+                << " Bits: \033[1;35;40m";
+                if((trig_data1>>8) & 0x1) msg << " PC";
+                if((trig_data1>>9) & 0x1) msg << " EXT";
+                if((trig_data1>>12) & 0x1) msg << " Gate1";
+                if((trig_data1>>11) & 0x1) msg << " Gate2";
+                if((trig_data1>>10) & 0x1) msg << " Active";
+                if((trig_data1>>13) & 0x1) msg << " Veto";
+                if((trig_data1>>14) & 0x1) msg << " Calib";
+                msg << "\033[00m\n";
+                std::cout << msg.str() << std::endl;
              }
 
-         if(trig_data_ctr < 1) {
-             LOG_ERROR(logger_, "Got 0 trigger data! \n");
-             }
+            trig_data_ctr_ -= 16;
+        }
 
-         unsigned long long trig_data0;
-         unsigned long long trig_data1;
-         pcie_interface->ReadReg64(kDev1, hw_consts::t2_tr_bar, 0x0, &trig_data0);
-         trig_data1 = trig_data0;
-         pcie_interface->ReadReg64(kDev1, hw_consts::t2_tr_bar, 0x0, &trig_data1);
-
-         uint64_t _trig_ctr = (trig_data0 >> 40);
-
-         uint64_t _trig_frame = ( ( ( (trig_data0 >> 32) & 0xff ) << 16 ) + ( (trig_data0 >> 16) & 0xffff ) );
-         uint64_t _trig_sample = ( (trig_data0 >> 4) & 0xfff );
-         uint64_t _trig_sample_remain_16MHz = ( (trig_data0 >> 1) & 0x7 );
-         uint64_t _trig_sample_remain_64MHz = ( (trig_data1 >> 15) & 0x3 );
-
-         if (debug) {
-             std::ostringstream msg;
-             msg << "\033[1;33;40m[ NEW TRIGGER ]\033[00m\n"
-             << " "
-             << " TrigBytes: " << trig_data_ctr
-             << " Trig: "   << _trig_ctr
-             << " Frame: "  << _trig_frame
-             << " Sample: " << _trig_sample
-             << " Remine (16MHz): " << _trig_sample_remain_16MHz
-             << " Remine (64MHz): " << _trig_sample_remain_64MHz
-             << "\n"
-             << " "
-             << " Bits: \033[1;35;40m";
-             if((trig_data1>>8) & 0x1) msg << " PC";
-             if((trig_data1>>9) & 0x1) msg << " EXT";
-             if((trig_data1>>12) & 0x1) msg << " Gate1";
-             if((trig_data1>>11) & 0x1) msg << " Gate2";
-             if((trig_data1>>10) & 0x1) msg << " Active";
-             if((trig_data1>>13) & 0x1) msg << " Veto";
-             if((trig_data1>>14) & 0x1) msg << " Calib";
-             msg << "\033[00m\n";
-             std::cout << msg.str() << std::endl;
-             }
-
-         trigger_file << _trig_ctr << ", " << _trig_frame << ", " << _trig_sample << ", "
-                      << _trig_sample_remain_16MHz << ", " << _trig_sample_remain_64MHz << ", "
-                      << trig_data_ctr << std::endl;
-
-
-         trig_data_ctr_ -= 16;
+        // If any remaining samples write them to file before closing
+        if (read_counter > 0) {
+            trigger_file.write(reinterpret_cast<const char*>(trig_sample_buffer.data()),
+                            (read_counter - 1) * sizeof(TriggerSample));
         }
         trigger_file.close();
         LOG_INFO(logger_, "Ended Trigger Read {} \n", trig_data_ctr_);
@@ -710,6 +731,7 @@ namespace data_handler {
     }
 
     void DataHandler::PollTriggerPPS(pcie_int::PCIeInterface *pcie_interface) {
+        constexpr size_t PPS_BUFFER_SIZE = 250;
         std::array<uint32_t, 2> send_array{};
         std::array<uint32_t, 2> read_array{};
         uint32_t *psend = send_array.data();
@@ -717,17 +739,17 @@ namespace data_handler {
 
         size_t num_status_words = 2;
         uint32_t chip_num = 3;
+        std::array<PPSSample, PPS_BUFFER_SIZE> pps_sample_buffer{};
 
         LOG_INFO(logger_, "Opening PPS data file");
-        std::ofstream pps_file;
         std::string pps_file_name = data_basedir_ + "/pps_data/pps_data_" + std::to_string(run_number_) + ".csv" ;
-        pps_file.open(pps_file_name);
+        std::ofstream pps_file(pps_file_name, std::ios::binary | std::ios::app);
         if (!pps_file.is_open()) {
             LOG_WARNING(logger_, "PPS file failed to open, only printing!");
         }
 
+        size_t read_counter = 0;
         while (is_running_.load()) {
-            // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             std::this_thread::sleep_for(std::chrono::milliseconds(pps_sample_period_));
             // init the receiver
             pcie_interface->PCIeRecvBuffer(1, 0, 1, num_status_words, 0, precv);
@@ -739,19 +761,29 @@ namespace data_handler {
             uint32_t pps_frame = read_array.at(0) & 0xFFFFFF;
             uint32_t pps_sample = read_array.at(1) & 0xFFF;
             uint32_t pps_div = ( ( read_array.at(1) & 0x70000) >> 16 );
-            LOG_DEBUG(logger_, "PPS - Frame: {} Sample: {} Div: {}", pps_frame, pps_sample, pps_div);
-
+            // Add samples to buffer
             if (pps_frame > 0) {
-                // Get the current time point from the system clock
-                auto now = std::chrono::system_clock::now();
-                long long seconds = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-                pps_file << seconds << ", " << pps_frame << ", " << pps_sample << ", " << pps_div << std::endl;
-                LOG_DEBUG(logger_, "Writing PPS data to file");
+                pps_sample_buffer[read_counter].timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                         std::chrono::system_clock::now().time_since_epoch()).count();
+                pps_sample_buffer[read_counter].pps_frame = pps_frame;
+                pps_sample_buffer[read_counter].pps_sample = pps_sample;
+                pps_sample_buffer[read_counter].pps_div = pps_div;
+                read_counter++;
+            }
+
+            if (read_counter >= PPS_BUFFER_SIZE) {
+                pps_file.write(reinterpret_cast<const char*>(pps_sample_buffer.data()),
+                                pps_sample_buffer.size() * sizeof(PPSSample));
+                read_counter = 0;
             }
         }
 
-    pps_file.close();
-    LOG_INFO(logger_, "Closed PPS data file");
+        // If there are any samples in the buffer, write them and close file
+        if (read_counter > 0) {
+            pps_file.write(reinterpret_cast<const char*>(pps_sample_buffer.data()), (read_counter - 1) * sizeof(PPSSample));
+        }
+        pps_file.close();
+        LOG_INFO(logger_, "Closed PPS data file");
     }
 
     std::vector<uint32_t> DataHandler::GetStatus() {
