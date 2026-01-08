@@ -603,7 +603,7 @@ namespace data_handler {
         LOG_INFO(logger_, "Opening Trigger data file");
         std::ofstream trigger_file;
         // std::string trigger_file_name = "trigger_data_run" + std::to_string(run_number_) + ".csv" ;
-        std::string trigger_file_name = data_basedir_ + "/trigger_data/trigger_data_run" + std::to_string(run_number_) + ".csv";
+        std::string trigger_file_name = data_basedir_ + "/trigger_data/trigger_data_" + std::to_string(run_number_) + ".csv";
         trigger_file.open(trigger_file_name);
         if (!trigger_file.is_open()) {
          LOG_WARNING(logger_, "Trigger file failed to open, only printing!");
@@ -619,7 +619,7 @@ namespace data_handler {
 
         // while(is_running_.load()) {
         while(is_running_.load()) {
-         std::this_thread::sleep_for(std::chrono::milliseconds(2000));
+         std::this_thread::sleep_for(std::chrono::milliseconds(2));
          pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &trig_data_ctr);
          trig_data_ctr = (trig_data_ctr>>32) & 0xffffff;
          if( (trig_data_ctr_ - trig_data_ctr) < 16 ) {
@@ -720,7 +720,7 @@ namespace data_handler {
 
         LOG_INFO(logger_, "Opening PPS data file");
         std::ofstream pps_file;
-        std::string pps_file_name = data_basedir_ + "/pps_data/pps_data_run" + std::to_string(run_number_) + ".csv" ;
+        std::string pps_file_name = data_basedir_ + "/pps_data/pps_data_" + std::to_string(run_number_) + ".csv" ;
         pps_file.open(pps_file_name);
         if (!pps_file.is_open()) {
             LOG_WARNING(logger_, "PPS file failed to open, only printing!");
