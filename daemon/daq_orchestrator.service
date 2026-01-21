@@ -12,6 +12,16 @@ Type=simple
 # Since we don't have access to environment variables list them here
 Environment="TPC_DAQ_BASEDIR=/home/???/GramsReadout" "DATA_BASE_DIR=/??/data"
 
+
+# Since we don't have access to environment variables list them here
+# TPC Readout Env Vars
+Environment="TPC_DAQ_BASEDIR=/home/???/GramsReadout" 
+Environment="DATA_BASE_DIR=/data" 
+
+# TOF Readout Env Vars
+Environment="LD_LIBRARY_PATH=/home/???/tof_readout/daq/grams-tof/00build/00install/lib:/home/???/tof_readout/software/ncurses-6.5/lib:/home/???/tof_readout/software/boost_1_89_0/lib:/home/???/tof_readout/software/root-6.36.06/lib"
+Environment="PYTHONPATH=/home/???/tof_readout/daq/grams-tof/00build/00install:/home/???/tof_readout/software/root-6.36.06/lib" 
+
 # Make sure the PCIe driver kernel module is loaded and initialized at boot
 ExecStartPre=${TPC_DAQ_BASEDIR}/scripts/setup_windriver.sh
 # Path to the compiled, installed executable
