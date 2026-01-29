@@ -292,7 +292,7 @@ namespace data_handler {
                     num_words++;
                     // num_recv_bytes += 4;
                     if (event_chunk == EVENTCHUNK) {
-                        if ((local_event_count % 500) == 0) LOG_INFO(logger_, " **** Event: {} \n", local_event_count);
+                        if ((local_event_count % 50) == 0) LOG_INFO(logger_, " **** Event: {} \n", local_event_count);
                         const int write_bytes = write(fd_, word_arr_write.data(), num_words*sizeof(uint32_t));
                         if (write_bytes == -1) LOG_WARNING(logger_, "Failed write {} \n", std::string(strerror(errno)));
                         else num_recv_bytes += static_cast<size_t>(write_bytes);
@@ -622,7 +622,7 @@ namespace data_handler {
 
         size_t read_counter = 0;
         while (is_running_.load()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
             pcie_interface->ReadReg64(kDev1, hw_consts::cs_bar, hw_consts::t2_cs_reg, &trig_data_ctr);
             trig_data_ctr = (trig_data_ctr>>32) & 0xffffff;
             if ( (trig_data_ctr_ - trig_data_ctr) < 16 ) {
@@ -718,8 +718,7 @@ namespace data_handler {
     bool DataHandler::WaitForDma(pcie_int::PCIeInterface *pcie_interface, uint32_t *data, uint32_t dev_num) {
         // Poll DMA until finished
         // Can get stuck waiting for the DMA to finish, use is_running flag check to break from it
-        // for (size_t is = 0; is < 6000000000; is++) {
-        for (size_t is = 0; is < 10000000; is++) {
+        for (size_t is = 0; is < 6000000000; is++) {
             pcie_interface->ReadReg32(dev_num, hw_consts::cs_bar, hw_consts::cs_dma_cntrl, data);
             if ((*data & hw_consts::dma_in_progress) == 0) {
                 return true;
