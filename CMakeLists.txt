@@ -35,12 +35,11 @@ else()
 endif()
 
 # The Communication code definitions, use the shared one but fall back to local copy if shared is not found
-#set(PRIMARY_COMM_CODES "$ENV{BALLOON_BASE_DIR}/include")
-set(PRIMARY_COMM_CODES "") # force failure for now until comm codes updated
+set(PRIMARY_COMM_CODES "$ENV{BALLOON_BASE_DIR}/include")
 set(FALLBACK_COMM_CODES "$ENV{TPC_DAQ_BASEDIR}/PGramsCommCodec/comm_codes")
 
 # Check if the primary file exists on the file system
-if(EXISTS "${PRIMARY_COMM_CODES}")
+if(DEFINED PRIMARY_COMM_CODES)
     message(STATUS "Found primary Communication Code definitions: ${PRIMARY_COMM_CODES}")
     include_directories("${PRIMARY_COMM_CODES}")
 else()

@@ -466,7 +466,7 @@ namespace controller {
             std::cout << "Received command: " << cmd.command << std::endl;
             // command_client_.WriteSendBuffer(cmd); //ack
             bool response = HandleCommand(cmd);
-            if (cmd.command == CommunicationCodes::COM_HeartBeat) continue;
+            if (cmd.command == to_u16(CommunicationCodes::COM_HeartBeat)) continue;
             SendCallback(cmd.command, response);
             LOG_INFO(logger_, " \n Current state: [{}] \n", GetStateName());
         }
@@ -484,25 +484,25 @@ namespace controller {
     bool Controller::HandleCommand(Command& command) {
         LOG_INFO(logger_, " \n Sending command: [{}] \n", command.command);
 
-        if (command.command == CommunicationCodes::COL_Configure && current_state_ == State::kIdle) {
+        if (command.command == to_u16(CommunicationCodes::COL_Configure) && current_state_ == State::kIdle) {
             LOG_INFO(logger_, " \n State [Idle] \n");
             bool status = is_configured_ ? true : Configure(command.arguments);
             if (status) current_state_ = State::kConfigured;
             tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             return status;
-        } if (command.command == CommunicationCodes::COL_Start_Run && current_state_ == State::kConfigured) {
+        } if (command.command == to_u16(CommunicationCodes::COL_Start_Run) && current_state_ == State::kConfigured) {
             LOG_INFO(logger_, " \n State [Configure] \n ");
             current_state_ = State::kRunning;
             StartRun();
             tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             return true;
-        } if (command.command == CommunicationCodes::COL_Stop_Run && current_state_ == State::kRunning) {
+        } if (command.command == to_u16(CommunicationCodes::COL_Stop_Run) && current_state_ == State::kRunning) {
             LOG_INFO(logger_, " \n State [Running] \n");
             current_state_ = State::kStopped;
             StopRun();
             tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             return true;
-        } if (command.command == CommunicationCodes::COL_Reset_Run && current_state_ == State::kStopped) {
+        } if (command.command == to_u16(CommunicationCodes::COL_Reset_Run) && current_state_ == State::kStopped) {
             LOG_INFO(logger_, " \n State [Stopped] \n");
             Reset();
             // is_configured_ = false;
