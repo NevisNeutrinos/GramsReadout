@@ -33,7 +33,7 @@ int GetUserInput() {
         } case 0x3: {
             return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Stop_Run);
         } case 39: {
-            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Query_Hardware_Status);
+            return static_cast<int>(pgrams::communication::TelemetryCodes::COL_Query_Hardware_Status);
         } case -1: {
             return -1;
         } default: {
@@ -98,8 +98,8 @@ int main() {
     asio::io_context status_io_context;
 
     bool run = true;
-    // std::string ip_addr = "192.168.1.100";
-    std::string ip_addr = "127.0.0.1";
+    std::string ip_addr = "192.168.1.100";
+    //std::string ip_addr = "127.0.0.1";
     std::cout << "Starting controller..." << std::endl;
     controller::Controller controller(io_context, status_io_context, ip_addr, 50003, 50002, false, run);
     // controller::Controller controller(io_context, "127.0.0.1", 12345, true, run);

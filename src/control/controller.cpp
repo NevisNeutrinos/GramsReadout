@@ -376,10 +376,10 @@ namespace controller {
         status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
         if (!print_status_) {
             // Construct and send a status packet
-            // Command cmd(to_u16(CommunicationCodes::COL_Hardware_Status), status_vec.size());
+            // Command cmd(to_telem_u16(TelemetryCodes::COL_Hardware_Status), status_vec.size());
             // cmd.arguments = std::move(status_vec);
             auto tmp_vec = tpc_readout_monitor_.serialize();
-            status_client_.WriteSendBuffer(to_u16(CommunicationCodes::COL_Hardware_Status), tmp_vec);
+            status_client_.WriteSendBuffer(to_telem_u16(TelemetryCodes::COL_Hardware_Status), tmp_vec);
         } else {
             // for (auto stat : status_vec)  LOG_INFO(logger_, "Data Handler Status: {} \n", stat);
             tpc_readout_monitor_.print();
@@ -395,7 +395,7 @@ namespace controller {
             status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
             if (!print_status_) {
                 auto tmp_vec = tpc_readout_monitor_.serialize();
-                status_client_.WriteSendBuffer(to_u16(CommunicationCodes::COL_Hardware_Status), tmp_vec);
+                status_client_.WriteSendBuffer(to_telem_u16(TelemetryCodes::COL_Hardware_Status), tmp_vec);
             } else {
                 tpc_readout_monitor_.print();
             }
@@ -512,7 +512,7 @@ namespace controller {
             return true;
         }
 
-        if (command.command == CommunicationCodes::COL_Query_Hardware_Status) {
+        if (command.command == to_telem_u16(TelemetryCodes::COL_Query_Hardware_Status)) {
             LOG_INFO(logger_, " \n State [ReadStatus] \n");
             if (is_configured_) ReadStatus();
             else LOG_WARNING(logger_, "Cant read status before configuration!\n");
