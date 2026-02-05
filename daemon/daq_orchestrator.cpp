@@ -583,22 +583,42 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 }
                 break;
             }
-            case to_u16(CommunicationCodes::ORC_Boot_All_DAQ): { // start DAQ processes TODO add monitor!
+            case to_u16(CommunicationCodes::ORC_Boot_All_DAQ): {
+                StartDaqProcess(tpc_controller_daq, logger, io_ctx);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc);
+                StartTofProcess(g_tof_ptr, tof_thread, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof);
+                StartDaqProcess(tpc_monitor_controller_daq, logger, io_ctx);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor);
+                QUILL_LOG_INFO(logger, "Booted All DAQ...");
+                break;
+            }
+            case to_u16(CommunicationCodes::ORC_Shutdown_All_DAQ): {
+                StopDaqProcess(tpc_controller_daq, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
+                StopTofProcess(g_tof_ptr, tof_thread, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
+                StopDaqProcess(tpc_monitor_controller_daq, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
+                QUILL_LOG_INFO(logger, "Shutdown All DAQ...");
+                break;
+            }
+            case to_u16(CommunicationCodes::ORC_Boot_Tpc_Daq): { 
                 StartDaqProcess(tpc_controller_daq, logger, io_ctx);
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc);
                 break;
             }
-            case to_u16(CommunicationCodes::ORC_Shutdown_All_DAQ): { // stop DAQ processes TODO add monitor!
+            case to_u16(CommunicationCodes::ORC_Shutdown_Tpc_Daq): { 
                 StopDaqProcess(tpc_controller_daq, logger);
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
                 break;
             }
-            case to_u16(CommunicationCodes::ORC_Boot_Tof_Daq): { // FIXME add TOF
+            case to_u16(CommunicationCodes::ORC_Boot_Tof_Daq): { 
                 StartTofProcess(g_tof_ptr, tof_thread, logger);
                 QUILL_LOG_INFO(logger, "Booted TOF DAQ...");
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof);
                 break;
-            } case to_u16(CommunicationCodes::ORC_Shutdown_Tof_Daq): { // FIXME add TOF
+            } case to_u16(CommunicationCodes::ORC_Shutdown_Tof_Daq): { 
                 StopTofProcess(g_tof_ptr, tof_thread, logger);
                 QUILL_LOG_INFO(logger, "Shutdown TOF DAQ...");
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
@@ -610,12 +630,24 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 WaitForThreadJoin(status_thread, logger);
                 break;
             } case to_u16(CommunicationCodes::ORC_Exec_CPU_Restart): {
-                // FIXME add shutdown DAQ here
+                // Make sure all DAQ are shutdown first
+                StopDaqProcess(tpc_controller_daq, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
+                StopTofProcess(g_tof_ptr, tof_thread, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
+                StopDaqProcess(tpc_monitor_controller_daq, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
                 QUILL_LOG_INFO(logger, "Rebooting DAQ Computer!");
                 RebootComputer();
                 break;
             } case to_u16(CommunicationCodes::ORC_Exec_CPU_Shutdown): {
-                // FIXME add shutdown DAQ here
+                // Make sure all DAQ are shutdown first
+                StopDaqProcess(tpc_controller_daq, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
+                StopTofProcess(g_tof_ptr, tof_thread, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
+                StopDaqProcess(tpc_monitor_controller_daq, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
                 QUILL_LOG_INFO(logger, "Shutting down DAQ Computer!");
                 // ShutdownComputer();
                 break;
@@ -632,7 +664,6 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
                 break;
             }
-            // TODO add case for booting _all_ DAQ (status msg shows if they are running)
             default: {
                 QUILL_LOG_WARNING(logger, "Unknown command {}", cmd.command);
                 break;
@@ -642,9 +673,10 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
 
     QUILL_LOG_INFO(logger, "Run Daemon stopped, shutting it all down!");
     g_status_running.store(false);
+    // Shutdown all DAQ processes befoer exiting
     StopDaqProcess(tpc_controller_daq, logger);
     StopDaqProcess(tpc_monitor_controller_daq, logger);
-    // StopTofProcess(tof_ptr, tof_thread, logger); // FIXME add TOF
+    StopTofProcess(g_tof_ptr, tof_thread, logger);
     WaitForThreadJoin(status_thread, logger);
 }
 
