@@ -466,6 +466,7 @@ void StartTofProcess(TOF_ControllerPtr &tof_ptr, std::thread &tof_thread, quill:
     config.commandListenPort = kTofCommandPort;
     config.eventTargetPort = kTofStatusPort;
     config.remoteEventHub = kHubIp;
+    config.remoteCommandHub = kHubIp;
     config.configFile = "";
 
     if (config.configFile.empty()) {
