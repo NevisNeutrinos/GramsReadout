@@ -1,0 +1,59 @@
+[Unit]
+Description=TOF DAQ Service
+# Start after the network is available
+After=network.target network-online.target
+# Optional: Add Wants=network-online.target if it MUST wait for full network config
+
+[Service]
+# Type=simple: systemd considers the main process the service itself.
+# Our C++ code does not fork/daemonize itself.
+Type=simple
+
+# Since we don't have access to environment variables list them here
+# TOF Readout Env Vars
+Environment="LD_LIBRARY_PATH=/home/???/tof_readout/daq/grams-tof/00build/00install/lib:/home/???/tof_readout/software/ncurses-6.5/lib:/home/???/tof_readout/software/boost_1_89_0/lib:/home/???/tof_readout/software/root-6.36.06/lib"
+Environment="PYTHONPATH=/home/???/tof_readout/daq/grams-tof/00build/00install:/home/???/tof_readout/software/root-6.36.06/lib" 
+
+# Path to the compiled, installed executable
+ExecStart=/usr/local/bin/tof_daq
+
+# User and Group to run as (IMPORTANT: create this user/group first!)
+# Avoid running as root unless absolutely necessary.
+User=root
+Group=root
+# Add SupplementaryGroups= if the user needs access via other groups
+
+# Working directory (optional, defaults to /)
+# WorkingDirectory=/opt/my_controller
+
+# Environment variables (optional, alternative to config files)
+# Environment="CONFIG_FILE=/etc/my_controller/config.yaml"
+# Environment="LOG_LEVEL=debug"
+
+# Restart behavior
+Restart=on-failure
+# Other options: no, always, on-success, on-abnormal, on-abort
+RestartSec=5s
+
+# Standard Output/Error handling
+# 'journal' is the default for Type=simple, sending stdout/stderr to journald
+StandardOutput=journal
+StandardError=journal
+# Alternatively, redirect to files (ensure permissions):
+# StandardOutput=append:/var/log/my_controller/output.log
+# StandardError=append:/var/log/my_controller/error.log
+
+# Resource limits (optional)
+# LimitNOFILE=65536
+
+# Security hardening (optional but recommended)
+# ProtectSystem=full        # Makes /usr, /boot, /etc read-only
+# ProtectHome=true          # Makes /home inaccessible
+# PrivateTmp=true           # Uses a private /tmp and /var/tmp
+# NoNewPrivileges=true      # Prevents escalation of privileges
+# CapabilityBoundingSet=~CAP_SYS_ADMIN CAP_NET_ADMIN # Drop unnecessary capabilities
+# ReadWritePaths=/var/lib/my_controller # Allow writing only to specific paths if needed
+
+[Install]
+# Enable the service to start on boot for multi-user target
+WantedBy=multi-user.target

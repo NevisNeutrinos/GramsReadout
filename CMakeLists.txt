@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 project(GramsReadout)
 
 set(CMAKE_CXX_STANDARD 17)
-#set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Debug)
 
 # Enable pedantic compile mode, we want to be as strict as possible
 # at compile time rather than find problems at run time which could be too late.
@@ -11,6 +11,7 @@ add_compile_options(-Wall -Wextra -pedantic)
 # For Grafana metrics
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZeroMQ REQUIRED libzmq)
+pkg_check_modules(SYSTEMD REQUIRED libsystemd)
 find_package(Boost REQUIRED COMPONENTS python3 regex)
 
 if(NOT DEFINED ENV{GLIB})
@@ -179,6 +180,100 @@ target_link_libraries(daq_orchestrator PRIVATE
 # Define the installation location for the daemon
 message("Installing DAQ Orchestrator")
 install(TARGETS daq_orchestrator DESTINATION /usr/local/bin)
+
+#######################
+# Refactored Daemon
+add_executable(orchestrator daemon/orchestrator.cpp)
+
+target_include_directories(orchestrator PRIVATE ${SYSTEMD_INCLUDE_DIRS})
+target_link_libraries(orchestrator PRIVATE ${SYSTEMD_LIBRARIES})
+
+target_compile_definitions(orchestrator PUBLIC
+        -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
+
+target_link_libraries(orchestrator PRIVATE
+        gramsreadout
+        quill::quill
+        statgrab
+        ${SYSTEMD_LIBRARIES}
+)
+
+# Define the installation location for the daemon
+message("Installing Orchestrator")
+install(TARGETS orchestrator DESTINATION /usr/local/bin)
+
+## TPC DAQ
+add_executable(tpc_daq daemon/tpc_daq.cpp)
+
+target_compile_definitions(tpc_daq PUBLIC
+        -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
+
+target_link_libraries(tpc_daq PRIVATE
+        gramsreadout
+        quill::quill
+)
+
+# Define the installation location for the daemon
+message("Installing TPC DAQ")
+install(TARGETS tpc_daq DESTINATION /usr/local/bin)
+
+## Data Monitor
+add_executable(data_monitor daemon/data_monitor.cpp
+        ${DATAMONITOR_CM_SRC}
+        ${DATAMONITOR_MA_SRC}
+        ${DATAMONITOR_DEC_SRC}
+        ${NETWORK_SRC}
+        ${METRIC_SRC})
+
+target_compile_definitions(data_monitor PUBLIC
+        -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
+
+target_link_libraries(data_monitor PRIVATE
+#        gramsreadout
+        quill::quill
+)
+
+# Define the installation location for the daemon
+message("Installing Data Monitor")
+install(TARGETS data_monitor DESTINATION /usr/local/bin)
+
+## TOF DAQ
+add_executable(tof_daq daemon/tof_daq.cpp)
+
+target_include_directories(tof_daq PRIVATE
+        ${TOFLIB_INSTALL}/include
+        ${TOFLIB_INSTALL}/include/FlightOps
+        ${TOFLIB_INSTALL}/include/daqd
+        ${TOFLIB_INSTALL}/include/base
+        ${TOFLIB_INSTALL}/include/rawdata
+        ${TOFLIB_INSTALL}/include/scripts_c
+        ${TOFLIB_INSTALL}/include/shota
+        ${Boost_INCLUDE_DIRS}
+)
+target_link_directories(tof_daq PRIVATE
+        ${TOFLIB_INSTALL}/lib
+)
+
+#target_link_libraries(tof_daq PRIVATE
+#        gramsreadout
+#        Datamonitor
+#        quill::quill
+#        pcie_lib
+#        statgrab
+#        GramsTofFlightOpsLib
+#        ${Boost_LIBRARIES}
+#)
+
+target_link_libraries(tof_daq PRIVATE
+        gramsreadout
+        GramsTofFlightOpsLib
+        ${Boost_LIBRARIES}
+        quill::quill
+)
+
+# Define the installation location for the daemon
+message("Installing TOF DAQ")
+install(TARGETS tof_daq DESTINATION /usr/local/bin)
 
 #######################
 # Test
