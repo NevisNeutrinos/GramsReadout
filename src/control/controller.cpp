@@ -14,13 +14,17 @@ namespace controller {
 
     Controller::Controller(asio::io_context& io_context, asio::io_context& status_io_context, const std::string& ip_address,
         const uint16_t command_port, const uint16_t status_port, const bool is_server, const bool is_running) :
-        command_client_(io_context, ip_address, command_port, is_server, true, false),
-        status_client_(status_io_context, ip_address, status_port, is_server, false, true),
+        // command_client_(io_context, ip_address, command_port, is_server, true, false),
+        // status_client_(status_io_context, ip_address, status_port, is_server, false, true),
         is_configured_(false),
         run_id_(0),
         is_running_(is_running),
         run_status_(false) {
-        // metrics_(data_monitor::DataMonitor::GetInstance()) {
+        // Instantiate and Start clients
+        command_client_ = std::make_shared<TCPConnection>(io_context, ip_address, command_port, is_server, true, false);
+        status_client_ = std::make_shared<TCPConnection>(status_io_context, ip_address, status_port, is_server, false, true);
+        command_client_->Start();
+        status_client_->Start();
 
         current_state_ = State::kIdle;
 
@@ -379,7 +383,7 @@ namespace controller {
             // Command cmd(to_telem_u16(TelemetryCodes::COL_Hardware_Status), status_vec.size());
             // cmd.arguments = std::move(status_vec);
             auto tmp_vec = tpc_readout_monitor_.serialize();
-            status_client_.WriteSendBuffer(to_telem_u16(TelemetryCodes::COL_Hardware_Status), tmp_vec);
+            status_client_->WriteSendBuffer(to_telem_u16(TelemetryCodes::COL_Hardware_Status), tmp_vec);
         } else {
             // for (auto stat : status_vec)  LOG_INFO(logger_, "Data Handler Status: {} \n", stat);
             tpc_readout_monitor_.print();
@@ -395,7 +399,7 @@ namespace controller {
             status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
             if (!print_status_) {
                 auto tmp_vec = tpc_readout_monitor_.serialize();
-                status_client_.WriteSendBuffer(to_telem_u16(TelemetryCodes::COL_Hardware_Status), tmp_vec);
+                status_client_->WriteSendBuffer(to_telem_u16(TelemetryCodes::COL_Hardware_Status), tmp_vec);
             } else {
                 tpc_readout_monitor_.print();
             }
@@ -449,8 +453,8 @@ namespace controller {
 
     void Controller::SetRunning(bool run) {
         is_running_ = run;
-        command_client_.setStopCmdRead(!run);
-        status_client_.setStopCmdRead(!run);
+        command_client_->setStopCmdRead(!run);
+        status_client_->setStopCmdRead(!run);
     }
 
     void Controller::Run() {
@@ -462,7 +466,7 @@ namespace controller {
 
     void Controller::ReceiveCommand() {
         while (is_running_) {
-            Command cmd = command_client_.ReadRecvBuffer();
+            Command cmd = command_client_->ReadRecvBuffer();
             std::cout << "Received command: " << cmd.command << std::endl;
             // command_client_.WriteSendBuffer(cmd); //ack
             bool response = HandleCommand(cmd);
@@ -477,7 +481,7 @@ namespace controller {
         tpc_readout_monitor_.setLastCommand(command);
         tpc_readout_monitor_.setLastCommandStatus(acknowledge);
         auto data = tpc_readout_monitor_.serialize();
-        status_client_.WriteSendBuffer(command, data);
+        status_client_->WriteSendBuffer(command, data);
     }
 
     // Handle user commands

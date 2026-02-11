@@ -103,8 +103,10 @@ namespace controller {
         json SetConfigFromComm(json& config, std::vector<uint32_t> &config_vec, size_t skip_words);
 
         // TCPConnection tcp_connection_;
-        TCPConnection command_client_;
-        TCPConnection status_client_;
+        // TCPConnection command_client_;
+        // TCPConnection status_client_;
+        std::shared_ptr<TCPConnection> command_client_;
+        std::shared_ptr<TCPConnection> status_client_;
         std::thread data_thread_;
         std::thread status_thread_;
         std::vector<int> board_slots_{};

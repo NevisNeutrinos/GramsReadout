@@ -305,7 +305,7 @@ void GetComputerStatus(quill::Logger *logger) {
     }
 }
 
-void SendStatus(std::unique_ptr<TCPConnection> &status_client_ptr, quill::Logger *logger) {
+void SendStatus(std::shared_ptr<TCPConnection> &status_client_ptr, quill::Logger *logger) {
     while (g_status_running.load()) {
         QUILL_LOG_INFO(logger, "Sending status...");
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -431,7 +431,7 @@ bool ControlService(const std::string& unit_name, const std::string& method, qui
     return true;
 }
 
-void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_ptr<TCPConnection> &status_client_ptr,
+void DAQHandler(std::shared_ptr<TCPConnection> &command_client_ptr, std::shared_ptr<TCPConnection> &status_client_ptr,
                 quill::Logger *logger) {
 
     // DAQ process threads
@@ -590,9 +590,8 @@ int main() {
     asio::io_context io_context;
     size_t num_io_ctx_threads = 2; // one thread for each link (2 links/DAQ + Orchestrator)
     std::thread command_thread;
-    std::unique_ptr<TCPConnection> command_client_ptr;
-    std::unique_ptr<TCPConnection> status_client_ptr;
-
+    std::shared_ptr<TCPConnection> command_client_ptr;
+    std::shared_ptr<TCPConnection> status_client_ptr;
     // Here we start the IO context on a few threads. This just gives the context access to
     // these threads so it can handle asyn operations on multiple sockets at once. This is all
     // handled under the hood by ASIO
@@ -600,8 +599,10 @@ int main() {
     try {
         pgrams::orchestrator::StartContext(io_ctx_threads, logger, io_context, num_io_ctx_threads);
         QUILL_LOG_DEBUG(logger, "Starting control connection \n");
-        command_client_ptr = std::make_unique<TCPConnection>(io_context, kHubIp, kDaemonCommandPort, false, true, false);
-        status_client_ptr = std::make_unique<TCPConnection>(io_context, kHubIp, kDaemonStatusPort, false, false, true);
+        command_client_ptr = std::make_shared<TCPConnection>(io_context, kHubIp, kDaemonCommandPort, false, true, false);
+        status_client_ptr = std::make_shared<TCPConnection>(io_context, kHubIp, kDaemonStatusPort, false, false, true);
+        command_client_ptr->Start();
+        status_client_ptr->Start();
         command_thread = std::thread([&]() { pgrams::orchestrator::DAQHandler(command_client_ptr, status_client_ptr, logger); });
 
     } catch (const std::exception& e) {

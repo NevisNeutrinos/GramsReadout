@@ -46,7 +46,7 @@ const uint16_t kTofCommandPort = 50007; // TOF software port, for commands
 const uint16_t kTofStatusPort = 50006; // TOF software port, for status
 
 // --- Global Variables ---
-namespace pgrams::orchestrator { // Use anonymous namespace for internal linkage
+namespace pgrams::tofdaq { // Use anonymous namespace for internal linkage
 
 using namespace communication;
 using TOF_ControllerPtr = std::unique_ptr<GRAMS_TOF_DAQController>;
@@ -247,10 +247,10 @@ void StopTofProcess(TOF_ControllerPtr &tof_ptr, std::thread &tof_thread, quill::
 // --- Main Entry Point ---
 int main() {
     // 1. Setup Signal Handlers Early
-    pgrams::orchestrator::SetupSignalHandlers();
+    pgrams::tofdaq::SetupSignalHandlers();
 
     // 2. Initialize Logging
-    pgrams::orchestrator::SetupLogging(); // Configures Quill to log to stdout
+    pgrams::tofdaq::SetupLogging(); // Configures Quill to log to stdout
     quill::Logger* logger = quill::Frontend::create_or_get_logger("readout_logger");
 
     QUILL_LOG_INFO(logger, "TOF DAQ service starting up...");
@@ -263,21 +263,21 @@ int main() {
 
     try {
         QUILL_LOG_DEBUG(logger, "Starting control connection \n");
-        pgrams::orchestrator::StartTofProcess(tof_ptr, daq_thread, logger);
+        pgrams::tofdaq::StartTofProcess(tof_ptr, daq_thread, logger);
     } catch (const std::exception& e) {
         QUILL_LOG_CRITICAL(logger, "Exception during initialization phase: {}", e.what());
-        pgrams::orchestrator::g_running.store(false); // Signal shutdown
+        pgrams::tofdaq::g_running.store(false); // Signal shutdown
     } catch (...) {
         QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
-        pgrams::orchestrator::g_running.store(false); // Signal shutdown
+        pgrams::tofdaq::g_running.store(false); // Signal shutdown
     }
 
     // 4. Main Wait Loop (only if initialization was okay)
     // Wait until g_running is false (due to signal or error)
-    if (pgrams::orchestrator::g_running.load()) {
+    if (pgrams::tofdaq::g_running.load()) {
         QUILL_LOG_INFO(logger, "Service running. Waiting for termination signal...");
-        std::unique_lock<std::mutex> lock(pgrams::orchestrator::g_shutdown_mutex);
-        pgrams::orchestrator::g_shutdown_cv.wait(lock, [] { return !pgrams::orchestrator::g_running.load(); });
+        std::unique_lock<std::mutex> lock(pgrams::tofdaq::g_shutdown_mutex);
+        pgrams::tofdaq::g_shutdown_cv.wait(lock, [] { return !pgrams::tofdaq::g_running.load(); });
         // When woken up, g_running is false
         QUILL_LOG_INFO(logger, "Shutdown signal received or error detected. Initiating shutdown sequence.");
     } else {
@@ -288,7 +288,7 @@ int main() {
     // 5. Shutdown Sequence ---
     QUILL_LOG_INFO(logger, "Starting graceful shutdown sequence...");
 
-    pgrams::orchestrator::StopTofProcess(tof_ptr, daq_thread, logger);
+    pgrams::tofdaq::StopTofProcess(tof_ptr, daq_thread, logger);
 
     // Quill backend shutdown happens automatically at exit.
     QUILL_LOG_INFO(logger, "Shutdown sequence complete. Exiting...");

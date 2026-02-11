@@ -229,7 +229,6 @@ target_compile_definitions(data_monitor PUBLIC
         -DQUILL_COMPILE_ACTIVE_LOG_LEVEL=QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO)
 
 target_link_libraries(data_monitor PRIVATE
-#        gramsreadout
         quill::quill
 )
 
@@ -253,17 +252,6 @@ target_include_directories(tof_daq PRIVATE
 target_link_directories(tof_daq PRIVATE
         ${TOFLIB_INSTALL}/lib
 )
-
-#target_link_libraries(tof_daq PRIVATE
-#        gramsreadout
-#        Datamonitor
-#        quill::quill
-#        pcie_lib
-#        statgrab
-#        GramsTofFlightOpsLib
-#        ${Boost_LIBRARIES}
-#)
-
 target_link_libraries(tof_daq PRIVATE
         gramsreadout
         GramsTofFlightOpsLib

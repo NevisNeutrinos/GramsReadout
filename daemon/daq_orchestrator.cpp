@@ -42,7 +42,7 @@
 // Best practice: Load these from a config file or environment variables
 // For simplicity, using constants here. Consider systemd Environment= directive.
 
-const char* kHubIp = "192.168.100.100";  // Hub Computer IP
+const char* kHubIp = "127.0.0.1";  // Hub Computer IP
 
 const uint16_t kControllerCommandPort = 50003; // TPC Readout software port, for commands
 const uint16_t kControllerStatusPort = 50002; // TPC Readout software port, for status
@@ -59,7 +59,7 @@ const uint16_t kTofStatusPort = 50006; // TOF software port, for status
 const size_t NUM_DAQ = 3; // Number of DAQ processes
 
 // --- Global Variables ---
-namespace pgrams::orchestrator { // Use anonymous namespace for internal linkage
+namespace pgrams::daqorchestrator { // Use anonymous namespace for internal linkage
 
 using namespace communication;
 using TOF_ControllerPtr = std::unique_ptr<GRAMS_TOF_DAQController>;
@@ -318,7 +318,7 @@ void GetComputerStatus(quill::Logger *logger) {
     }
 }
 
-void SendStatus(std::unique_ptr<TCPConnection> &status_client_ptr, quill::Logger *logger) {
+void SendStatus(std::shared_ptr<TCPConnection> &status_client_ptr, quill::Logger *logger) {
     while (g_status_running.load()) {
         QUILL_LOG_INFO(logger, "Sending status...");
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
@@ -552,7 +552,7 @@ void InitPcieDriver() {
     }
 }
 
-void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_ptr<TCPConnection> &status_client_ptr,
+void DAQHandler(std::shared_ptr<TCPConnection> &command_client_ptr, std::shared_ptr<TCPConnection> &status_client_ptr,
                 asio::io_context &io_ctx, quill::Logger *logger) {
 
     // DAQ process threads
@@ -585,22 +585,22 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 break;
             }
             case to_u16(CommunicationCodes::ORC_Boot_All_DAQ): {
-                StartDaqProcess(tpc_controller_daq, logger, io_ctx);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc);
-                StartTofProcess(g_tof_ptr, tof_thread, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof);
-                StartDaqProcess(tpc_monitor_controller_daq, logger, io_ctx);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor);
+                // StartDaqProcess(tpc_controller_daq, logger, io_ctx);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc);
+                // StartTofProcess(g_tof_ptr, tof_thread, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof);
+                // StartDaqProcess(tpc_monitor_controller_daq, logger, io_ctx);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor);
                 QUILL_LOG_INFO(logger, "Booted All DAQ...");
                 break;
             }
             case to_u16(CommunicationCodes::ORC_Shutdown_All_DAQ): {
-                StopDaqProcess(tpc_controller_daq, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
-                StopTofProcess(g_tof_ptr, tof_thread, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
-                StopDaqProcess(tpc_monitor_controller_daq, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
+                // StopDaqProcess(tpc_controller_daq, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
+                // StopTofProcess(g_tof_ptr, tof_thread, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
+                // StopDaqProcess(tpc_monitor_controller_daq, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
                 QUILL_LOG_INFO(logger, "Shutdown All DAQ...");
                 break;
             }
@@ -632,23 +632,23 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
                 break;
             } case to_u16(CommunicationCodes::ORC_Exec_CPU_Restart): {
                 // Make sure all DAQ are shutdown first
-                StopDaqProcess(tpc_controller_daq, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
-                StopTofProcess(g_tof_ptr, tof_thread, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
-                StopDaqProcess(tpc_monitor_controller_daq, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
+                // StopDaqProcess(tpc_controller_daq, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
+                // StopTofProcess(g_tof_ptr, tof_thread, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
+                // StopDaqProcess(tpc_monitor_controller_daq, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
                 QUILL_LOG_INFO(logger, "Rebooting DAQ Computer!");
                 RebootComputer();
                 break;
             } case to_u16(CommunicationCodes::ORC_Exec_CPU_Shutdown): {
                 // Make sure all DAQ are shutdown first
-                StopDaqProcess(tpc_controller_daq, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
-                StopTofProcess(g_tof_ptr, tof_thread, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
-                StopDaqProcess(tpc_monitor_controller_daq, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
+                // StopDaqProcess(tpc_controller_daq, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
+                // StopTofProcess(g_tof_ptr, tof_thread, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
+                // StopDaqProcess(tpc_monitor_controller_daq, logger);
+                // g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
                 QUILL_LOG_INFO(logger, "Shutting down DAQ Computer!");
                 // ShutdownComputer();
                 break;
@@ -686,10 +686,10 @@ void DAQHandler(std::unique_ptr<TCPConnection> &command_client_ptr, std::unique_
 // --- Main Entry Point ---
 int main() {
     // 1. Setup Signal Handlers Early
-    pgrams::orchestrator::SetupSignalHandlers();
+    pgrams::daqorchestrator::SetupSignalHandlers();
 
     // 2. Initialize Logging
-    pgrams::orchestrator::SetupLogging(); // Configures Quill to log to stdout
+    pgrams::daqorchestrator::SetupLogging(); // Configures Quill to log to stdout
     quill::Logger* logger = quill::Frontend::create_or_get_logger("readout_logger");
 
     QUILL_LOG_INFO(logger, "Connection service starting up...");
@@ -702,14 +702,14 @@ int main() {
     asio::io_context io_context;
     size_t num_io_ctx_threads = NUM_DAQ * 2 + 2; // one thread for each link (2 links/DAQ + Orchestrator)
     std::thread daq_thread;
-    std::unique_ptr<TCPConnection> command_client_ptr;
-    std::unique_ptr<TCPConnection> status_client_ptr;
+    std::shared_ptr<TCPConnection> command_client_ptr;
+    std::shared_ptr<TCPConnection> status_client_ptr;
 
     // Here we start the IO context on a few threads. This just gives the context access to
     // these threads so it can handle asyn operations on multiple sockets at once. This is all
     // handled under the hood by ASIO
     std::vector<std::thread> io_ctx_threads;
-    try {
+    // try {
         for (size_t i = 0; i < num_io_ctx_threads; i++) {
             // Start IO context thread first
             io_ctx_threads.emplace_back( std::thread([&]() {
@@ -721,36 +721,38 @@ int main() {
                 } catch (const std::exception& e) {
                     QUILL_LOG_CRITICAL(logger, "Exception in io_context.run(): {}", e.what());
                     // Signal shutdown if the IO context fails critically
-                    pgrams::orchestrator::g_running.store(false);
-                    pgrams::orchestrator::g_shutdown_cv.notify_one();
+                    pgrams::daqorchestrator::g_running.store(false);
+                    pgrams::daqorchestrator::g_shutdown_cv.notify_one();
                 } catch (...) {
                     QUILL_LOG_CRITICAL(logger, "Unknown exception in io_context.run()");
-                    pgrams::orchestrator::g_running.store(false);
-                    pgrams::orchestrator::g_shutdown_cv.notify_one();
+                    pgrams::daqorchestrator::g_running.store(false);
+                    pgrams::daqorchestrator::g_shutdown_cv.notify_one();
                 }
                 QUILL_LOG_DEBUG(logger, "ASIO io_context thread finished.");
             })
             );
         }
         QUILL_LOG_DEBUG(logger, "Starting control connection \n");
-        command_client_ptr = std::make_unique<TCPConnection>(io_context, kHubIp, kDaemonCommandPort, false, true, false);
-        status_client_ptr = std::make_unique<TCPConnection>(io_context, kHubIp, kDaemonStatusPort, false, false, true);
-        daq_thread = std::thread([&]() { pgrams::orchestrator::DAQHandler(command_client_ptr, status_client_ptr, io_context, logger); });
+        command_client_ptr = std::make_shared<TCPConnection>(io_context, kHubIp, kDaemonCommandPort, false, true, false);
+        status_client_ptr = std::make_shared<TCPConnection>(io_context, kHubIp, kDaemonStatusPort, false, false, true);
+        daq_thread = std::thread([&]() { pgrams::daqorchestrator::DAQHandler(command_client_ptr, status_client_ptr, io_context, logger); });
 
-    } catch (const std::exception& e) {
-        QUILL_LOG_CRITICAL(logger, "Exception during initialization phase: {}", e.what());
-        pgrams::orchestrator::g_running.store(false); // Signal shutdown
-    } catch (...) {
-        QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
-        pgrams::orchestrator::g_running.store(false); // Signal shutdown
-    }
+        command_client_ptr->Start();
+        status_client_ptr->Start();
+    // } catch (const std::exception& e) {
+    //     QUILL_LOG_CRITICAL(logger, "Exception during initialization phase: {}", e.what());
+    //     pgrams::daqorchestrator::g_running.store(false); // Signal shutdown
+    // } catch (...) {
+    //     QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
+    //     pgrams::daqorchestrator::g_running.store(false); // Signal shutdown
+    // }
 
     // 4. Main Wait Loop (only if initialization was okay)
     // Wait until g_running is false (due to signal or error)
-    if (pgrams::orchestrator::g_running.load()) {
+    if (pgrams::daqorchestrator::g_running.load()) {
         QUILL_LOG_INFO(logger, "Service running. Waiting for termination signal...");
-        std::unique_lock<std::mutex> lock(pgrams::orchestrator::g_shutdown_mutex);
-        pgrams::orchestrator::g_shutdown_cv.wait(lock, [] { return !pgrams::orchestrator::g_running.load(); });
+        std::unique_lock<std::mutex> lock(pgrams::daqorchestrator::g_shutdown_mutex);
+        pgrams::daqorchestrator::g_shutdown_cv.wait(lock, [] { return !pgrams::daqorchestrator::g_running.load(); });
         // stop the blocking message receiver so the DAQ thread can terminate
         command_client_ptr->setStopCmdRead(true);
         status_client_ptr->setStopCmdRead(true);
@@ -772,6 +774,7 @@ int main() {
     // Safe to call multiple times.
     QUILL_LOG_INFO(logger, "Stopping ASIO io_contexts.");
     io_context.stop();
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
     // Join threads (wait for them to finish)
     QUILL_LOG_INFO(logger, "Joining DAQ thread...");

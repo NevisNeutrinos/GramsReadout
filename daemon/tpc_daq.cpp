@@ -40,7 +40,7 @@ const uint16_t kControllerCommandPort = 50003; // TPC Readout software port, for
 const uint16_t kControllerStatusPort = 50002; // TPC Readout software port, for status
 
 // --- Global Variables ---
-namespace pgrams::orchestrator { // Use anonymous namespace for internal linkage
+namespace pgrams::tpcdaq { // Use anonymous namespace for internal linkage
 
 std::atomic_bool g_running(true);
 std::atomic_bool g_status_running(false);
@@ -189,10 +189,10 @@ void StartContext(std::vector<std::thread> &ctx_threads, quill::Logger *logger, 
 // --- Main Entry Point ---
 int main() {
     // 1. Setup Signal Handlers Early
-    pgrams::orchestrator::SetupSignalHandlers();
+    pgrams::tpcdaq::SetupSignalHandlers();
 
     // 2. Initialize Logging
-    pgrams::orchestrator::SetupLogging(); // Configures Quill to log to stdout
+    pgrams::tpcdaq::SetupLogging(); // Configures Quill to log to stdout
     quill::Logger* logger = quill::Frontend::create_or_get_logger("readout_logger");
 
     QUILL_LOG_INFO(logger, "TPC DAQ service starting up...");
@@ -211,22 +211,22 @@ int main() {
     std::vector<std::thread> io_ctx_threads;
     try {
         QUILL_LOG_DEBUG(logger, "Starting control connection \n");
-        pgrams::orchestrator::StartContext(io_ctx_threads, logger, io_context, num_io_ctx_threads);
-        daq_thread = std::thread([&]() { pgrams::orchestrator::TpcRunController(tpc_daq, logger, io_context); });
+        pgrams::tpcdaq::StartContext(io_ctx_threads, logger, io_context, num_io_ctx_threads);
+        daq_thread = std::thread([&]() { pgrams::tpcdaq::TpcRunController(tpc_daq, logger, io_context); });
     } catch (const std::exception& e) {
         QUILL_LOG_CRITICAL(logger, "Exception during initialization phase: {}", e.what());
-        pgrams::orchestrator::g_running.store(false); // Signal shutdown
+        pgrams::tpcdaq::g_running.store(false); // Signal shutdown
     } catch (...) {
         QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
-        pgrams::orchestrator::g_running.store(false); // Signal shutdown
+        pgrams::tpcdaq::g_running.store(false); // Signal shutdown
     }
 
     // 4. Main Wait Loop (only if initialization was okay)
     // Wait until g_running is false (due to signal or error)
-    if (pgrams::orchestrator::g_running.load()) {
+    if (pgrams::tpcdaq::g_running.load()) {
         QUILL_LOG_INFO(logger, "TPC DAQ Service running. Waiting for termination signal...");
-        std::unique_lock<std::mutex> lock(pgrams::orchestrator::g_shutdown_mutex);
-        pgrams::orchestrator::g_shutdown_cv.wait(lock, [] { return !pgrams::orchestrator::g_running.load(); });
+        std::unique_lock<std::mutex> lock(pgrams::tpcdaq::g_shutdown_mutex);
+        pgrams::tpcdaq::g_shutdown_cv.wait(lock, [] { return !pgrams::tpcdaq::g_running.load(); });
         // stop the blocking message receiver so the DAQ thread can terminate
         if (tpc_daq) { tpc_daq->SetRunning(false); }
         // When woken up, g_running is false
