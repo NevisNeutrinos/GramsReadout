@@ -25,15 +25,15 @@ int GetUserInput() {
 
     switch (choice) {
         case 0x0: {
-            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Reset_Run);
+            return static_cast<int>(pgrams::communication::CommunicationCodes::TPC_Reset_Run);
         } case 0x1: {
-            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Configure);
+            return static_cast<int>(pgrams::communication::CommunicationCodes::TPC_Configure);
         } case 0x2: {
-            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Start_Run);
+            return static_cast<int>(pgrams::communication::CommunicationCodes::TPC_Start_Run);
         } case 0x3: {
-            return static_cast<int>(pgrams::communication::CommunicationCodes::COL_Stop_Run);
+            return static_cast<int>(pgrams::communication::CommunicationCodes::TPC_Stop_Run);
         } case 39: {
-            return static_cast<int>(pgrams::communication::TelemetryCodes::COL_Query_Hardware_Status);
+            return static_cast<int>(pgrams::communication::TelemetryCodes::TPC_Query_Hardware_Status);
         } case -1: {
             return -1;
         } default: {
