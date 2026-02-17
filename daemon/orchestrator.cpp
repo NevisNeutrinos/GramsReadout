@@ -620,8 +620,8 @@ int main() {
         std::unique_lock<std::mutex> lock(pgrams::orchestrator::g_shutdown_mutex);
         pgrams::orchestrator::g_shutdown_cv.wait(lock, [] { return !pgrams::orchestrator::g_running.load(); });
         // stop the blocking message receiver so the DAQ thread can terminate
-        command_client_ptr->setStopCmdRead(true);
-        status_client_ptr->setStopCmdRead(true);
+        command_client_ptr->setStopCmdRead();
+        status_client_ptr->setStopCmdRead();
         // When woken up, g_running is false
         QUILL_LOG_INFO(logger, "Shutdown signal received or error detected. Initiating shutdown sequence.");
     } else {

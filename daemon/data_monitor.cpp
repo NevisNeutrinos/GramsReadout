@@ -136,7 +136,6 @@ void RunTpcMonitorController(std::unique_ptr<data_monitor::DataMonitor> &daq_ptr
                                                             kMonitorCommandPort, kMonitorStatusPort, false, true);
 
         try {
-            daq_ptr->SetRunning(true);
             daq_ptr->Run();
         } catch (const std::exception& e) {
             QUILL_LOG_CRITICAL(logger, "Exception in DataMonitor::Run(): {}", e.what());

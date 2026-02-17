@@ -408,7 +408,6 @@ void RunTpcMonitorController(DAQProcess<data_monitor::DataMonitor> &daq_process,
                                                             kMonitorCommandPort, kMonitorStatusPort, false, true);
 
         try {
-            daq_process.daq_ptr->SetRunning(true);
             daq_process.daq_ptr->Run();
         } catch (const std::exception& e) {
             QUILL_LOG_CRITICAL(logger, "Exception in DataMonitor::Run(): {}", e.what());
@@ -754,8 +753,8 @@ int main() {
         std::unique_lock<std::mutex> lock(pgrams::daqorchestrator::g_shutdown_mutex);
         pgrams::daqorchestrator::g_shutdown_cv.wait(lock, [] { return !pgrams::daqorchestrator::g_running.load(); });
         // stop the blocking message receiver so the DAQ thread can terminate
-        command_client_ptr->setStopCmdRead(true);
-        status_client_ptr->setStopCmdRead(true);
+        command_client_ptr->setStopCmdRead();
+        status_client_ptr->setStopCmdRead();
         // When woken up, g_running is false
         QUILL_LOG_INFO(logger, "Shutdown signal received or error detected. Initiating shutdown sequence.");
     // } else if (!g_successful_init.load()) {

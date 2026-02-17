@@ -453,8 +453,10 @@ namespace controller {
 
     void Controller::SetRunning(bool run) {
         is_running_ = run;
-        command_client_->setStopCmdRead(!run);
-        status_client_->setStopCmdRead(!run);
+        if (!run) {
+            command_client_->setStopCmdRead();
+            status_client_->setStopCmdRead();
+        }
     }
 
     void Controller::Run() {
