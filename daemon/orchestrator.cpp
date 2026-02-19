@@ -154,7 +154,7 @@ void GetCoreDiskTemp() {
         int disk = 1;
         std::ifstream hwmon("/sys/class/hwmon/hwmon1/temp" + std::to_string(disk) + "_input");
         if (!hwmon.is_open()) {
-            std::cerr << "Could not open hwmon" << std::endl;
+            std::cerr << "Could not open Disk hwmon " << disk << std::endl;
             g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::cpu_temp_status);
             return;
         }
@@ -171,7 +171,7 @@ void GetCoreDiskTemp() {
         try {
             std::ifstream hwmon("/sys/class/hwmon/hwmon2/temp" + std::to_string(i+1) + "_input");
             if (!hwmon.is_open()) {
-                std::cerr << "Could not open hwmon" << std::endl;
+                std::cerr << "Could not open CPU hwmon " << i+1 << std::endl;
                 g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::disk_temp_status);
                 continue;
             }
@@ -257,8 +257,15 @@ void GetComputerStatus(quill::Logger *logger) {
     // Define the scaling factor for load averages if not readily available
     // Usually it's (1 << SI_LOAD_SHIFT), and SI_LOAD_SHIFT is typically 16
     // constexpr double LOAD_SCALE = 65536.0; // 2^16
-    auto data_basedir = std::string(std::getenv("DATA_BASE_DIR"));
+    // auto data_basedir = std::string(std::getenv("DATA_BASE_DIR"));
+    char *data_basedir_ptr = std::getenv("DATA_BASE_DIR");
+    if (data_basedir_ptr == nullptr) {
+        std::cerr << "Could not find env variable DATA_BASE_DIR " << std::endl;
+        g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::disk_free_status);
+        return;
+    }
     constexpr unsigned long long GB_divisor = 1024 * 1024 * 1024;
+    auto data_basedir = std::string(data_basedir_ptr);
 
     try {
         struct statfs data_disk_info{};
@@ -373,13 +380,16 @@ void RebootComputer() {
 
 void InitPcieDriver() {
     // Returns null if not found
-    auto readout_basedir = std::string(std::getenv("TPC_DAQ_BASEDIR"));
-    if (readout_basedir.data() == nullptr) {
+    // auto readout_basedir = std::string(std::getenv("TPC_DAQ_BASEDIR"));
+    char *readout_basedir_ptr = std::getenv("TPC_DAQ_BASEDIR");
+    if (readout_basedir_ptr == nullptr) {
         std::cerr << "Could not find env variable TPC_DAQ_BASEDIR " << std::endl;
         g_daq_monitor.setErrorBitWord(DaqCompMonitor::ErrorBits::init_pcie);
         return;
     }
 
+    // After we checked for a valid string..
+    auto readout_basedir = std::string(readout_basedir_ptr);
     int ret = std::system((readout_basedir + "/scripts/setup_windriver.sh").c_str());
     if (ret != 0) {
         std::cerr << "PCIe Init failed with code: " << ret << "\n";
