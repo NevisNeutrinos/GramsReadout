@@ -25,11 +25,13 @@ public:
 
     void PinThread(std::thread& t, size_t core_id);
     uint32_t Configure(json &config);
+
     void CollectData(pcie_int::PCIeInterface *pcie_interface);
     std::vector<uint32_t> GetStatus();
     bool Reset(size_t run_number);
     void SetRun(bool set_running) { is_running_.store(set_running); }
     std::map<std::string, size_t> GetMetrics();
+    uint32_t getRunErrorCode() { return run_error_bit_.load(); }
 
 private:
     trig_ctrl::TriggerControl trigger_{};
@@ -123,6 +125,7 @@ private:
     std::atomic<uint32_t> num_rw_buffer_overflow_ = 0;
     std::atomic<size_t> event_start_markers_ = 0;
     std::atomic<size_t> event_end_markers_ = 0;
+    std::atomic<uint32_t> run_error_bit_ = 0;
 
 
     std::atomic_bool read_write_buff_overflow_;

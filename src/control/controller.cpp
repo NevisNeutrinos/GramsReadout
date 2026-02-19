@@ -105,6 +105,13 @@ namespace controller {
         std::cout << "Data base directory: " << data_basedir_ << std::endl;
     }
 
+    void Controller::InitPcieDriver() {
+        int ret = std::system((readout_basedir_ + "/scripts/setup_windriver.sh").c_str());
+        if (ret != 0) {
+            std::cerr << "PCIe Init failed with code: " << ret << "\n";
+        }
+    }
+
     bool Controller::PersistRunId() {
         bool read_write_success = false;
         std::string run_id_file = data_basedir_ + "/run_id.txt";
@@ -394,6 +401,7 @@ namespace controller {
 
         while (run_status_) {
             std::this_thread::sleep_for(std::chrono::seconds(2));
+            tpc_readout_monitor_.setErrorBitWord(data_handler_->getRunErrorCode()); // set the error from the data handler
             status_->SetDataHandlerStatus(data_handler_.get());
             // tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
             status_->ReadStatus(tpc_readout_monitor_, board_slots_, pcie_interface_.get(), false);
@@ -492,6 +500,8 @@ namespace controller {
 
         if (command.command == to_u16(CommunicationCodes::TPC_Configure) && current_state_ == State::kIdle) {
             LOG_INFO(logger_, " \n State [Idle] \n");
+            InitPcieDriver();
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // short sleep to let the script finish
             bool status = is_configured_ ? true : Configure(command.arguments);
             if (status) current_state_ = State::kConfigured;
             tpc_readout_monitor_.setReadoutState(static_cast<uint32_t>(current_state_));
@@ -511,6 +521,7 @@ namespace controller {
         } if (command.command == to_u16(CommunicationCodes::TPC_Reset_Run) && current_state_ == State::kStopped) {
             LOG_INFO(logger_, " \n State [Stopped] \n");
             Reset();
+            // cannot reset the PCIe license here since the driver is in use
             // is_configured_ = false;
             // current_state_ = State::kIdle;
             current_state_ = State::kConfigured;

@@ -348,7 +348,20 @@ namespace data_handler {
 
          /*TPC DMA*/
         LOG_DEBUG(logger_, "Buffer 1 & 2 allocation size: {} \n", DMABUFFSIZE);
-        SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2, true);
+        if (!SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2, true)) {
+            // Shut it all down if DMA buffers are not aquired otherwise it will try to access
+            LOG_ERROR(logger_, "Failed to initialize DMA buffers");
+            is_running_.store(false);
+            stop_write_.store(true);
+            try {
+                pcie_interface->FreeDmaContigBuffers();
+            } catch (std::exception &e) {
+                LOG_INFO(logger_, "Caught exception freeing DMA buffers: {}", e.what());
+                LOG_INFO(logger_, "Could not free DMA buffers during abort start. Likely they weren't acquired");
+            }
+            run_error_bit_.store(TpcReadoutMonitor::ErrorBits::acquire_pcie_dma_buff);
+            return;
+        }
         usleep(500000);
 
         std::thread trigger_thread;
@@ -798,6 +811,7 @@ namespace data_handler {
         event_count_.store(0);
         num_dma_loops_ = 0;
         num_recv_bytes_ = 0;
+        run_error_bit_.store(0); // reset the error word
 
         // Reset the stop write flag so we can restart
         stop_write_.store(false);

@@ -95,6 +95,7 @@ namespace controller {
         void StatusControl();
         void ReadStatus();
 
+        void InitPcieDriver();
         void ReceiveCommand();
         void SendCallback(uint16_t command, bool success);
         json LoadConfig(const std::string &config_file);
