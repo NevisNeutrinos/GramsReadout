@@ -278,7 +278,7 @@ void GetComputerStatus(quill::Logger *logger) {
         return;
     }
     constexpr unsigned long long GB_divisor = 1024 * 1024 * 1024;
-    auto data_basedir = std::string(data_basedir_ptr)
+    auto data_basedir = std::string(data_basedir_ptr);
 
     try {
         struct statfs data_disk_info{};
