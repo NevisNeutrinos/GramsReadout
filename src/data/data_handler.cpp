@@ -12,6 +12,7 @@
 #include <chrono>
 #include <pthread.h>
 #include <sched.h>
+#include <cstdlib>
 
 #include "quill/LogMacros.h"
 
@@ -189,6 +190,14 @@ namespace data_handler {
         // separate threads with separate DMAs
         //auto trigger_thread = std::thread(&DataHandler::TriggerDMARead, this, pcie_interface);
         LOG_INFO(logger_, "Started read and write threads... \n");
+
+        // Wait 1s and send the start of run marker "Pulse Train"
+        std::this_thread::sleep_for(std::chrono::seconds(4));
+        int ret = std::system("ad3_ctrl 3");
+        if (ret != 0) {
+            LOG_ERROR(logger_, "Pulse train send error, return value: {} \n", ret);
+        }
+        LOG_INFO(logger_, "Sent pulse train... \n");
 
         // Shut down PPS polling thread
         trig_pps.join();
@@ -775,6 +784,7 @@ namespace data_handler {
             uint32_t pps_div = ( ( read_array.at(1) & 0x70000) >> 16 );
             // Add samples to buffer
             if (pps_frame > 0) {
+                //LOG_INFO(logger_, "Sample period {} Read Counter {}", pps_sample_period_, read_counter);
                 pps_sample_buffer[read_counter].timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                                                          std::chrono::system_clock::now().time_since_epoch()).count();
                 pps_sample_buffer[read_counter].pps_frame = pps_frame;

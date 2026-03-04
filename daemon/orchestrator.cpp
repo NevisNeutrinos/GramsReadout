@@ -541,6 +541,29 @@ void DAQHandler(std::shared_ptr<TCPConnection> &command_client_ptr, std::shared_
                 ControlService(kDataMonitor, kStopUnit, logger);
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
                 break;
+            } case to_u16(CommunicationCodes::ORC_Start_PPS): { // Init AD3 and start PPS
+                int ret = std::system("ad3_ctrl 1");
+                std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                ret = std::system("ad3_ctrl 2");
+                if (ret != 0) {
+                    QUILL_LOG_ERROR(logger_, "Init or start error, return value: {} \n", ret);
+                }
+                QUILL_LOG_INFO(logger_, "Initialized AD3 and started PPS... \n");
+                break;
+            } case to_u16(CommunicationCodes::ORC_Send_Pulse_Train): { // Send pulse train
+                int ret = std::system("ad3_ctrl 3");
+                if (ret != 0) {
+                    QUILL_LOG_ERROR(logger_, "Send pulse train error, return value: {} \n", ret);
+                }
+                QUILL_LOG_INFO(logger_, "Sent pulse train... \n");
+                break;
+            } case :to_u16(CommunicationCodes::ORC_Stop_PPS) { // Stop PPS and pulse train
+                int ret = std::system("ad3_ctrl 4");
+                if (ret != 0) {
+                    QUILL_LOG_ERROR(logger_, "Stopping PPS and pusle train error, return value: {} \n", ret);
+                }
+                QUILL_LOG_INFO(logger_, "Stopped PPS and pulse train... \n");
+                break;
             }
             default: {
                 QUILL_LOG_WARNING(logger, "Unknown command {}", cmd.command);
@@ -622,6 +645,17 @@ int main() {
         QUILL_LOG_CRITICAL(logger, "Unknown exception during initialization phase.");
         pgrams::orchestrator::g_running.store(false); // Signal shutdown
     }
+
+
+    // FIXME need to test this, maybe too early to start AD3
+    // Also initialize the AD3 and start the PPS (1=Init AD3 and 2=Start PPS)
+    int ret = std::system("ad3_ctrl 1");
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    ret = std::system("ad3_ctrl 2");
+    if (ret != 0) {
+        QUILL_LOG_ERROR(logger_, "Init or start error, return value: {} \n", ret);
+    }
+    QUILL_LOG_INFO(logger_, "Started PPS... \n");
 
     // 4. Main Wait Loop (only if initialization was okay)
     // Wait until g_running is false (due to signal or error)
