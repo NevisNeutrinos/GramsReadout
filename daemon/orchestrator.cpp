@@ -42,7 +42,7 @@
 // Best practice: Load these from a config file or environment variables
 // For simplicity, using constants here. Consider systemd Environment= directive.
 
-const char* kHubIp = "127.0.0.1";  // Hub Computer IP
+const char* kHubIp = "192.168.100.100";  // Hub Computer IP
 
 const uint16_t kDaemonCommandPort = 50001; // Daemon software port, for commands
 const uint16_t kDaemonStatusPort = 50000; // Daemon software port, for status
@@ -474,8 +474,8 @@ void DAQHandler(std::shared_ptr<TCPConnection> &command_client_ptr, std::shared_
             case to_u16(CommunicationCodes::ORC_Shutdown_All_DAQ): {
                 ControlService(kTpcDaq, kStopUnit, logger);
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc, true);
-                ControlService(kDataMonitor, kStopUnit, logger);
-                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
+                ControlService(kTofDaq, kStopUnit, logger);
+                g_daq_monitor.setDaqBitWord(DaqCompMonitor::tof, true);
                 ControlService(kDataMonitor, kStopUnit, logger);
                 g_daq_monitor.setDaqBitWord(DaqCompMonitor::tpc_monitor, true);
                 QUILL_LOG_INFO(logger, "Shutdown All DAQ...");
