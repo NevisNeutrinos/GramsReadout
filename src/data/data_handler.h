@@ -83,13 +83,10 @@ private:
     // Full setup 1 charge FEM 100k and 3 charge FEM 231k
     // Set this for ~3 event sizes or 900kB DMA buffer equivalent. The config will allocate the DMA buffer
     // and set how much of the ring buffer to use
-    constexpr static size_t EVENTSIZE = 231000; // in bytes
-    constexpr static size_t DMABUFFSIZE = static_cast<size_t>(1.3 * EVENTSIZE);
-    constexpr static size_t DATABUFFSIZE = (DMABUFFSIZE / sizeof(uint32_t));
-    constexpr static size_t EVENTBUFFSIZE = 2 * DATABUFFSIZE * EVENTCHUNK; // make it twice the expected charge event size to account for light ROIs
-    size_t dma_buffer_config_size_; // must be <= DMABUFFSIZE and is configurable
-
-    static_assert((DMABUFFSIZE % sizeof(uint32_t)) == 0, "DataHandler DMABUFFSIZE must be a multiple of 4!");
+    size_t DMABUFFSIZE;
+    constexpr static size_t EVENTSIZE = 600300; // max expected event size in bytes
+    constexpr static size_t DATABUFFSIZE = (EVENTSIZE / sizeof(uint32_t));
+    constexpr static size_t EVENTBUFFSIZE = DATABUFFSIZE * EVENTCHUNK; // make it twice the expected charge event size to account for light ROIs
 
     static constexpr uint32_t kDev1 = pcie_int::PCIeInterface::kDev1;
     static constexpr uint32_t kDev2 = pcie_int::PCIeInterface::kDev2;

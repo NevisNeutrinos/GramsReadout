@@ -116,6 +116,7 @@ namespace data_handler {
 
     uint32_t DataHandler::Configure(json &config) {
         try {
+            DMABUFFSIZE = config["data_handler"]["dma_buffer_size_kb"].get<size_t>();
             trigger_module_ = config["crate"]["trig_slot"].get<int>();
             software_trigger_rate_ = config["trigger"]["software_trigger_rate_hz"].get<int>();
             num_events_ = config["data_handler"]["num_events"].get<size_t>();
@@ -137,6 +138,14 @@ namespace data_handler {
             LOG_ERROR(logger_, "Exception while getting DataHandler config, with error {} \n", e.what());
             return TpcReadoutMonitor::ErrorBits::datahandler_get_config;
         }
+
+        // Make sure the DMA buffer does not get set too large either by user or data corruption
+        if (DMABUFFSIZE > 600) {
+            LOG_WARNING(logger_, "Requested DMA buffer size ({}) too large, setting to 600kB", DMABUFFSIZE);
+            DMABUFFSIZE = 600;
+        }
+        DMABUFFSIZE *= 1000; // convert to bytes
+
         return 0x0;
     }
 
@@ -261,7 +270,9 @@ namespace data_handler {
 
         uint32_t word;
         std::array<uint32_t, DATABUFFSIZE> word_arr{};
-        std::array<uint32_t, EVENTBUFFSIZE> word_arr_write{}; // event buffer, ~0.231MB/event
+        // auto word_arr = std::make_unique<std::array<uint32_t, DATABUFFSIZE>>();
+        // Construct event buffer on the heap so we don't stack overflow (Linux process default stack limit is ~8MB)
+        auto  word_arr_write = std::make_unique<std::array<uint32_t, EVENTBUFFSIZE>>();
         bool event_start = false;
         size_t num_words = 0;
         size_t event_words = 0;
@@ -274,11 +285,16 @@ namespace data_handler {
         event_start_markers_.store(0);
         event_end_markers_.store(0);
 
+        // Dereferencing the pointer in the loop is slow so dereference once before 
+        // the loop and use the copy of the raw pointer
+        uint32_t *event_buffer_ptr = word_arr_write->data();
+        size_t event_buffer_size = word_arr_write->size();
+
         while (!stop_write_.load()) {
             while (data_queue_.read(word_arr)) {
-                for (size_t i = 0; i < DATABUFFSIZE; i++) {
+                for (size_t i = 0; i < (DMABUFFSIZE / 4); i++) {
                     word = word_arr[i];
-                    if (num_words > word_arr_write.size()) {
+                    if (num_words >= event_buffer_size) {
                         LOG_WARNING(logger_, "Unexpectedly large event, dropping it! num_words=[{}] > event buffer size=[{}] \n",
                                     num_words, EVENTBUFFSIZE);
                         num_words = 0;
@@ -297,12 +313,12 @@ namespace data_handler {
                         event_count_.store(local_event_count);
                         event_words = num_words + 1; // add one for event end word
                     }
-                    word_arr_write[num_words] = word;
+                    event_buffer_ptr[num_words] = word;
                     num_words++;
                     // num_recv_bytes += 4;
                     if (event_chunk == EVENTCHUNK) {
                         if ((local_event_count % 50) == 0) LOG_INFO(logger_, " **** Event: {} \n", local_event_count);
-                        const int write_bytes = write(fd_, word_arr_write.data(), num_words*sizeof(uint32_t));
+                        const int write_bytes = write(fd_, event_buffer_ptr, num_words*sizeof(uint32_t));
                         if (write_bytes == -1) LOG_WARNING(logger_, "Failed write {} \n", std::string(strerror(errno)));
                         else num_recv_bytes += static_cast<size_t>(write_bytes);
 
@@ -318,7 +334,7 @@ namespace data_handler {
         } // run loop
 
         // Write any remaining full events in the buffer to file before closing
-        const int write_bytes = write(fd_, word_arr_write.data(), event_words*sizeof(uint32_t));
+        const int write_bytes = write(fd_, event_buffer_ptr, event_words*sizeof(uint32_t));
         if (write_bytes == -1) LOG_WARNING(logger_, "Failed write {} \n", std::string(strerror(errno)));
         else num_recv_bytes += static_cast<size_t>(write_bytes);
 
@@ -356,7 +372,7 @@ namespace data_handler {
         dma_loop_count_.store(0);
 
          /*TPC DMA*/
-        LOG_DEBUG(logger_, "Buffer 1 & 2 allocation size: {} \n", DMABUFFSIZE);
+        LOG_INFO(logger_, "Buffer 1 & 2 allocation size: {} \n", DMABUFFSIZE);
         if (!SetRecvBuffer(pcie_interface, &pbuf_rec1, &pbuf_rec2, true)) {
             // Shut it all down if DMA buffers are not aquired otherwise it will try to access
             LOG_ERROR(logger_, "Failed to initialize DMA buffers");
